@@ -19,7 +19,7 @@ class Activity1Test
                 T1 => T1.FacId,
                 T2 => T2.Advisor,
                 (T1, T2) => new { T1, T2 })
-            .Where(x => x.T2.Fname == "Linda" && x.T2.Lname == "Smith")
+            .Where(x => x.T1.Fname == "Linda" && x.T2.Lname == "Smith")
             .Select(x => new { x.T1.Fname, x.T2.Lname })
             .ToList();
 
