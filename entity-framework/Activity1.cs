@@ -7,35 +7,29 @@ class Activity1Test
     {
         using var context = new Activity1Context();
 
-        String sqlQuery = "SELECT TOP 50 PERCENT fname, lname FROM Faculty WHERE Rank =  \"Instructor\"";
+        String sqlQuery = "SELECT T1.fname ,  T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor WHERE T2.fname  =  \"Linda\" AND T2.lname  =  \"Smith\"";
 
         var resultSql = context.Faculties
-                              .FromSqlRaw(sqlQuery)
-                              .Select(f => new
-                              {
-                                  Fname = f.Fname,
-                                  Lname = f.Lname
-                              })
-                              .ToArray();
-
-        for (int i = 0; i < resultSql.Length; i++)
-        {
-            System.Console.WriteLine(resultSql[i]);
-        }
+            .FromSqlRaw(sqlQuery)
+            .Select(x => new { x.Fname, x.Lname })
+            .ToList();
 
         var resultLinq = context.Faculties
-                               .Where(f => f.Rank == "Instructor")
-                               .Select(f => new
-                               {
-                                   Fname = f.Fname,
-                                   Lname = f.Lname
-                               })
-                               .ToArray();
-
-
-        // // Check if results are the same
+            .Join(context.Students,
+                T1 => T1.FacId,
+                T2 => T2.Advisor,
+                (T1, T2) => new { T1, T2 })
+            .Where(x => x.T2.Fname == "Linda" && x.T2.Lname == "Smith")
+            .Select(x => new { x.T1.Fname, x.T2.Lname })
+            .ToList();
 
         Boolean equal = resultSql.SequenceEqual(resultLinq);
+
+        for (int i = 0; i < resultSql.Count; i++)
+        {
+            System.Console.WriteLine($"Sql: {resultSql[i]}");
+            System.Console.WriteLine($"Linq: {resultLinq[i]}");
+        }
 
         if (equal)
         {
