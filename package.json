@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "sql-parser-cst": "^0.27.1"
+  }
+}

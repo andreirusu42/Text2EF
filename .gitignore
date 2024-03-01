@@ -1,0 +1,11 @@
+dataset/
+databases/
+
+node_modules/
+.venv/
+__pycache__/
+
+
+entity-framework/bin/
+entity-framework/Models/
+entity-framework/obj/
