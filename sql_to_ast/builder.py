@@ -12,7 +12,65 @@ from table import Table
 
 
 def _get_conditions(token: Token):
-    print("hi")
+    cleaned: List[Identifier] = list(
+        filter(lambda token: not token.is_whitespace, token.tokens)
+    )[1:]
+
+    conditions = []
+
+    for token in cleaned:
+        # TODO: handle or :))) lol
+        if token.ttype == sqlparse.tokens.Keyword and token.value == 'AND':
+            conditions.append("AND")
+            continue
+
+        if token.ttype == sqlparse.tokens.Keyword and token.value == 'OR':
+            conditions.append("OR")
+            continue
+
+        # check if token is a comparison
+
+        print(token.ttype, token.value)
+
+        if token.ttype == sqlparse.tokens.Comparison:
+            print((token, 1))
+
+            for a in token.tokens:
+                print((a, 2))
+
+        # if isinstance(token, Comparison):
+        #     cleaned: List[Identifier] = list(
+        #         filter(lambda token: not token.is_whitespace, token.tokens))
+
+        #     if len(cleaned) != 3:
+        #         raise ValueError(
+        #             f"Expected 3 tokens, got: {len(cleaned)}")
+
+        #     [left, operator, right] = cleaned
+        #     # print((left, operator, right))
+        #     # print(left.ttype, operator.ttype, right.ttype)
+        #     # print(type(left), type(operator), type(right))
+
+        #     if not isinstance(left, Identifier) \
+        #         or not (isinstance(operator, Token) and operator.ttype == sqlparse.tokens.Comparison) \
+        #             or not (isinstance(right, Identifier) or right.ttype == sqlparse.tokens.String.Single):
+        #         raise ValueError(
+        #             f"Expected identifier comparison identifier, got: {left}, {operator}, {right}")
+
+        #     condition = Condition(
+        #         field=Field(
+        #             name=left.get_real_name(),
+        #             alias=left.get_alias(),
+        #             parent=left.get_parent_name()
+        #         ),
+        #         operator=ConditionOperator.from_string(
+        #             operator.value),
+        #         value=right.value
+        #     )
+
+        #     conditions.append(condition)
+
+    return conditions
 
 
 # This only works for select statements :)
