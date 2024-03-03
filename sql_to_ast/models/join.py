@@ -1,7 +1,7 @@
 from enum import Enum
 
-from field import Field
-from table import Table
+from models.field import Field
+from models.table import Table
 
 
 class JoinConditionOperator(Enum):
