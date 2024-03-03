@@ -35,6 +35,7 @@ class ConditionOperator(Enum):
     GT = ">"
     LTE = "<="
     GTE = ">="
+    LIKE = "LIKE"
 
     @staticmethod
     def from_string(s: str):
@@ -57,6 +58,7 @@ class Condition:
 class ConditionLogicalOperator(Enum):
     AND = "AND"
     OR = "OR"
+    NOT = "NOT"
 
     @staticmethod
     def from_string(s: str):

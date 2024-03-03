@@ -17,7 +17,7 @@ class TestBuilder(unittest.TestCase):
 
         return get_conditions(token)
 
-    def test_get_conditions(self):
+    def test_get_conditions_simple(self):
         sql = "WHERE 1 = 1"
         conditions = self.get_conditions(sql)
         self.assertIsInstance(conditions, condition.Condition)
@@ -122,7 +122,100 @@ class TestBuilder(unittest.TestCase):
         self.assertIsInstance(conditions.right.right, condition.StringOperand)
         self.assertEqual(conditions.right.right.value, "Smith")
 
-        # TODO: subqueries
+    def test_get_conditions_operators_order(self):
+        sql = "WHERE a = 'a' AND b = 'b' OR c = 'c'"
+        conditions = self.get_conditions(sql)
+        self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
+        self.assertIsInstance(
+            conditions.left, condition.ConditionLogicalExpression)
+        self.assertIsInstance(
+            conditions.right, condition.Condition)
+        self.assertEqual(conditions.operator,
+                         condition.ConditionLogicalOperator.OR)
+
+        self.assertIsInstance(conditions.left.left, condition.Condition)
+        self.assertIsInstance(conditions.left.right, condition.Condition)
+        self.assertEqual(conditions.left.operator,
+                         condition.ConditionLogicalOperator.AND)
+
+        self.assertIsInstance(conditions.left.left.left, condition.Field)
+        self.assertEqual(conditions.left.left.left.name, "a")
+        self.assertEqual(conditions.left.left.left.alias, None)
+        self.assertEqual(conditions.left.left.left.parent, None)
+        self.assertEqual(conditions.left.left.operator,
+                         condition.ConditionOperator.EQUAL)
+        self.assertIsInstance(conditions.left.left.right,
+                              condition.StringOperand)
+        self.assertEqual(conditions.left.left.right.value, "a")
+
+        self.assertIsInstance(conditions.left.right.left, condition.Field)
+        self.assertEqual(conditions.left.right.left.name, "b")
+        self.assertEqual(conditions.left.right.left.alias, None)
+        self.assertEqual(conditions.left.right.left.parent, None)
+        self.assertEqual(conditions.left.right.operator,
+                         condition.ConditionOperator.EQUAL)
+        self.assertIsInstance(conditions.left.right.right,
+                              condition.StringOperand)
+        self.assertEqual(conditions.left.right.right.value, "b")
+
+        self.assertIsInstance(conditions.right.left, condition.Field)
+        self.assertEqual(conditions.right.left.name, "c")
+        self.assertEqual(conditions.right.left.alias, None)
+        self.assertEqual(conditions.right.left.parent, None)
+        self.assertEqual(conditions.right.operator,
+                         condition.ConditionOperator.EQUAL)
+        self.assertIsInstance(conditions.right.right, condition.StringOperand)
+        self.assertEqual(conditions.right.right.value, "c")
+
+        sql = "WHERE a = 'a' AND (b = 'b' OR c = 'c')"
+        conditions = self.get_conditions(sql)
+        self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
+        self.assertIsInstance(conditions.left, condition.Condition)
+        self.assertIsInstance(
+            conditions.right, condition.ConditionLogicalExpression)
+        self.assertEqual(conditions.operator,
+                         condition.ConditionLogicalOperator.AND)
+
+    def test_get_conditions_nested_expressions(self):
+        sql = "WHERE (a = 'a' AND b = 'b') OR (c = 'c' AND (d = 'd' OR e = 'e'))"
+        conditions = self.get_conditions(sql)
+        self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
+        self.assertIsInstance(
+            conditions.left, condition.ConditionLogicalExpression)
+        self.assertIsInstance(
+            conditions.right, condition.ConditionLogicalExpression)
+        self.assertEqual(conditions.operator,
+                         condition.ConditionLogicalOperator.OR)
+
+        self.assertIsInstance(conditions.left.left, condition.Condition)
+        self.assertIsInstance(conditions.left.right, condition.Condition)
+        self.assertEqual(conditions.left.operator,
+                         condition.ConditionLogicalOperator.AND)
+
+        self.assertIsInstance(conditions.right.left, condition.Condition)
+        self.assertIsInstance(conditions.right.right,
+                              condition.ConditionLogicalExpression)
+        self.assertEqual(conditions.right.operator,
+                         condition.ConditionLogicalOperator.AND)
+
+        self.assertIsInstance(conditions.right.right.left, condition.Condition)
+        self.assertIsInstance(
+            conditions.right.right.right, condition.Condition)
+
+        sql = "WHERE T2.fname = 'Linda' AND (T2.lname  = 'Smith' OR T2.lname = 'Jones')"
+        conditions = self.get_conditions(sql)
+
+        self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
+        self.assertEqual(conditions.operator,
+                         condition.ConditionLogicalOperator.AND)
+
+        self.assertEqual(conditions.right.operator,
+                         condition.ConditionLogicalOperator.OR)
+
+    # TODO: next Christmas
+    def test_get_condition_subqueries(self):
+        sql = "WHERE a = (SELECT b FROM c)"
+        conditions = self.get_conditions(sql)
 
 
 if __name__ == '__main__':
