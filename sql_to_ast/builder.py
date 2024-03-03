@@ -4,16 +4,13 @@ from typing import List
 
 
 from select_statement import SelectStatementBuilder, SqlSelectStatement
+from sql_to_ast.helpers import remove_whitespaces
 
 
 # This only works for select statements :)
 class Sql2AstBuilder:
-    __token_index: int
     __sql: str
     __statement: sqlparse.sql.Statement
-    __tokens: List[sqlparse.sql.TokenList | sqlparse.sql.Token |
-                   sqlparse.sql.IdentifierList | sqlparse.sql.Identifier]
-    __tree: SqlSelectStatement
 
     def __init__(self, sql: str):
         statements = sqlparse.parse(sql)
@@ -22,13 +19,7 @@ class Sql2AstBuilder:
             raise ValueError('SQL should contain only one statement')
 
         self.__sql = sql
-        self.__token_index = 0
-        self._tree = None
         self.__statement = statements[0]
-        self.__tokens = self.__statement.tokens
-
-    # def _get_token(self):
-    #     return self.__tokens[self.__token_index]
 
     # def _get_next_token(self, skip_current=True):
     #     if skip_current:
@@ -46,17 +37,19 @@ class Sql2AstBuilder:
 
     #     print((cleaned, 1))
 
-    # def build(self):
-    #     select_statement_builder = SelectStatementBuilder()
+    def build(self):
+        select_statement_builder = SelectStatementBuilder()
 
-    #     token = self._get_next_token(skip_current=False)
+        tokens = remove_whitespaces(self.__statement.tokens)
+
+        token = tokens[0]
 
     #     # Find the SELECT
-    #     if token.ttype == sqlparse.tokens.DML:
-    #         right = token.value.upper()
+        if token.ttype == sqlparse.tokens.DML:
+            right = token.value.upper()
 
-    #         if right != 'SELECT':
-    #             raise ValueError(f'Unsupported DML: {right}')
+            if right != 'SELECT':
+                raise ValueError(f'Unsupported DML: {right}')
 
     #     token = self._get_next_token()
 

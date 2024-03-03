@@ -1,14 +1,11 @@
 
 from typing import List
 
-from field import Field
-from join import Join
-from table import Table
-from condition import Condition
+from models import field, table, join, condition
 
 
 class SqlSelectStatement:
-    def __init__(self, fields: List[Field], table: Table, joins: List[Join], conditions: List[Condition], is_wildcard: bool):
+    def __init__(self, fields: List[field.Field], table: table.Table, joins: List[join.Join], conditions: condition.Conditions, is_wildcard: bool):
         self.fields = fields
         self.table = table
         self.joins = joins
@@ -29,10 +26,10 @@ class SelectStatementBuilder:
         self.fields = []
         self.joins = []
         self.is_wildcard = False
-        self.conditions = []
+        self.conditions = None
         self.table = None
 
-    def add_field(self, field: Field):
+    def add_field(self, field: field.Field):
         self.fields.append(field)
         return self
 
@@ -40,15 +37,15 @@ class SelectStatementBuilder:
         self.is_wildcard = True
         return self
 
-    def add_condition(self, condition: Condition):
-        self.conditions.append(condition)
+    def add_conditions(self, conditions: condition.Conditions):
+        self.conditions = conditions
         return self
 
-    def set_table(self, table: Table):
+    def set_table(self, table: table.Table):
         self.table = table
         return self
 
-    def add_join(self, join: Join):
+    def add_join(self, join: join.Join):
         self.joins.append(join)
         return self
 

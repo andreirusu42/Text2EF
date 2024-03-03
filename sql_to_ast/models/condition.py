@@ -45,7 +45,7 @@ class ConditionOperator(Enum):
         raise ValueError("Invalid operator string")
 
 
-class Condition:
+class SingleCondition:
     def __init__(self, left: ConditionOperand, operator: ConditionOperator, right: ConditionOperand):
         self.left = left
         self.operator = operator
@@ -69,10 +69,13 @@ class ConditionLogicalOperator(Enum):
 
 
 class ConditionLogicalExpression:
-    def __init__(self, left: Condition, operator: ConditionLogicalOperator, right: Condition):
+    def __init__(self, left: SingleCondition, operator: ConditionLogicalOperator, right: SingleCondition):
         self.left = left
         self.operator = operator
         self.right = right
 
     def __repr__(self):
         return f'ConditionLogicalExpression(left={self.left}, operator={self.operator}, right={self.right})'
+
+
+Conditions = SingleCondition | ConditionLogicalExpression

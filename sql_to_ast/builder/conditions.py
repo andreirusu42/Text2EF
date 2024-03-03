@@ -2,7 +2,7 @@ import sqlparse
 
 from typing import List
 
-from helpers import clean_tokens
+from helpers import remove_whitespaces
 from models import field, condition
 
 
@@ -44,11 +44,11 @@ def __construct_operand(token: sqlparse.sql.Token) -> condition.ConditionOperand
         raise ValueError(f"Unsupported token: {token}")
 
 
-def __build_condition(token: sqlparse.sql.Token) -> condition.Condition:
+def __build_condition(token: sqlparse.sql.Token) -> condition.SingleCondition:
     if not isinstance(token, sqlparse.sql.Comparison):
         raise ValueError(f"Expected comparison, got {token}")
 
-    cleaned: List[sqlparse.sql.Token] = clean_tokens(token.tokens)
+    cleaned: List[sqlparse.sql.Token] = remove_whitespaces(token.tokens)
 
     if len(cleaned) != 3:
         raise ValueError(
@@ -57,15 +57,15 @@ def __build_condition(token: sqlparse.sql.Token) -> condition.Condition:
     [left, operator, right] = cleaned
 
     # TODOO: Check for subqueries
-    return condition.Condition(
+    return condition.SingleCondition(
         left=__construct_operand(left),
         operator=condition.ConditionOperator.from_string(operator.value),
         right=__construct_operand(right)
     )
 
 
-def __build_where_ast(tokens: List[sqlparse.sql.Token]) -> condition.ConditionLogicalExpression | condition.Condition:
-    tokens = clean_tokens(tokens)
+def __build_where_ast(tokens: List[sqlparse.sql.Token]) -> condition.Conditions:
+    tokens = remove_whitespaces(tokens)
 
     if len(tokens) == 1:
         [token] = tokens
@@ -73,7 +73,7 @@ def __build_where_ast(tokens: List[sqlparse.sql.Token]) -> condition.ConditionLo
 
     operator_stack: List[str] = []
     operand_stack: List[condition.ConditionLogicalExpression |
-                        condition.Condition] = []
+                        condition.SingleCondition] = []
 
     for token in tokens:
         if token.ttype == sqlparse.tokens.Keyword and token.value.upper() in __condition_logical_operators:
@@ -92,7 +92,7 @@ def __build_where_ast(tokens: List[sqlparse.sql.Token]) -> condition.ConditionLo
             operator_stack.append(token.value.upper())
         elif isinstance(token, sqlparse.sql.Parenthesis):
             sub_conditions = __build_where_ast(
-                clean_tokens(token.tokens)[1:-1])
+                remove_whitespaces(token.tokens)[1:-1])
 
             operand_stack.append(sub_conditions)
         else:
