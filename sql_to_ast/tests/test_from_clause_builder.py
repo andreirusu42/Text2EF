@@ -3,9 +3,8 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.from_clause_builder import get_from_clause
-
-from models import join
+from sql_to_ast.builder.from_clause_builder import get_from_clause
+from sql_to_ast.models import join
 
 
 class TestFromClauseBuilder(unittest.TestCase):

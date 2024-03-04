@@ -3,9 +3,8 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.where_clause_builder import get_where_clause
-
-from models import condition
+from sql_to_ast.builder.where_clause_builder import get_where_clause
+from sql_to_ast.models import condition
 
 
 class TestWhereClauseBuilder(unittest.TestCase):

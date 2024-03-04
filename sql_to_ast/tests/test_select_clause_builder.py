@@ -3,9 +3,8 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.select_clause_builder import get_select_clause
-
-from models import field, function, wildcard
+from sql_to_ast.builder.select_clause_builder import get_select_clause
+from sql_to_ast.models import field, function, wildcard
 
 
 class TestSelectClauseBuilder(unittest.TestCase):
