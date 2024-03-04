@@ -1,8 +1,8 @@
 from typing import List
 import sqlparse
 
-from builder.helpers import remove_whitespaces
-from builder import select_clause_builder, where_clause_builder, from_clause_builder
+from sql_to_ast.builder.helpers import remove_whitespaces
+from sql_to_ast.builder import select_clause_builder, where_clause_builder, from_clause_builder
 
 
 class SelectAstBuilder:
@@ -41,8 +41,4 @@ class SelectAstBuilder:
         from_clause = from_clause_builder.get_from_clause(from_tokens)
         where_clause = where_clause_builder.get_where_clause(where_tokens[0])
 
-        return {
-            select_clause,
-            from_clause,
-            where_clause
-        }
+        return select_clause, from_clause, where_clause

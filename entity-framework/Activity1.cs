@@ -23,7 +23,16 @@ class Activity1Test
             .Select(x => new { x.T1.Fname, x.T2.Lname })
             .ToList();
 
-        Boolean equal = resultSql.SequenceEqual(resultLinq);
+        var resultLinqMy = context.Faculties
+            .Join(context.Students,
+                T1 => T1.FacId,
+                T2 => T2.Advisor,
+                (T1, T2) => new { T1, T2 })
+            .Select(x => new { x.T1.Fname, x.T1.Lname })
+            .ToList();
+
+
+        Boolean equal = resultLinqMy.SequenceEqual(resultLinq);
 
         for (int i = 0; i < resultSql.Count; i++)
         {

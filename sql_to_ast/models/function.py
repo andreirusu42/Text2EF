@@ -1,6 +1,6 @@
 from enum import Enum
 
-from models import field
+from sql_to_ast.models import field
 
 
 class FunctionType(Enum):

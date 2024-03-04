@@ -1,8 +1,8 @@
 import sqlparse
 
 from typing import List
-from models import table, join, field
-from builder.helpers import remove_whitespaces
+from sql_to_ast.models import table, join, field
+from sql_to_ast.builder.helpers import remove_whitespaces
 
 
 class FromClause:
@@ -64,6 +64,7 @@ def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> jo
 def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
     token_index = 0
 
+    # TODO: For some reason, if the table is really called "table", it fails, because sqlparse sees it as a keyword
     if not isinstance(tokens[token_index], sqlparse.sql.Identifier):
         raise ValueError(f"Expected identifier, got {(tokens[0], )}")
 

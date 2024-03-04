@@ -1,7 +1,7 @@
 from enum import Enum
 
-from models.field import Field
-from models.table import Table
+from sql_to_ast.models.field import Field
+from sql_to_ast.models.table import Table
 
 
 class JoinType(Enum):

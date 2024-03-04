@@ -6,6 +6,8 @@ node_modules/
 __pycache__/
 .vscode/
 
+Text2ORM.egg-info
+build
 
 entity-framework/bin/
 entity-framework/Models/

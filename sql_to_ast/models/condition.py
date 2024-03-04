@@ -1,5 +1,5 @@
 from enum import Enum
-from models.field import Field
+from sql_to_ast.models.field import Field
 
 
 class StringOperand:

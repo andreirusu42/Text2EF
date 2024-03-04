@@ -2,8 +2,8 @@ import sqlparse
 
 from typing import List
 
-from builder.helpers import remove_whitespaces
-from models import field, condition
+from sql_to_ast.builder.helpers import remove_whitespaces
+from sql_to_ast.models import field, condition
 
 
 __condition_logical_operators_precedence = {
@@ -18,9 +18,11 @@ __condition_logical_operators = [
     condition.ConditionLogicalOperator.NOT.value,
 ]
 
+WhereCondition = condition.SingleCondition | condition.ConditionLogicalExpression
+
 
 class WhereClause:
-    def __init__(self, condition: condition.Condition):
+    def __init__(self, condition: WhereCondition):
         self.condition = condition
 
     def __repr__(self):
@@ -53,8 +55,9 @@ def __construct_operand(token: sqlparse.sql.Token) -> condition.ConditionOperand
 
 
 def __build_condition(token: sqlparse.sql.Token) -> condition.SingleCondition:
+    # TODO: if the column is really called "column", this fails, because sqlparse sees it as a keyword
     if not isinstance(token, sqlparse.sql.Comparison):
-        raise ValueError(f"Expected comparison, got {token}")
+        raise ValueError(f"Expected comparison, got {(token, )}")
 
     cleaned: List[sqlparse.sql.Token] = remove_whitespaces(token.tokens)
 
@@ -78,7 +81,7 @@ def __build_where(tokens: List[sqlparse.sql.Token]) -> WhereClause:
     return WhereClause(condition=condition)
 
 
-def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereClause:
+def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereCondition:
     tokens = remove_whitespaces(tokens)
 
     if len(tokens) == 1:
@@ -89,8 +92,7 @@ def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereClause:
         return single_condition
 
     operator_stack: List[str] = []
-    operand_stack: List[condition.ConditionLogicalExpression |
-                        condition.SingleCondition] = []
+    operand_stack: List[WhereCondition] = []
 
     for token in tokens:
         if token.ttype == sqlparse.tokens.Keyword and token.value.upper() in __condition_logical_operators:
