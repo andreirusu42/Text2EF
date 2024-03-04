@@ -1,10 +1,13 @@
 from enum import Enum
 
-from sql_to_ast.models import field
+from sql_to_ast.models import field, wildcard
+
+FunctionArgument = field.Field | wildcard.Wildcard
 
 
 class FunctionType(Enum):
     AVG = "AVG"
+    COUNT = "COUNT"
 
     @staticmethod
     def from_string(s: str):
@@ -15,10 +18,15 @@ class FunctionType(Enum):
 
 
 class Function:
-    def __init__(self, type: FunctionType, field: field.Field, alias: str):
+    def __init__(self, type: FunctionType, argument: FunctionArgument, alias: str):
         self.type = type
-        self.field = field
+        self.argument = argument
         self.alias = alias
 
     def __repr__(self):
-        return f'Function(type={self.type}, field={self.field}, alias={self.alias})'
+        return f'Function(type={self.type}, argument={self.argument}, alias={self.alias})'
+
+
+class CountFunction(Function):
+    def __init__(self, argument: FunctionArgument, alias: str):
+        super().__init__(FunctionType.COUNT, argument, alias)

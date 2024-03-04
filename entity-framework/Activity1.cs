@@ -1,52 +1,39 @@
 using entity_framework.Models.activity_1;
+using entity_framework.Models.baseball_1;
 using Microsoft.EntityFrameworkCore;
 
 class Activity1Test
 {
     public static void Test()
     {
-        using var context = new Activity1Context();
+        using var context = new baseball_1Context();
 
-        String sqlQuery = "SELECT T1.fname ,  T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor WHERE T2.fname  =  \"Linda\" AND T2.lname  =  \"Smith\"";
+        var sql = "SELECT yearid ,  count(*) FROM hall_of_fame GROUP BY yearid;";
 
-        var resultSql = context.Faculties
-            .FromSqlRaw(sqlQuery)
-            .Select(x => new { x.Fname, x.Lname })
-            .ToList();
-
-        var resultLinq = context.Faculties
-            .Join(context.Students,
-                T1 => T1.FacId,
-                T2 => T2.Advisor,
-                (T1, T2) => new { T1, T2 })
-            .Where(x => x.T1.Fname == "Linda" && x.T2.Lname == "Smith")
-            .Select(x => new { x.T1.Fname, x.T2.Lname })
-            .ToList();
-
-        var resultLinqMy = context.Faculties
-            .Join(context.Students,
-                T1 => T1.FacId,
-                T2 => T2.Advisor,
-                (T1, T2) => new { T1, T2 })
-            .Select(x => new { x.T1.Fname, x.T1.Lname })
-            .ToList();
-
-
-        Boolean equal = resultLinqMy.SequenceEqual(resultLinq);
-
-        for (int i = 0; i < resultSql.Count; i++)
+        var result = context.hall_of_fame.FromSqlRaw(sql)
+        .Select(row => new
         {
-            System.Console.WriteLine($"Sql: {resultSql[i]}");
-            System.Console.WriteLine($"Linq: {resultLinq[i]}");
+            yearid = row.yearid,
+        })
+        .ToList();
+
+        var linq = context.hall_of_fame
+        .GroupBy(row => row.yearid)
+        .Select(group => new
+        {
+            yearid = group.Key,
+            count = group.Count()
+        });
+
+        foreach (var item in result)
+        {
+            System.Console.WriteLine(item);
         }
 
-        if (equal)
+        foreach (var item in linq)
         {
-            System.Console.WriteLine("Results are the same");
+            System.Console.WriteLine(item);
         }
-        else
-        {
-            System.Console.WriteLine("Results are different");
-        }
+
     }
 }

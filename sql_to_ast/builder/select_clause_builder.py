@@ -40,17 +40,37 @@ def __extract_function_from_token(token: sqlparse.sql.Function) -> function.Func
     field_token = token.tokens[1]
 
     if not isinstance(field_token, sqlparse.sql.Parenthesis):
-        raise ValueError(f"Expected Parenthesis, got {(field_identifier, )}")
-
-    field_identifier = field_token.tokens[1]
+        raise ValueError(f"Expected Parenthesis, got {(field_token, )}")
 
     # get argument of function
 
-    return function.Function(
-        type=function.FunctionType.from_string(token.get_name()),
-        field=__extract_field_from_identifier(field_identifier),
-        alias=token.get_alias()
-    )
+    function_type = function.FunctionType.from_string(token.get_name().upper())
+
+    if function_type == function.FunctionType.COUNT:
+        return __build_count_function(token)
+    else:
+        raise ValueError(f"Unexpected function type {function_type}")
+
+
+def __build_count_function(token: sqlparse.sql.Function) -> function.CountFunction:
+    argument: sqlparse.sql.Identifier | sqlparse.tokens.Wildcard = token.tokens[1].tokens[1]
+
+    if isinstance(argument, sqlparse.sql.Identifier):
+        field_identifier = __extract_field_from_identifier(argument)
+
+        return function.CountFunction(
+            argument=field_identifier,
+            alias=token.get_alias()
+        )
+
+    elif argument.ttype == sqlparse.tokens.Wildcard and argument.value == '*':
+        return function.CountFunction(
+            argument=wildcard.Wildcard(),
+            alias=token.get_alias()
+        )
+
+    else:
+        raise ValueError(f"Unexpected token {argument}")
 
 
 def __build_select(tokens: List[sqlparse.sql.Token]) -> List[SelectField]:

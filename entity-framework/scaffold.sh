@@ -10,7 +10,7 @@ if [ -d "$DATABASE_FOLDER" ]; then
     db_folder="$OUTPUT_FOLDER/$db_name"
     mkdir -p "$db_folder"
 
-    dotnet ef dbcontext scaffold "Data Source=$db_file" Microsoft.EntityFrameworkCore.Sqlite -o "$db_folder" 
+    dotnet ef dbcontext scaffold "Data Source=$db_file" Microsoft.EntityFrameworkCore.Sqlite -o "$db_folder" --use-database-names --no-pluralize 
   done
 else
   echo "Error: The folder '$DATABASE_FOLDER' does not exist."
