@@ -64,23 +64,12 @@ def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> jo
 def __build_from(tokens: List[sqlparse.sql.Token]) -> From:
     token_index = 0
 
-    if tokens[token_index].ttype != sqlparse.tokens.Keyword:
-        raise ValueError(f"Expected table name, got {(tokens[0], )}")
+    if not isinstance(tokens[token_index], sqlparse.sql.Identifier):
+        raise ValueError(f"Expected identifier, got {(tokens[0], )}")
 
-    if len(tokens) > 1 and tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == 'AS':
-        table_token = tokens[token_index]
-        table_alias_token = tokens[token_index + 2]
+    table_ = __build_table_from_identifier(tokens[token_index])
 
-        table_ = table.Table(name=table_token.value,
-                             alias=table_alias_token.value)
-
-        token_index += 3
-    else:
-        table_token = tokens[token_index]
-
-        table_ = table.Table(name=table_token.value)
-
-        token_index += 1
+    token_index += 1
 
     tokens_length = len(tokens)
 
