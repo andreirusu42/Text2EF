@@ -3,19 +3,19 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.from_clause import get_from
+from builder.from_clause_builder import get_from_clause
 
 from models import join
 
 
-class TestFromBuilder(unittest.TestCase):
+class TestFromClauseBuilder(unittest.TestCase):
     def get_tokens(self, sql: str) -> Token:
         return sqlparse.parse(sql)[0].tokens
 
     def get_from(self, sql: str):
         tokens = self.get_tokens(sql)
 
-        return get_from(tokens)
+        return get_from_clause(tokens)
 
     def test_get_from(self):
         sql = "FROM table1"

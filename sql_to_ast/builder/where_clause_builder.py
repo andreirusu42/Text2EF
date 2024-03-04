@@ -19,7 +19,7 @@ __condition_logical_operators = [
 ]
 
 
-class Where:
+class WhereClause:
     def __init__(self, condition: condition.Condition):
         self.condition = condition
 
@@ -27,7 +27,7 @@ class Where:
         return f"Where(condition={self.condition})"
 
 
-def get_where(token: sqlparse.sql.Token):
+def get_where_clause(token: sqlparse.sql.Token) -> WhereClause:
     if type(token) != sqlparse.sql.Where:
         raise ValueError(f"Expected WHERE, got {token}")
 
@@ -72,13 +72,13 @@ def __build_condition(token: sqlparse.sql.Token) -> condition.SingleCondition:
     )
 
 
-def __build_where(tokens: List[sqlparse.sql.Token]) -> Where:
+def __build_where(tokens: List[sqlparse.sql.Token]) -> WhereClause:
     condition = __build_where_helper(tokens)
 
-    return Where(condition=condition)
+    return WhereClause(condition=condition)
 
 
-def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> Where:
+def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereClause:
     tokens = remove_whitespaces(tokens)
 
     if len(tokens) == 1:

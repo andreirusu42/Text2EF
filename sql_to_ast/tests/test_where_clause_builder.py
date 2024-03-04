@@ -3,19 +3,19 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.where import get_where
+from builder.where_clause_builder import get_where_clause
 
 from models import condition
 
 
-class TestWhereBuilder(unittest.TestCase):
+class TestWhereClauseBuilder(unittest.TestCase):
     def get_token(self, sql: str) -> Token:
         return sqlparse.parse(sql)[0].tokens[0]
 
     def get_where(self, sql: str):
         token = self.get_token(sql)
 
-        return get_where(token)
+        return get_where_clause(token)
 
     def test_types_and_values(self):
         sql = "WHERE 1 = 1"

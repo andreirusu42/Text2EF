@@ -8,7 +8,7 @@ from helpers import remove_whitespaces, remove_punctuation
 SelectField = field.Field | function.Function | wildcard.Wildcard
 
 
-class Select:
+class SelectClause:
     def __init__(self, fields: List[SelectField], is_distinct: bool):
         self.fields = fields
         self.is_distinct = is_distinct
@@ -17,7 +17,7 @@ class Select:
         return f"Select(fields={self.fields}, is_distinct={self.is_distinct})"
 
 
-def get_select(tokens: List[sqlparse.sql.Token]) -> Select:
+def get_select_clause(tokens: List[sqlparse.sql.Token]) -> SelectClause:
     select_token = tokens[0]
 
     if select_token.ttype != sqlparse.tokens.DML or select_token.value.upper() != 'SELECT':
@@ -62,7 +62,7 @@ def __build_select(tokens: List[sqlparse.sql.Token]) -> List[SelectField]:
 
     fields = __build_select_helper(tokens)
 
-    return Select(
+    return SelectClause(
         fields=fields,
         is_distinct=is_distinct
     )

@@ -5,7 +5,7 @@ from models import table, join, field
 from helpers import remove_whitespaces
 
 
-class From:
+class FromClause:
     def __init__(self, table: table.Table, joins: List[join.Join]):
         self.table = table
         self.joins = joins
@@ -14,7 +14,7 @@ class From:
         return f"From(table={self.table}, joins={self.joins})"
 
 
-def get_from(tokens: List[sqlparse.sql.Token]) -> From:
+def get_from_clause(tokens: List[sqlparse.sql.Token]) -> FromClause:
     from_token = tokens[0]
 
     if from_token.ttype != sqlparse.tokens.Keyword or from_token.value.upper() != 'FROM':
@@ -24,7 +24,7 @@ def get_from(tokens: List[sqlparse.sql.Token]) -> From:
 
     table_, joins = __build_from(tokens)
 
-    return From(
+    return FromClause(
         table=table_,
         joins=joins
     )
@@ -61,7 +61,7 @@ def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> jo
     )
 
 
-def __build_from(tokens: List[sqlparse.sql.Token]) -> From:
+def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
     token_index = 0
 
     if not isinstance(tokens[token_index], sqlparse.sql.Identifier):

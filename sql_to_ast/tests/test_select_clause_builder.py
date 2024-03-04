@@ -3,19 +3,19 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.select import get_select
+from builder.select_clause_builder import get_select_clause
 
 from models import field, function, wildcard
 
 
-class TestSelectBuilder(unittest.TestCase):
+class TestSelectClauseBuilder(unittest.TestCase):
     def get_tokens(self, sql: str) -> Token:
         return sqlparse.parse(sql)[0].tokens
 
     def get_select(self, sql: str):
         tokens = self.get_tokens(sql)
 
-        return get_select(tokens)
+        return get_select_clause(tokens)
 
     # TODO: when having SomeFunction(arg) + ALIAS, it doesn't work :/
     def test_values(self):
