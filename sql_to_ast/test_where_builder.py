@@ -3,23 +3,23 @@ import sqlparse
 
 from sqlparse.sql import Token
 
-from builder.conditions import get_conditions
+from builder.where import get_where
 
 from models import condition
 
 
-class TestConditionsBuilder(unittest.TestCase):
+class TestWhereBuilder(unittest.TestCase):
     def get_token(self, sql: str) -> Token:
         return sqlparse.parse(sql)[0].tokens[0]
 
-    def get_conditions(self, sql: str):
+    def get_where(self, sql: str):
         token = self.get_token(sql)
 
-        return get_conditions(token)
+        return get_where(token)
 
     def test_types_and_values(self):
         sql = "WHERE 1 = 1"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.SingleCondition)
         self.assertIsInstance(conditions.left, condition.IntOperand)
 
@@ -31,7 +31,7 @@ class TestConditionsBuilder(unittest.TestCase):
         self.assertEqual(conditions.right.value, 1)
 
         sql = "WHERE 'a' = 1"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.SingleCondition)
         self.assertIsInstance(conditions.left, condition.StringOperand)
         self.assertEqual(conditions.left.value, "a")
@@ -41,7 +41,7 @@ class TestConditionsBuilder(unittest.TestCase):
         self.assertEqual(conditions.right.value, 1)
 
         sql = "WHERE a = '1'"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.SingleCondition)
         self.assertIsInstance(conditions.left, condition.Field)
         self.assertEqual(conditions.left.name, "a")
@@ -53,7 +53,7 @@ class TestConditionsBuilder(unittest.TestCase):
         self.assertEqual(conditions.right.value, "1")
 
         sql = "WHERE a = 'rain' OR b = 'snow' AND c = 'sunny'"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
         self.assertIsInstance(conditions.left, condition.SingleCondition)
         self.assertIsInstance(
@@ -97,7 +97,7 @@ class TestConditionsBuilder(unittest.TestCase):
         self.assertEqual(conditions.right.right.right.value, "sunny")
 
         sql = "WHERE T2.fname = 'Linda' AND T2.lname  = 'Smith'"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
         self.assertIsInstance(conditions.left, condition.SingleCondition)
         self.assertIsInstance(conditions.right, condition.SingleCondition)
@@ -124,7 +124,7 @@ class TestConditionsBuilder(unittest.TestCase):
 
     def test_operators_order(self):
         sql = "WHERE a = 'a' AND b = 'b' OR c = 'c'"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
         self.assertIsInstance(
             conditions.left, condition.ConditionLogicalExpression)
@@ -168,7 +168,7 @@ class TestConditionsBuilder(unittest.TestCase):
         self.assertEqual(conditions.right.right.value, "c")
 
         sql = "WHERE a = 'a' AND (b = 'b' OR c = 'c')"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
         self.assertIsInstance(conditions.left, condition.SingleCondition)
         self.assertIsInstance(
@@ -178,7 +178,7 @@ class TestConditionsBuilder(unittest.TestCase):
 
     def test_nested_expressions(self):
         sql = "WHERE (a = 'a' AND b = 'b') OR (c = 'c' AND (d = 'd' OR e = 'e'))"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
         self.assertIsInstance(
             conditions.left, condition.ConditionLogicalExpression)
@@ -204,7 +204,7 @@ class TestConditionsBuilder(unittest.TestCase):
             conditions.right.right.right, condition.SingleCondition)
 
         sql = "WHERE T2.fname = 'Linda' AND (T2.lname  = 'Smith' OR T2.lname = 'Jones')"
-        conditions = self.get_conditions(sql)
+        conditions = self.get_where(sql).condition
 
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
         self.assertEqual(conditions.operator,

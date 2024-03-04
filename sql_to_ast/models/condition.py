@@ -78,4 +78,4 @@ class ConditionLogicalExpression:
         return f'ConditionLogicalExpression(left={self.left}, operator={self.operator}, right={self.right})'
 
 
-Conditions = SingleCondition | ConditionLogicalExpression
+Condition = SingleCondition | ConditionLogicalExpression
