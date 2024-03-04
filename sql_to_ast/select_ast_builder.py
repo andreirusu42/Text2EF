@@ -5,6 +5,16 @@ from sql_to_ast.builder.helpers import remove_whitespaces
 from sql_to_ast.builder import select_clause_builder, where_clause_builder, from_clause_builder
 
 
+class SelectAst:
+    def __init__(self, select_clause: select_clause_builder.SelectClause, from_clause: from_clause_builder.FromClause, where_clause: where_clause_builder.WhereClause):
+        self.select_clause = select_clause
+        self.from_clause = from_clause
+        self.where_clause = where_clause
+
+    def __repr__(self):
+        return f"SelectAst(select_clause={self.select_clause}, from_clause={self.from_clause}, where_clause={self.where_clause})"
+
+
 class SelectAstBuilder:
     @staticmethod
     def __find_clause_indexes(tokens: List[sqlparse.sql.Token]):
@@ -41,4 +51,8 @@ class SelectAstBuilder:
         from_clause = from_clause_builder.get_from_clause(from_tokens)
         where_clause = where_clause_builder.get_where_clause(where_tokens[0])
 
-        return select_clause, from_clause, where_clause
+        return SelectAst(
+            select_clause=select_clause,
+            from_clause=from_clause,
+            where_clause=where_clause
+        )
