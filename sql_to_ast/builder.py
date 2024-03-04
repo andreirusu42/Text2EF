@@ -1,7 +1,7 @@
 from typing import List
 import sqlparse
 
-from helpers import remove_whitespaces
+from builder.helpers import remove_whitespaces
 from builder import select_clause_builder, where_clause_builder, from_clause_builder
 
 

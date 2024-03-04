@@ -2,7 +2,7 @@ import sqlparse
 
 from typing import List
 from models import table, join, field
-from helpers import remove_whitespaces
+from builder.helpers import remove_whitespaces
 
 
 class FromClause:

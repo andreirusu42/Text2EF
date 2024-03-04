@@ -2,7 +2,7 @@ import sqlparse
 
 from typing import List
 
-from helpers import remove_whitespaces
+from builder.helpers import remove_whitespaces
 from models import field, condition
 
 

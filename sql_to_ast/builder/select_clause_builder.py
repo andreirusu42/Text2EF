@@ -2,7 +2,7 @@ from typing import List
 import sqlparse
 
 from models import field, function, wildcard
-from helpers import remove_whitespaces, remove_punctuation
+from builder.helpers import remove_whitespaces, remove_punctuation
 
 
 SelectField = field.Field | function.Function | wildcard.Wildcard
