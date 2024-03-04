@@ -7,7 +7,7 @@ from sql_to_ast.select_ast_builder import SelectAstBuilder
 
 class TestSelectClauseAdapter(unittest.TestCase):
     def create_select(self, sql: str):
-        # TODO: maybe we could make this work with only building the where clause
+        # TODO: maybe we could make this work with only building the select clause
         select_ast = SelectAstBuilder.build(sql)
 
         return build_select(select_ast.select_clause)
