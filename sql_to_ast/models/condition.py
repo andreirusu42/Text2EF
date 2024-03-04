@@ -52,7 +52,7 @@ class SingleCondition:
         self.right = right
 
     def __repr__(self):
-        return f'Condition(left={self.left}, operator={self.operator}, right={self.right})'
+        return f'Condition(left={self.left}, operator="{self.operator}", right={self.right})'
 
 
 class ConditionLogicalOperator(Enum):

@@ -13,9 +13,9 @@ class TestSelectBuilder(unittest.TestCase):
         return sqlparse.parse(sql)[0].tokens
 
     def get_select(self, sql: str):
-        token = self.get_tokens(sql)
+        tokens = self.get_tokens(sql)
 
-        return get_select(token)
+        return get_select(tokens)
 
     # TODO: when having SomeFunction(arg) + ALIAS, it doesn't work :/
     def test_values(self):
