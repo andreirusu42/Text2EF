@@ -14,8 +14,17 @@ def main():
     # SELECT T1.fname ,  T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor WHERE T2.fname  =  'Linda' AND T2.lname  = 'Smith'
     # """
 
+    # sql = f"""
+    # SELECT count(*) FROM Has_allergy AS T1 JOIN Allergy_type AS T2 ON T1.allergy  =  T2.allergy WHERE T2.allergytype  =  'food'
+    # """
+
     sql = f"""
-    SELECT count(*) FROM Has_allergy AS T1 JOIN Allergy_type AS T2 ON T1.allergy  =  T2.allergy WHERE T2.allergytype  =  "food"
+    SELECT DISTINCT T2.Model
+    FROM CAR_NAMES AS T1
+    JOIN MODEL_LIST AS T2 ON T1.Model  =  T2.Model
+    JOIN CAR_MAKERS AS T3 ON T2.Maker  =  T3.Id
+    JOIN CARS_DATA AS T4 ON T1.MakeId  =  T4.Id
+    WHERE T3.FullName  =  'General Motors' OR T4.weight  >  3500
     """
 
     ef = build_ef(sql)

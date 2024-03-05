@@ -1,39 +1,26 @@
-using entity_framework.Models.activity_1;
-using entity_framework.Models.baseball_1;
+using entity_framework.Models.allergy_1;
 using Microsoft.EntityFrameworkCore;
 
 class Activity1Test
 {
     public static void Test()
     {
-        using var context = new baseball_1Context();
+        using var context = new allergy_1Context();
 
-        var sql = "SELECT yearid ,  count(*) FROM hall_of_fame GROUP BY yearid;";
+        // var sql = "SELECT count(*) FROM Has_allergy AS T1 JOIN Allergy_type AS T2 ON T1.allergy  =  T2.allergy WHERE T2.allergytype  =  'food'";
 
-        var result = context.hall_of_fame.FromSqlRaw(sql)
-        .Select(row => new
-        {
-            yearid = row.yearid,
-        })
-        .ToList();
+        // var resultSql = context.Has_Allergy.FromSqlRaw(sql)
+        // .FirstOrDefault();
 
-        var linq = context.hall_of_fame
-        .GroupBy(row => row.yearid)
-        .Select(group => new
-        {
-            yearid = group.Key,
-            count = group.Count()
-        });
+        var resultLinq = context.Has_Allergy.Join(context.Allergy_Type, T1 => T1.Allergy, T2 => T2.Allergy, (T1, T2) => new { T1, T2 })
+    .Where(row => row.T2.AllergyType == "food")
+    .Count();
 
-        foreach (var item in result)
-        {
-            System.Console.WriteLine(item);
-        }
+        Console.WriteLine(resultLinq);
 
-        foreach (var item in linq)
-        {
-            System.Console.WriteLine(item);
-        }
-
+        // if (resultSql != resultLinq)
+        // {
+        //     throw new Exception("Test failed");
+        // }
     }
 }

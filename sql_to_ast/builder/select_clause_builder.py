@@ -95,6 +95,7 @@ def __build_avg_function(argument_tokens: List[sqlparse.sql.Token], alias: str) 
             is_distinct=False,
             alias=alias
         )
+
     elif argument.ttype == sqlparse.tokens.Wildcard and argument.value == '*':
         return function.AvgFunction(
             argument=wildcard.Wildcard(),
