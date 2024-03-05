@@ -30,14 +30,9 @@ def get_select_clause(tokens: List[sqlparse.sql.Token]) -> SelectClause:
 
 def __extract_field_from_identifier(token: sqlparse.sql.Identifier) -> field.Field:
     if isinstance(token.tokens[0], sqlparse.sql.Function):
-        cleaned = remove_whitespaces(token.tokens)
+        tokens = remove_whitespaces(token.tokens)
 
-        func = __extract_function_from_token(token.tokens[0])
-
-        if cleaned[1].ttype == sqlparse.tokens.Keyword and cleaned[1].value.upper() == 'AS':
-            func.alias = cleaned[2].value
-
-        return func
+        return __extract_function_from_tokens(tokens)
 
     return field.Field(
         name=token.get_real_name(),
@@ -46,39 +41,86 @@ def __extract_field_from_identifier(token: sqlparse.sql.Identifier) -> field.Fie
     )
 
 
-def __extract_function_from_token(token: sqlparse.sql.Function) -> function.Function:
-    field_token = token.tokens[1]
+def __extract_function_from_tokens(tokens: List[sqlparse.sql.Token]) -> function.Function:
+    function_token = tokens[0]
 
-    if not isinstance(field_token, sqlparse.sql.Parenthesis):
-        raise ValueError(f"Expected Parenthesis, got {(field_token, )}")
+    if not isinstance(function_token, sqlparse.sql.Function):
+        raise ValueError(f"Expected Function, got {(function_token,)}")
 
-    function_type = function.FunctionType.from_string(token.get_name().upper())
+    argument_token = function_token.tokens[1]
+
+    if not isinstance(argument_token, sqlparse.sql.Parenthesis):
+        raise ValueError(f"Expected Parenthesis, got {(argument_token, )}")
+
+    argument_tokens: List[sqlparse.sql.Token] = remove_whitespaces(argument_token.tokens[1:-1])
+
+    function_type = function.FunctionType.from_string(function_token.get_name().upper())
+
+    if len(tokens) == 3:
+        if tokens[1].ttype != sqlparse.tokens.Keyword or tokens[1].value.upper() != 'AS':
+            raise ValueError(f"Expected AS, got {(tokens[1],)}")
+
+        alias = tokens[2].get_real_name()
+    else:
+        alias = None
 
     if function_type == function.FunctionType.COUNT:
-        return __build_count_function(token)
+        return __build_count_function(argument_tokens, alias)
+    elif function_type == function.FunctionType.AVG:
+        return __build_avg_function(argument_tokens, alias)
     else:
         raise ValueError(f"Unexpected function type {function_type}")
 
 
-def __build_count_function(token: sqlparse.sql.Function) -> function.CountFunction:
-    arguments: List[sqlparse.sql.Token] = token.tokens[1].tokens[1:-1]
-
-    arguments = remove_whitespaces(arguments)
-
-    if len(arguments) == 0 or len(arguments) > 2:
-        raise ValueError(f"Unexpected count function arguments {arguments}")
+def __build_avg_function(argument_tokens: List[sqlparse.sql.Token], alias: str) -> function.AvgFunction:
+    if len(argument_tokens) == 0 or len(argument_tokens) > 2:
+        raise ValueError(f"Unexpected avg function arguments {(argument_tokens,)}")
 
     is_distinct = False
 
-    if len(arguments) == 2:
-        argument = arguments[0]
+    if len(argument_tokens) == 2:
+        argument = argument_tokens[0]
 
         if argument.ttype == sqlparse.tokens.Keyword and argument.value.upper() == 'DISTINCT':
             is_distinct = True
 
-        argument = arguments[1]
+        argument = argument_tokens[1]
     else:
-        argument = arguments[0]
+        argument = argument_tokens[0]
+
+    if isinstance(argument, sqlparse.sql.Identifier):
+        field_identifier = __extract_field_from_identifier(argument)
+        return function.AvgFunction(
+            argument=field_identifier,
+            is_distinct=False,
+            alias=alias
+        )
+    elif argument.ttype == sqlparse.tokens.Wildcard and argument.value == '*':
+        return function.AvgFunction(
+            argument=wildcard.Wildcard(),
+            is_distinct=is_distinct,
+            alias=alias,
+        )
+
+    else:
+        raise ValueError(f"Unexpected token {argument}")
+
+
+def __build_count_function(argument_tokens: List[sqlparse.sql.Token], alias: str) -> function.CountFunction:
+    if len(argument_tokens) == 0 or len(argument_tokens) > 2:
+        raise ValueError(f"Unexpected count function arguments {(argument_tokens,)}")
+
+    is_distinct = False
+
+    if len(argument_tokens) == 2:
+        argument = argument_tokens[0]
+
+        if argument.ttype == sqlparse.tokens.Keyword and argument.value.upper() == 'DISTINCT':
+            is_distinct = True
+
+        argument = argument_tokens[1]
+    else:
+        argument = argument_tokens[0]
 
     if isinstance(argument, sqlparse.sql.Identifier):
         field_identifier = __extract_field_from_identifier(argument)
@@ -86,14 +128,14 @@ def __build_count_function(token: sqlparse.sql.Function) -> function.CountFuncti
         return function.CountFunction(
             argument=field_identifier,
             is_distinct=is_distinct,
-            alias=token.get_alias()
+            alias=alias,
         )
 
     elif argument.ttype == sqlparse.tokens.Wildcard and argument.value == '*':
         return function.CountFunction(
             argument=wildcard.Wildcard(),
             is_distinct=is_distinct,
-            alias=token.get_alias()
+            alias=alias,
         )
 
     else:
@@ -129,7 +171,7 @@ def __build_select_helper(tokens: List[sqlparse.sql.Token]) -> List[SelectField]
             fields.append(__extract_field_from_identifier(token))
 
         elif isinstance(token, sqlparse.sql.Function):
-            fields.append(__extract_function_from_token(token))
+            fields.append(__extract_function_from_tokens([token]))
 
         elif token.ttype == sqlparse.tokens.Wildcard and token.value == '*':
             fields.append(wildcard.Wildcard())

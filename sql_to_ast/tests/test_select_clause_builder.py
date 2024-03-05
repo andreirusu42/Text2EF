@@ -17,50 +17,61 @@ class TestSelectClauseBuilder(unittest.TestCase):
         return get_select_clause(tokens)
 
     # TODO: when having SomeFunction(arg) + ALIAS, it doesn't work :/
-    # def test_values(self):
-    #     sql = "SELECT AVG(x.t), y"
-    #     select = self.get_select(sql)
+    def test_values(self):
+        sql = "SELECT AVG(DISTINCT *) AS x"
+        select = self.get_select(sql)
 
-    #     self.assertEqual(select.is_distinct, False)
-    #     self.assertEqual(len(select.fields), 2)
-    #     self.assertIsInstance(select.fields[0], function.Function)
-    #     self.assertIsInstance(select.fields[1], field.Field)
+        self.assertEqual(select.is_distinct, False)
+        self.assertEqual(len(select.fields), 1)
+        self.assertIsInstance(select.fields[0], function.Function)
+        self.assertEqual(select.fields[0].type, function.FunctionType.AVG)
+        self.assertIsInstance(select.fields[0].argument, wildcard.Wildcard)
+        self.assertEqual(select.fields[0].is_distinct, True)
+        self.assertEqual(select.fields[0].alias, "x")
 
-    #     self.assertEqual(select.fields[0].type, function.FunctionType.AVG)
-    #     self.assertEqual(select.fields[0].field.name, "t")
-    #     self.assertEqual(select.fields[0].field.parent, "x")
+        sql = "SELECT AVG(x.t), y"
+        select = self.get_select(sql)
 
-    #     self.assertEqual(select.fields[1].name, "y")
+        self.assertEqual(select.is_distinct, False)
+        self.assertEqual(len(select.fields), 2)
+        self.assertIsInstance(select.fields[0], function.Function)
+        self.assertIsInstance(select.fields[1], field.Field)
 
-    #     sql = "SELECT a, b.c AS x, c.d"
-    #     select = self.get_select(sql)
+        self.assertEqual(select.fields[0].type, function.FunctionType.AVG)
+        self.assertEqual(select.fields[0].argument.name, "t")
+        self.assertEqual(select.fields[0].argument.parent, "x")
 
-    #     self.assertEqual(select.is_distinct, False)
-    #     self.assertEqual(len(select.fields), 3)
-    #     self.assertIsInstance(select.fields[0], field.Field)
-    #     self.assertIsInstance(select.fields[1], field.Field)
-    #     self.assertIsInstance(select.fields[2], field.Field)
+        self.assertEqual(select.fields[1].name, "y")
 
-    #     self.assertEqual(select.fields[0].name, "a")
-    #     self.assertEqual(select.fields[1].name, "c")
-    #     self.assertEqual(select.fields[1].parent, "b")
-    #     self.assertEqual(select.fields[1].alias, "x")
+        sql = "SELECT a, b.c AS x, c.d"
+        select = self.get_select(sql)
 
-    #     sql = "SELECT *"
-    #     select = self.get_select(sql)
-    #     self.assertEqual(select.is_distinct, False)
+        self.assertEqual(select.is_distinct, False)
+        self.assertEqual(len(select.fields), 3)
+        self.assertIsInstance(select.fields[0], field.Field)
+        self.assertIsInstance(select.fields[1], field.Field)
+        self.assertIsInstance(select.fields[2], field.Field)
 
-    #     self.assertEqual(len(select.fields), 1)
-    #     self.assertIsInstance(select.fields[0], wildcard.Wildcard)
+        self.assertEqual(select.fields[0].name, "a")
+        self.assertEqual(select.fields[1].name, "c")
+        self.assertEqual(select.fields[1].parent, "b")
+        self.assertEqual(select.fields[1].alias, "x")
 
-    # def test_distinct(self):
-    #     sql = "SELECT DISTINCT a"
-    #     select = self.get_select(sql)
+        sql = "SELECT *"
+        select = self.get_select(sql)
+        self.assertEqual(select.is_distinct, False)
 
-    #     self.assertEqual(select.is_distinct, True)
-    #     self.assertEqual(len(select.fields), 1)
-    #     self.assertIsInstance(select.fields[0], field.Field)
-    #     self.assertEqual(select.fields[0].name, "a")
+        self.assertEqual(len(select.fields), 1)
+        self.assertIsInstance(select.fields[0], wildcard.Wildcard)
+
+    def test_distinct(self):
+        sql = "SELECT DISTINCT a"
+        select = self.get_select(sql)
+
+        self.assertEqual(select.is_distinct, True)
+        self.assertEqual(len(select.fields), 1)
+        self.assertIsInstance(select.fields[0], field.Field)
+        self.assertEqual(select.fields[0].name, "a")
 
     def test_function_count(self):
         sql = "SELECT COUNT(*)"
