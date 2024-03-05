@@ -28,5 +28,12 @@ class Function:
 
 
 class CountFunction(Function):
-    def __init__(self, argument: FunctionArgument, alias: str):
+    is_distinct: bool
+
+    def __init__(self, argument: FunctionArgument, is_distinct: bool, alias: str):
         super().__init__(FunctionType.COUNT, argument, alias)
+
+        self.is_distinct = is_distinct
+
+    def __repr__(self):
+        return f'CountFunction(argument={self.argument}, is_distinct={self.is_distinct}, alias={self.alias})'

@@ -29,6 +29,16 @@ def get_select_clause(tokens: List[sqlparse.sql.Token]) -> SelectClause:
 
 
 def __extract_field_from_identifier(token: sqlparse.sql.Identifier) -> field.Field:
+    if isinstance(token.tokens[0], sqlparse.sql.Function):
+        cleaned = remove_whitespaces(token.tokens)
+
+        func = __extract_function_from_token(token.tokens[0])
+
+        if cleaned[1].ttype == sqlparse.tokens.Keyword and cleaned[1].value.upper() == 'AS':
+            func.alias = cleaned[2].value
+
+        return func
+
     return field.Field(
         name=token.get_real_name(),
         alias=token.get_alias(),
@@ -42,8 +52,6 @@ def __extract_function_from_token(token: sqlparse.sql.Function) -> function.Func
     if not isinstance(field_token, sqlparse.sql.Parenthesis):
         raise ValueError(f"Expected Parenthesis, got {(field_token, )}")
 
-    # get argument of function
-
     function_type = function.FunctionType.from_string(token.get_name().upper())
 
     if function_type == function.FunctionType.COUNT:
@@ -53,19 +61,38 @@ def __extract_function_from_token(token: sqlparse.sql.Function) -> function.Func
 
 
 def __build_count_function(token: sqlparse.sql.Function) -> function.CountFunction:
-    argument: sqlparse.sql.Identifier | sqlparse.tokens.Wildcard = token.tokens[1].tokens[1]
+    arguments: List[sqlparse.sql.Token] = token.tokens[1].tokens[1:-1]
+
+    arguments = remove_whitespaces(arguments)
+
+    if len(arguments) == 0 or len(arguments) > 2:
+        raise ValueError(f"Unexpected count function arguments {arguments}")
+
+    is_distinct = False
+
+    if len(arguments) == 2:
+        argument = arguments[0]
+
+        if argument.ttype == sqlparse.tokens.Keyword and argument.value.upper() == 'DISTINCT':
+            is_distinct = True
+
+        argument = arguments[1]
+    else:
+        argument = arguments[0]
 
     if isinstance(argument, sqlparse.sql.Identifier):
         field_identifier = __extract_field_from_identifier(argument)
 
         return function.CountFunction(
             argument=field_identifier,
+            is_distinct=is_distinct,
             alias=token.get_alias()
         )
 
     elif argument.ttype == sqlparse.tokens.Wildcard and argument.value == '*':
         return function.CountFunction(
             argument=wildcard.Wildcard(),
+            is_distinct=is_distinct,
             alias=token.get_alias()
         )
 
