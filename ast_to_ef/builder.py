@@ -1,23 +1,25 @@
 from sql_to_ast.select_ast_builder import SelectAstBuilder
 
-from ast_to_ef.transformers import from_clause_transformer, select_clause_transformer, group_by_clause, where_clause_transformer
+from ast_to_ef.transformers import from_clause_transformer, select_clause_transformer, group_by_clause_transformer, where_clause_transformer
 
 
 def build_ef(sql: str):
     ast = SelectAstBuilder.build(sql)
 
-    from_text = from_clause_transformer.build_from(ast.from_clause)
-    where_text = where_clause_transformer.build_where(ast.where_clause)
     select_text = select_clause_transformer.build_select(ast.select_clause)
-    group_by_text = group_by_clause.build_group_by(ast.group_by_clause)
+    from_text = from_clause_transformer.build_from(ast.from_clause)
+    where_text = where_clause_transformer.build_where(ast.where_clause) if ast.where_clause else None
+    group_by_text = group_by_clause_transformer.build_group_by(ast.group_by_clause) if ast.group_by_clause else None
 
-    text = f"{select_text} {from_text}"
+    text = f"var result = {from_text}"
 
     if where_text:
-        text = f"{text} {where_text}"
+        text += where_text
 
     if group_by_text:
-        text = f"{text} {group_by_text}"
+        text += group_by_text
+
+    text += select_text
 
     return text
 
@@ -41,7 +43,7 @@ def main():
     # """
 
     sql = f"""
-    SELECT T1.Name FROM country AS T1 JOIN countrylanguage AS T2 ON T1.Code  =  T2.CountryCode GROUP BY T1.Name
+    SELECT COUNT(*) FROM country AS T1 JOIN countrylanguage AS T2 ON T1.Code  =  T2.CountryCode GROUP BY T1.Name
     """
 
     ef = build_ef(sql)
