@@ -2,7 +2,7 @@ from typing import List
 from sql_to_ast.builder import from_clause_builder
 from sql_to_ast.models import join
 
-from ast_to_ef.adapter.constants import CONTEXT, JOIN_LEFT_DEFAULT, JOIN_RIGHT_DEFAULT, SELECTOR
+from ast_to_ef.transformers.constants import CONTEXT, JOIN_LEFT_DEFAULT, JOIN_RIGHT_DEFAULT, SELECTOR
 
 
 def build_from(from_clause: from_clause_builder.FromClause):

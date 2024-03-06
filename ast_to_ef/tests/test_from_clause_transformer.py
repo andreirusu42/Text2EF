@@ -1,12 +1,12 @@
 import unittest
-from ast_to_ef.adapter.constants import CONTEXT, SELECTOR
+from ast_to_ef.transformers.constants import CONTEXT, SELECTOR
 
-from ast_to_ef.adapter.from_clause import build_from
-from ast_to_ef.adapter.helpers import format_code
+from ast_to_ef.transformers.from_clause_transformer import build_from
+from ast_to_ef.transformers.helpers import format_code
 from sql_to_ast.select_ast_builder import SelectAstBuilder
 
 
-class TestFromClauseAdapter(unittest.TestCase):
+class TestFromClauseTransformer(unittest.TestCase):
     def create_from(self, sql: str):
         # TODO: maybe we could make this work with only building the from clause
         select_ast = SelectAstBuilder.build(sql)

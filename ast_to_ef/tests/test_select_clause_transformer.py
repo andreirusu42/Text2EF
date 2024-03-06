@@ -1,11 +1,11 @@
 import unittest
-from ast_to_ef.adapter.constants import SELECTOR
+from ast_to_ef.transformers.constants import SELECTOR
 
-from ast_to_ef.adapter.select_clause import build_select
+from ast_to_ef.transformers.select_clause_transformer import build_select
 from sql_to_ast.select_ast_builder import SelectAstBuilder
 
 
-class TestSelectClauseAdapter(unittest.TestCase):
+class TestSelectClauseTransformer(unittest.TestCase):
     def create_select(self, sql: str):
         # TODO: maybe we could make this work with only building the select clause
         select_ast = SelectAstBuilder.build(sql)

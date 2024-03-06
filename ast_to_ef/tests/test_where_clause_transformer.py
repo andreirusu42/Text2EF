@@ -1,11 +1,11 @@
 import unittest
-from ast_to_ef.adapter.constants import SELECTOR
+from ast_to_ef.transformers.constants import SELECTOR
 
-from ast_to_ef.adapter.where_clause import build_where
+from ast_to_ef.transformers.where_clause_transformer import build_where
 from sql_to_ast.select_ast_builder import SelectAstBuilder
 
 
-class TestWhereClauseAdapter(unittest.TestCase):
+class TestWhereClauseTransformer(unittest.TestCase):
     def create_where(self, sql: str):
         # TODO: maybe we could make this work with only building the where clause
         select_ast = SelectAstBuilder.build(sql)

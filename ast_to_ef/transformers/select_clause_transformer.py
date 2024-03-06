@@ -1,8 +1,8 @@
 from typing import List
 from sql_to_ast.builder import select_clause_builder
-from sql_to_ast.models import field, condition, function, wildcard
+from sql_to_ast.models import field, function, wildcard
 
-from ast_to_ef.adapter.constants import SELECTOR
+from ast_to_ef.transformers.constants import SELECTOR
 
 
 def build_select(select_clause: select_clause_builder.SelectClause):

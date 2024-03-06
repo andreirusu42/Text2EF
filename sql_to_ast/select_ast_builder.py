@@ -2,7 +2,7 @@ from typing import List
 import sqlparse
 
 from sql_to_ast.builder.helpers import remove_whitespaces
-from sql_to_ast.builder import select_clause_builder, where_clause_builder, from_clause_builder
+from sql_to_ast.builder import select_clause_builder, where_clause_builder, from_clause_builder, group_by_clause_builder
 
 
 class ClauseTokens:
@@ -27,13 +27,17 @@ class ClauseTokens:
 
 
 class SelectAst:
-    def __init__(self, select_clause: select_clause_builder.SelectClause, from_clause: from_clause_builder.FromClause, where_clause: where_clause_builder.WhereClause):
+    def __init__(self, select_clause: select_clause_builder.SelectClause,
+                 from_clause: from_clause_builder.FromClause,
+                 where_clause: where_clause_builder.WhereClause,
+                 group_by_clause: group_by_clause_builder.GroupByClause):
         self.select_clause = select_clause
         self.from_clause = from_clause
         self.where_clause = where_clause
+        self.group_by_clause = group_by_clause
 
     def __repr__(self):
-        return f"SelectAst(select_clause={self.select_clause}, from_clause={self.from_clause}, where_clause={self.where_clause})"
+        return f"SelectAst(select_clause={self.select_clause}, from_clause={self.from_clause}, where_clause={self.where_clause}, group_by_clause={self.group_by_clause})"
 
 
 class SelectAstBuilder:
@@ -70,14 +74,23 @@ class SelectAstBuilder:
         if last_clause:
             clauses[last_clause]["end"] = len(tokens)
 
+        def __get_tokens(clause: str):
+            start = clauses[clause]["start"]
+            end = clauses[clause]["end"]
+
+            if start is None or end is None:
+                return []
+
+            return tokens[start:end]
+
         return ClauseTokens(
-            select_clause=tokens[clauses["SELECT"]["start"]:clauses["SELECT"]["end"]],
-            from_clause=tokens[clauses["FROM"]["start"]:clauses["FROM"]["end"]],
-            where_clause=tokens[clauses["WHERE"]["start"]:clauses["WHERE"]["end"]],
-            group_by_clause=tokens[clauses["GROUP BY"]["start"]:clauses["GROUP BY"]["end"]],
-            having_clause=tokens[clauses["HAVING"]["start"]:clauses["HAVING"]["end"]],
-            order_by_clause=tokens[clauses["ORDER BY"]["start"]:clauses["ORDER BY"]["end"]],
-            limit_clause=tokens[clauses["LIMIT"]["start"]:clauses["LIMIT"]["end"]]
+            select_clause=__get_tokens("SELECT"),
+            from_clause=__get_tokens("FROM"),
+            where_clause=__get_tokens("WHERE"),
+            group_by_clause=__get_tokens("GROUP BY"),
+            having_clause=__get_tokens("HAVING"),
+            order_by_clause=__get_tokens("ORDER BY"),
+            limit_clause=__get_tokens("LIMIT")
         )
 
     @staticmethod
@@ -93,10 +106,14 @@ class SelectAstBuilder:
 
         select_clause = select_clause_builder.get_select_clause(clause_tokens.select_clause)
         from_clause = from_clause_builder.get_from_clause(clause_tokens.from_clause)
-        where_clause = where_clause_builder.get_where_clause(clause_tokens.where_clause[0])  # [0] because of how it's being parsed.
+
+        # [0] because of how it's being parsed.
+        where_clause = where_clause_builder.get_where_clause(clause_tokens.where_clause[0]) if clause_tokens.where_clause else None
+        group_by_clause = group_by_clause_builder.get_group_by_clause(clause_tokens.group_by_clause) if clause_tokens.group_by_clause else None
 
         return SelectAst(
             select_clause=select_clause,
             from_clause=from_clause,
-            where_clause=where_clause
+            where_clause=where_clause,
+            group_by_clause=group_by_clause
         )

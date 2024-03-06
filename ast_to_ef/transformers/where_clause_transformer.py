@@ -2,7 +2,7 @@ from enum import Enum
 from sql_to_ast.builder import where_clause_builder
 from sql_to_ast.models import field, condition
 
-from ast_to_ef.adapter.constants import SELECTOR
+from ast_to_ef.transformers.constants import SELECTOR
 
 
 class ConditionLogicalOperatorToEF(Enum):
