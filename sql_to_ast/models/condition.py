@@ -33,7 +33,7 @@ class FloatOperand:
         return f'FloatOperand({self.value})'
 
 
-type ListOperandValue = Union[StringOperand, IntOperand, FloatOperand]
+ListOperandValue = Union[StringOperand, IntOperand, FloatOperand]
 
 
 class ListOperand:
