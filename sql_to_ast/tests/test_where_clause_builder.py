@@ -124,7 +124,7 @@ class TestWhereClauseBuilder(unittest.TestCase):
         self.assertIsInstance(conditions.right_operand.right_operand, condition.StringOperand)
         self.assertEqual(conditions.right_operand.right_operand.value, "Smith")
 
-    def test_operators_order(self):
+    def test_binary_operators(self):
         sql = "WHERE a = 'a' AND b = 'b' OR c = 'c'"
         conditions = self.get_where(sql).condition
         self.assertIsInstance(conditions, condition.ConditionLogicalExpression)
@@ -238,7 +238,7 @@ class TestWhereClauseBuilder(unittest.TestCase):
         self.assertIsInstance(conditions, condition.SingleCondition)
         self.assertIsInstance(conditions.left_operand, SelectAst)
 
-    def test_not_in(self):
+    def test_unary_operators(self):
         sql = "WHERE NOT a = 3"
         conditions = self.get_where(sql).condition
 
@@ -260,6 +260,22 @@ class TestWhereClauseBuilder(unittest.TestCase):
         self.assertEqual(conditions.operand.right_operand.operator,
                          condition.ConditionUnaryLogicalOperator.NOT)
         self.assertIsInstance(conditions.operand.right_operand.operand, condition.SingleCondition)
+
+    def test_in(self):
+        sql = "WHERE a IN (1.0)"
+        conditions = self.get_where(sql).condition
+
+        self.assertIsInstance(conditions, condition.SingleCondition)
+        self.assertIsInstance(conditions.right_operand, condition.ListOperand)
+        self.assertEqual(conditions.operator, condition.ConditionOperator.IN)
+        self.assertEqual(conditions.left_operand.name, "a")
+        self.assertEqual(len(conditions.right_operand.value), 1)
+        self.assertEqual(conditions.right_operand.value[0].value, 1.0)
+
+    def test_not_in(self):
+        sql = "WHERE a NOT IN (1, 2, 3) AND (b > 3 OR x IN (SELECT y FROM z))"
+        conditions = self.get_where(sql).condition
+        print(conditions)
 
 
 if __name__ == '__main__':

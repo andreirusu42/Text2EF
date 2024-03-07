@@ -2,13 +2,13 @@ import sqlparse
 
 from typing import List
 
-from sql_to_ast.builder.helpers import is_select, remove_whitespaces
+from sql_to_ast.builder.helpers import is_select, remove_punctuation, remove_whitespaces
 from sql_to_ast.select_ast_builder import build_select_ast
 from sql_to_ast.models.where_clause import WhereClause, WhereCondition
 from sql_to_ast.models.field import Field
 from sql_to_ast.models.condition import ConditionBinaryLogicalOperator, ConditionUnaryLogicalOperator, \
     ConditionBinaryLogicalExpression, ConditionUnaryLogicalExpression, ConditionOperand, \
-    IntOperand, FloatOperand, StringOperand, SingleCondition, ConditionOperator
+    IntOperand, FloatOperand, StringOperand, SingleCondition, ConditionOperator, ListOperand
 
 
 def is_unary_operator(operator: str):
@@ -39,26 +39,63 @@ def get_where_clause(token: sqlparse.sql.Token) -> WhereClause:
     return __build_where(token.tokens[1:])
 
 
-# TODO: If we have WHERE "a" = 1, because of the double quotes, it's a field, not a string. If using single quotes, it's ok. This is weird
-def __construct_operand(token: sqlparse.sql.Token) -> ConditionOperand:
+def __construct_operand_helper(token: sqlparse.sql.Token) -> ConditionOperand:
     if isinstance(token, sqlparse.sql.Identifier):
         return Field(
             name=token.get_real_name(),
             alias=token.get_alias(),
             parent=token.get_parent_name()
         )
+
+    elif isinstance(token, sqlparse.sql.IdentifierList):
+        tokens = remove_punctuation(token.tokens)
+        tokens = remove_whitespaces(tokens)
+
+        return ListOperand(
+            value=[__construct_operand(token) for token in tokens]
+        )
+
     elif token.ttype == sqlparse.tokens.Literal.Number.Integer:
         return IntOperand(value=int(token.value))
+
     elif token.ttype == sqlparse.tokens.Literal.Number.Float:
         return FloatOperand(value=float(token.value))
+
     elif token.ttype == sqlparse.tokens.Literal.String.Single:
         return StringOperand(value=token.value[1:-1])
+
     else:
         raise ValueError(f"Unsupported token: {token}")
 
+# TODO: If we have WHERE "a" = 1, because of the double quotes, it's a field, not a string. If using single quotes, it's ok. This is weird
 
-def __build_condition(token: sqlparse.sql.Token) -> SingleCondition:
+
+def __construct_operand(token: sqlparse.sql.Token) -> ConditionOperand:
+    if isinstance(token, sqlparse.sql.Parenthesis):
+        tokens = remove_whitespaces(token.tokens)[1:-1]
+
+        if is_select(tokens[0]):
+            return build_select_ast(token.value[1:-1])
+
+        elif isinstance(tokens[0], sqlparse.sql.IdentifierList):
+            tokens = remove_punctuation(tokens[0].tokens)
+            tokens = remove_whitespaces(tokens)
+
+            return ListOperand(
+                value=[__construct_operand(token) for token in tokens]
+            )
+
+        elif len(tokens) == 1:
+            return ListOperand(value=[__construct_operand_helper(tokens[0])])
+        else:
+            raise ValueError(f"Expected SELECT or an IdentifierList, got {(tokens[0],)}")
+
+    return __construct_operand_helper(token)
+
+
+def __build_comparison(token: sqlparse.sql.Token) -> SingleCondition:
     # TODO: if the column is really called "column", this fails, because sqlparse sees it as a keyword
+
     if not isinstance(token, sqlparse.sql.Comparison):
         raise ValueError(f"Expected comparison, got {(token, )}")
 
@@ -68,32 +105,25 @@ def __build_condition(token: sqlparse.sql.Token) -> SingleCondition:
         raise ValueError(
             f"Expected 3 tokens, got: {len(cleaned)} [{(cleaned,)}]")
 
-    [left_operand, operator, right_operand] = cleaned
-
-    if isinstance(left_operand, sqlparse.sql.Parenthesis):
-        tokens = remove_whitespaces(left_operand.tokens)[1:-1]
-
-        if not is_select(tokens[0]):
-            raise ValueError(f"Expected SELECT, got {(tokens[0],)}")
-
-        left_operand = build_select_ast(left_operand.value[1:-1])
-    else:
-        left_operand = __construct_operand(left_operand)
-
-    if isinstance(right_operand, sqlparse.sql.Parenthesis):
-        tokens = remove_whitespaces(right_operand.tokens)[1:-1]
-
-        if not is_select(tokens[0]):
-            raise ValueError(f"Expected SELECT, got {(tokens[0],)}")
-
-        right_operand = build_select_ast(right_operand.value[1:-1])
-    else:
-        right_operand = __construct_operand(right_operand)
+    [left_token, operator, right_token] = cleaned
 
     return SingleCondition(
-        left_operand=left_operand,
+        left_operand=__construct_operand(left_token),
         operator=ConditionOperator.from_string(operator.value),
-        right_operand=right_operand
+        right_operand=__construct_operand(right_token)
+    )
+
+
+def __build_in(tokens: List[sqlparse.sql.Token]) -> SingleCondition:
+    if len(tokens) != 3:
+        raise ValueError(f"Expected 3 tokens, got: {len(tokens)} [{(tokens,)}]")
+
+    [left_token, _, right_token] = tokens
+
+    return SingleCondition(
+        left_operand=__construct_operand(left_token),
+        operator=ConditionOperator.IN,
+        right_operand=__construct_operand(right_token)
     )
 
 
@@ -109,14 +139,14 @@ def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereCondition:
     if len(tokens) == 1:
         [token] = tokens
 
-        single_condition = __build_condition(token)
+        single_condition = __build_comparison(token)
 
         return single_condition
 
     operator_stack: List[str] = []
     operand_stack: List[WhereCondition] = []
 
-    def __build_operand():
+    def __build_logical_expression():
         operator = operator_stack.pop()
 
         if is_unary_operator(operator):
@@ -139,21 +169,47 @@ def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereCondition:
         else:
             raise ValueError(f"Unexpected operator: {operator}")
 
-    for token in tokens:
+    token_index = 0
+    number_of_tokens = len(tokens)
+
+    while token_index < number_of_tokens:
+        token = tokens[token_index]
+
         if token.ttype == sqlparse.tokens.Keyword and token.value.upper() in __condition_logical_operators:
             while operator_stack and __condition_logical_operators_precedence[operator_stack[-1]] >= __condition_logical_operators_precedence[token.value.upper()]:
-                __build_operand()
+                __build_logical_expression()
 
             operator_stack.append(token.value.upper())
+
+            token_index += 1
         elif isinstance(token, sqlparse.sql.Parenthesis):
             sub_conditions = __build_where_helper(
                 remove_whitespaces(token.tokens)[1:-1])
 
             operand_stack.append(sub_conditions)
+
+            token_index += 1
+        elif isinstance(token, sqlparse.sql.Identifier):
+            if tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == 'NOT':
+                tokens_without_not = [token] + tokens[token_index + 2:]
+
+                condition = __build_where_helper(tokens_without_not)
+
+                operand_stack.append(condition)
+                operator_stack.append('NOT')
+
+                token_index += 4
+
+            elif tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == 'IN':
+                operand_stack.append(__build_in(tokens[token_index: token_index + 3]))
+                token_index += 3
+            else:
+                raise ValueError(f"Unexpected token: {token}")
         else:
-            operand_stack.append(__build_condition(token))
+            operand_stack.append(__build_comparison(token))
+            token_index += 1
 
     while operator_stack:
-        __build_operand()
+        __build_logical_expression()
 
     return operand_stack[0]

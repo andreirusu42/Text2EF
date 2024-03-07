@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Union, TYPE_CHECKING
+from typing import List, Union, TYPE_CHECKING
 
 from enum import Enum
 
@@ -18,7 +18,7 @@ class StringOperand:
 
 
 class IntOperand:
-    def __init__(self, value: str):
+    def __init__(self, value: int):
         self.value = value
 
     def __repr__(self):
@@ -26,14 +26,25 @@ class IntOperand:
 
 
 class FloatOperand:
-    def __init__(self, value: str):
+    def __init__(self, value: float):
         self.value = value
 
     def __repr__(self):
         return f'FloatOperand({self.value})'
 
 
-ConditionOperand = Union[Field, StringOperand, IntOperand, FloatOperand, 'SelectAst']
+type ListOperandValue = Union[StringOperand, IntOperand, FloatOperand]
+
+
+class ListOperand:
+    def __init__(self, value: List[ListOperandValue]):
+        self.value = value
+
+    def __repr__(self):
+        return f'ListOperand({self.value})'
+
+
+ConditionOperand = Union[Field, StringOperand, IntOperand, FloatOperand, ListOperand, 'SelectAst']
 
 
 class ConditionOperator(Enum):
@@ -43,6 +54,7 @@ class ConditionOperator(Enum):
     LTE = "<="
     GTE = ">="
     LIKE = "LIKE"
+    IN = "IN"
 
     @staticmethod
     def from_string(s: str):
@@ -106,4 +118,4 @@ class ConditionUnaryLogicalExpression:
 
 ConditionLogicalExpression = Union[ConditionBinaryLogicalExpression, ConditionUnaryLogicalExpression]
 
-Condition = SingleCondition | ConditionBinaryLogicalExpression | ConditionUnaryLogicalExpression
+Condition = Union[SingleCondition, ConditionBinaryLogicalExpression, ConditionUnaryLogicalExpression]
