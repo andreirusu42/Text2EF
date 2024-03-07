@@ -305,10 +305,42 @@ class TestWhereClauseBuilder(unittest.TestCase):
         self.assertIsInstance(conditions.right_operand.right_operand, condition.IntOperand)
         self.assertEqual(conditions.right_operand.right_operand.value, 3)
 
-        # self.assertIsInstance(conditions.left_operand.operand.left_operand, condition.SingleCondition)
-        # self.assertIsInstance(conditions.left_operand.operand.right_operand, condition.SingleCondition)
+    def test_just_a_crazy_thing_to_make_sure(self):
+        sql = "WHERE a NOT IN (1) AND (b > 3 OR x IN (SELECT y FROM z))"
+        conditions = self.get_where(sql).condition
 
-        # sql = "WHERE a NOT IN (1, 2, 3) AND (b > 3 OR x IN (SELECT y FROM z))"
+        self.assertIsInstance(conditions, condition.ConditionBinaryLogicalExpression)
+        self.assertIsInstance(conditions.left_operand, condition.ConditionUnaryLogicalExpression)
+        self.assertIsInstance(conditions.right_operand, condition.ConditionLogicalExpression)
+        self.assertEqual(conditions.operator, condition.ConditionBinaryLogicalOperator.AND)
+
+        self.assertEqual(conditions.left_operand.operator,
+                         condition.ConditionUnaryLogicalOperator.NOT)
+        self.assertIsInstance(conditions.left_operand.operand, condition.SingleCondition)
+        self.assertEqual(conditions.left_operand.operand.operator,
+                         condition.ConditionOperator.IN)
+        self.assertIsInstance(conditions.left_operand.operand.left_operand, condition.Field)
+        self.assertEqual(conditions.left_operand.operand.left_operand.name, "a")
+        self.assertEqual(conditions.left_operand.operand.left_operand.alias, None)
+        self.assertEqual(conditions.left_operand.operand.left_operand.parent, None)
+        self.assertIsInstance(conditions.left_operand.operand.right_operand, condition.ListOperand)
+        self.assertEqual(len(conditions.left_operand.operand.right_operand.value), 1)
+        self.assertEqual(conditions.left_operand.operand.right_operand.value[0].value, 1)
+
+        self.assertIsInstance(conditions.right_operand.left_operand, condition.SingleCondition)
+        self.assertIsInstance(conditions.right_operand.right_operand, condition.SingleCondition)
+        self.assertEqual(conditions.right_operand.operator,
+                         condition.ConditionBinaryLogicalOperator.OR)
+
+        self.assertIsInstance(conditions.right_operand.left_operand.left_operand, condition.Field)
+        self.assertEqual(conditions.right_operand.left_operand.left_operand.name, "b")
+        self.assertEqual(conditions.right_operand.left_operand.left_operand.alias, None)
+        self.assertEqual(conditions.right_operand.left_operand.left_operand.parent, None)
+
+        self.assertIsInstance(conditions.right_operand.right_operand.left_operand, condition.Field)
+        self.assertIsInstance(conditions.right_operand.right_operand.right_operand, SelectAst)
+
+        # bla bla rest, should be good ^^
 
 
 if __name__ == '__main__':
