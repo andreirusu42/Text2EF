@@ -191,7 +191,8 @@ def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereCondition:
             token_index += 1
         elif isinstance(token, sqlparse.sql.Identifier):
             if tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == 'NOT':
-                tokens_without_not = [token] + tokens[token_index + 2:]
+                # This expects to have 2 more tokens after the NOT
+                tokens_without_not = [token] + tokens[token_index + 2: token_index + 4]
 
                 condition = __build_where_helper(tokens_without_not)
 

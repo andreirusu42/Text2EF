@@ -71,7 +71,7 @@ class SingleCondition:
         self.right_operand = right_operand
 
     def __repr__(self):
-        return f'Condition(left_operand={self.left_operand}, operator="{self.operator}", right_operand={self.right_operand})'
+        return f'SingleCondition(left_operand={self.left_operand}, operator="{self.operator}", right_operand={self.right_operand})'
 
 
 class ConditionBinaryLogicalOperator(Enum):
@@ -104,7 +104,7 @@ class ConditionBinaryLogicalExpression:
         self.right_operand = right_operand
 
     def __repr__(self):
-        return f'ConditionLogicalExpression(left_operand={self.left_operand}, operator={self.operator}, right_operand={self.right_operand})'
+        return f'ConditionBinaryLogicalExpression(left_operand={self.left_operand}, operator={self.operator}, right_operand={self.right_operand})'
 
 
 class ConditionUnaryLogicalExpression:
