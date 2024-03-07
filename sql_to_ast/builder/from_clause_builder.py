@@ -1,17 +1,12 @@
 import sqlparse
 
 from typing import List
-from sql_to_ast.models import table, join, field
 from sql_to_ast.builder.helpers import remove_whitespaces
 
-
-class FromClause:
-    def __init__(self, table: table.Table, joins: List[join.Join]):
-        self.table = table
-        self.joins = joins
-
-    def __repr__(self):
-        return f"From(table={self.table}, joins={self.joins})"
+from sql_to_ast.models.table import Table
+from sql_to_ast.models.from_clause import FromClause
+from sql_to_ast.models.join import Join, JoinCondition, JoinConditionOperator, JoinType
+from sql_to_ast.models.field import Field
 
 
 def get_from_clause(tokens: List[sqlparse.sql.Token]) -> FromClause:
@@ -30,22 +25,22 @@ def get_from_clause(tokens: List[sqlparse.sql.Token]) -> FromClause:
     )
 
 
-def __build_table_from_identifier(token: sqlparse.sql.Identifier) -> table.Table:
-    return table.Table(
+def __build_table_from_identifier(token: sqlparse.sql.Identifier) -> Table:
+    return Table(
         name=token.get_real_name(),
         alias=token.get_alias(),
     )
 
 
-def __build_join_condition_field(token: sqlparse.sql.Identifier) -> field.Field:
-    return field.Field(
+def __build_join_condition_field(token: sqlparse.sql.Identifier) -> Field:
+    return Field(
         name=token.get_real_name(),
         alias=token.get_alias(),
         parent=token.get_parent_name()
     )
 
 
-def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> join.JoinCondition:
+def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> JoinCondition:
     cleaned: List[sqlparse.sql.Token] = list(
         filter(lambda token: not token.is_whitespace, token.tokens))
 
@@ -54,9 +49,9 @@ def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> jo
 
     [left, operator, right] = cleaned
 
-    return join.JoinCondition(
+    return JoinCondition(
         left=__build_join_condition_field(left),
-        operator=join.JoinConditionOperator.from_string(operator.value),
+        operator=JoinConditionOperator.from_string(operator.value),
         right=__build_join_condition_field(right)
     )
 
@@ -85,7 +80,7 @@ def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
         join_type = None
 
         if token.ttype == sqlparse.tokens.Keyword and token.value.upper() == "JOIN":
-            join_type = join.JoinType.INNER
+            join_type = JoinType.INNER
         else:
             raise ValueError(f"Expected JOIN, got {(token, )}")
 
@@ -111,7 +106,7 @@ def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
         join_condition = __build_join_condition_from_comparison(
             tokens[token_index])
 
-        joins.append(join.Join(
+        joins.append(Join(
             table=join_table,
             type=join_type,
             condition=join_condition

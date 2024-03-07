@@ -1,5 +1,12 @@
+from __future__ import annotations
+from typing import Union, TYPE_CHECKING
+
 from enum import Enum
+
 from sql_to_ast.models.field import Field
+
+if TYPE_CHECKING:
+    from sql_to_ast.models.select_ast import SelectAst
 
 
 class StringOperand:
@@ -26,7 +33,7 @@ class FloatOperand:
         return f'FloatOperand({self.value})'
 
 
-ConditionOperand = Field | StringOperand | IntOperand | FloatOperand
+ConditionOperand = Union[Field, StringOperand, IntOperand, FloatOperand, 'SelectAst']
 
 
 class ConditionOperator(Enum):

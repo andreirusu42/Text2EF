@@ -1,8 +1,9 @@
 from enum import Enum
 
-from sql_to_ast.models import field, wildcard
+from sql_to_ast.models.field import Field
+from sql_to_ast.models.wildcard import Wildcard
 
-FunctionArgument = field.Field | wildcard.Wildcard
+FunctionArgument = Field | Wildcard
 
 
 class FunctionType(Enum):

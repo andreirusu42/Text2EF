@@ -9,3 +9,7 @@ def remove_whitespaces(tokens: List[sqlparse.sql.Token]):
 
 def remove_punctuation(tokens: List[sqlparse.sql.Token]):
     return list(filter(lambda token: token.ttype != sqlparse.tokens.Punctuation, tokens))
+
+
+def is_select(token: sqlparse.sql.Token) -> bool:
+    return token.ttype == sqlparse.tokens.DML and token.value.upper() == 'SELECT'
