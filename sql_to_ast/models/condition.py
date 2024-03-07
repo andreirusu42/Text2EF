@@ -53,36 +53,57 @@ class ConditionOperator(Enum):
 
 
 class SingleCondition:
-    def __init__(self, left: ConditionOperand, operator: ConditionOperator, right: ConditionOperand):
-        self.left = left
+    def __init__(self, left_operand: ConditionOperand, operator: ConditionOperator, right_operand: ConditionOperand):
+        self.left_operand = left_operand
         self.operator = operator
-        self.right = right
+        self.right_operand = right_operand
 
     def __repr__(self):
-        return f'Condition(left={self.left}, operator="{self.operator}", right={self.right})'
+        return f'Condition(left_operand={self.left_operand}, operator="{self.operator}", right_operand={self.right_operand})'
 
 
-class ConditionLogicalOperator(Enum):
+class ConditionBinaryLogicalOperator(Enum):
     AND = "AND"
     OR = "OR"
-    NOT = "NOT"
 
     @staticmethod
     def from_string(s: str):
-        for op in ConditionLogicalOperator:
+        for op in ConditionBinaryLogicalOperator:
             if op.value == s:
                 return op
         raise ValueError("Invalid operator string")
 
 
-class ConditionLogicalExpression:
-    def __init__(self, left: SingleCondition, operator: ConditionLogicalOperator, right: SingleCondition):
-        self.left = left
+class ConditionUnaryLogicalOperator(Enum):
+    NOT = "NOT"
+
+    @staticmethod
+    def from_string(s: str):
+        for op in ConditionUnaryLogicalOperator:
+            if op.value == s:
+                return op
+        raise ValueError("Invalid operator string")
+
+
+class ConditionBinaryLogicalExpression:
+    def __init__(self, left_operand: Condition, operator: ConditionBinaryLogicalOperator, right_operand: Condition):
+        self.left_operand = left_operand
         self.operator = operator
-        self.right = right
+        self.right_operand = right_operand
 
     def __repr__(self):
-        return f'ConditionLogicalExpression(left={self.left}, operator={self.operator}, right={self.right})'
+        return f'ConditionLogicalExpression(left_operand={self.left_operand}, operator={self.operator}, right_operand={self.right_operand})'
 
 
-Condition = SingleCondition | ConditionLogicalExpression
+class ConditionUnaryLogicalExpression:
+    def __init__(self, operator: ConditionUnaryLogicalOperator, operand: Condition):
+        self.operator = operator
+        self.operand = operand
+
+    def __repr__(self):
+        return f'ConditionUnaryLogicalExpression(operator={self.operator}, operand={self.operand})'
+
+
+ConditionLogicalExpression = Union[ConditionBinaryLogicalExpression, ConditionUnaryLogicalExpression]
+
+Condition = SingleCondition | ConditionBinaryLogicalExpression | ConditionUnaryLogicalExpression

@@ -1,8 +1,13 @@
-from typing import List
 import sqlparse
 
+from typing import List
+
 from sql_to_ast.builder.helpers import remove_whitespaces
-from sql_to_ast.builder import select_clause_builder, where_clause_builder, from_clause_builder, group_by_clause_builder
+
+from sql_to_ast.builder.select_clause_builder import get_select_clause
+from sql_to_ast.builder.from_clause_builder import get_from_clause
+from sql_to_ast.builder.group_by_clause_builder import get_group_by_clause
+
 from sql_to_ast.models.select_ast import SelectAst
 
 
@@ -79,7 +84,10 @@ def __get_clause_tokens(tokens: List[sqlparse.sql.Token]) -> ClauseTokens:
     )
 
 
+# TODO: this was the only solution I could find to avoid the circular import
 def build_select_ast(sql: str):
+    from sql_to_ast.builder.where_clause_builder import get_where_clause
+
     statements = sqlparse.parse(sql)
 
     if len(statements) != 1:
@@ -89,12 +97,12 @@ def build_select_ast(sql: str):
 
     clause_tokens = __get_clause_tokens(tokens)
 
-    select_clause = select_clause_builder.get_select_clause(clause_tokens.select_clause)
-    from_clause = from_clause_builder.get_from_clause(clause_tokens.from_clause)
+    select_clause = get_select_clause(clause_tokens.select_clause)
+    from_clause = get_from_clause(clause_tokens.from_clause)
 
     # [0] because of how it's being parsed.
-    where_clause = where_clause_builder.get_where_clause(clause_tokens.where_clause[0]) if clause_tokens.where_clause else None
-    group_by_clause = group_by_clause_builder.get_group_by_clause(clause_tokens.group_by_clause) if clause_tokens.group_by_clause else None
+    where_clause = get_where_clause(clause_tokens.where_clause[0]) if clause_tokens.where_clause else None
+    group_by_clause = get_group_by_clause(clause_tokens.group_by_clause) if clause_tokens.group_by_clause else None
 
     return SelectAst(
         select_clause=select_clause,

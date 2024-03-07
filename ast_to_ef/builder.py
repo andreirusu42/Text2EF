@@ -1,10 +1,10 @@
-from sql_to_ast.select_ast_builder import SelectAstBuilder
+from sql_to_ast.select_ast_builder import build_select_ast
 
 from ast_to_ef.transformers import from_clause_transformer, select_clause_transformer, group_by_clause_transformer, where_clause_transformer
 
 
 def build_ef(sql: str):
-    ast = SelectAstBuilder.build(sql)
+    ast = build_select_ast(sql)
 
     select_text = select_clause_transformer.build_select(ast.select_clause)
     from_text = from_clause_transformer.build_from(ast.from_clause)
