@@ -52,5 +52,16 @@ def __build_count_function(func: function.CountFunction):
         if func.is_distinct:
             raise ValueError(f"Handling of count(distinct *) is not supported yet")
         return f".Count()"
+    elif isinstance(func.argument, field.Field):
+        text = f".Select({SELECTOR} => {SELECTOR}.{__build_field(func.argument)})"
+
+        if func.is_distinct:
+            text += ".Distinct()"
+
+        return f"{text}.Count()"
     else:
         raise ValueError(f"Invalid count function argument ({(func.argument,)})")
+
+
+def __build_field(field: field.Field):
+    return f"{field.parent + '.' if field.parent else ''}{field.name}"
