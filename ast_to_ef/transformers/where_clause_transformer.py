@@ -1,25 +1,22 @@
 from enum import Enum
 from sql_to_ast.builder import where_clause_builder
-from sql_to_ast.models import field, condition
+from sql_to_ast.models import field, condition, select_ast
 
 from ast_to_ef.transformers.constants import SELECTOR
 
 
-class ConditionLogicalOperatorToEF(Enum):
+class ConditionBinaryLogicalOperatorToEF(Enum):
     AND = "&&"
     OR = "||"
-    NOT = "!"
 
     @staticmethod
-    def from_condition_logical_operator(operator: condition.ConditionLogicalOperator):
-        if operator == condition.ConditionLogicalOperator.AND:
-            return ConditionLogicalOperatorToEF.AND.value
-        elif operator == condition.ConditionLogicalOperator.OR:
-            return ConditionLogicalOperatorToEF.OR.value
-        elif operator == condition.ConditionLogicalOperator.NOT:
-            return ConditionLogicalOperatorToEF.NOT.value
+    def from_condition_logical_operator(operator: condition.ConditionBinaryLogicalOperator):
+        if operator == condition.ConditionBinaryLogicalOperator.AND:
+            return ConditionBinaryLogicalOperatorToEF.AND.value
+        elif operator == condition.ConditionBinaryLogicalOperator.OR:
+            return ConditionBinaryLogicalOperatorToEF.OR.value
         else:
-            raise ValueError("Invalid operator")
+            raise ValueError(f"Invalid operator {operator}")
 
 
 class ConditionOperatorToEF(Enum):
@@ -29,6 +26,7 @@ class ConditionOperatorToEF(Enum):
     LTE = "<="
     GTE = ">="
     LIKE = "LIKE"
+    IN = "IN"
 
     @staticmethod
     def from_condition_operator(operator: condition.ConditionOperator):
@@ -44,6 +42,8 @@ class ConditionOperatorToEF(Enum):
             return ConditionOperatorToEF.GTE.value
         elif operator == condition.ConditionOperator.LIKE:
             return ConditionOperatorToEF.LIKE.value
+        elif operator == condition.ConditionOperator.IN:
+            return ConditionOperatorToEF.IN.value
         else:
             raise ValueError("Invalid operator")
 
@@ -71,6 +71,8 @@ def __build_where_float_operand(operand: condition.FloatOperand):
 
 
 def __build_where_condition_operand(operand: condition.ConditionOperand):
+    from ast_to_ef.ef_code_builder import build_ef_code_from_select_ast
+
     if isinstance(operand, field.Field):
         return __build_where_field(operand)
     elif isinstance(operand, condition.StringOperand):
@@ -79,33 +81,43 @@ def __build_where_condition_operand(operand: condition.ConditionOperand):
         return __build_where_int_operand(operand)
     elif isinstance(operand, condition.FloatOperand):
         return __build_where_float_operand(operand)
+    elif isinstance(operand, select_ast.SelectAst):
+        return build_ef_code_from_select_ast(operand)
     else:
         raise ValueError(f"Unsupported operand: {operand}")
 
 
 def __build_where_helper(where_condition: where_clause_builder.WhereCondition):
     if isinstance(where_condition, condition.SingleCondition):
-        left = __build_where_condition_operand(where_condition.left)
-        right = __build_where_condition_operand(where_condition.right)
+        left = __build_where_condition_operand(where_condition.left_operand)
+        right = __build_where_condition_operand(where_condition.right_operand)
 
         return f"{left} {ConditionOperatorToEF.from_condition_operator(
             where_condition.operator
         )} {right}"
 
-    elif isinstance(where_condition, condition.ConditionLogicalExpression):
-        left = __build_where_helper(where_condition.left)
+    elif isinstance(where_condition, condition.ConditionBinaryLogicalExpression):
+        left = __build_where_helper(where_condition.left_operand)
         right = __build_where_helper(
-            where_condition.right)
+            where_condition.right_operand)
 
-        if isinstance(where_condition.left, condition.ConditionLogicalExpression):
+        if isinstance(where_condition.left_operand, condition.ConditionLogicalExpression):
             left = f"({left})"
 
-        if isinstance(where_condition.right, condition.ConditionLogicalExpression):
+        if isinstance(where_condition.right_operand, condition.ConditionLogicalExpression):
             right = f"({right})"
 
-        return f"{left} {ConditionLogicalOperatorToEF.from_condition_logical_operator(
+        return f"{left} {ConditionBinaryLogicalOperatorToEF.from_condition_logical_operator(
             where_condition.operator
         )} {right}"
+
+    elif isinstance(where_condition, condition.ConditionUnaryLogicalExpression):
+        operand = __build_where_helper(where_condition.operand)
+
+        return f"!{operand}"
+
+    elif isinstance(where_condition, select_ast.SelectAst):
+        return f"{SELECTOR} => {where_condition}"
 
     else:
         raise ValueError(f"Unsupported condition: {where_condition}")
