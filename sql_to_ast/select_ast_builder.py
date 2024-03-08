@@ -4,10 +4,13 @@ from typing import List
 
 from sql_to_ast.builder.helpers import remove_whitespaces
 
-from sql_to_ast.builder.select_clause_builder import get_select_clause
+from sql_to_ast.builder.select_clause_builder import get_select_clause, SelectField
 from sql_to_ast.builder.from_clause_builder import get_from_clause
 from sql_to_ast.builder.group_by_clause_builder import get_group_by_clause
-
+from sql_to_ast.builder.database_schema_builder import build_database_schema
+from sql_to_ast.models.database_schema import DatabaseSchema
+from sql_to_ast.models.table import Table
+from sql_to_ast.models.field import Field
 from sql_to_ast.models.select_ast import SelectAst
 
 
@@ -84,8 +87,44 @@ def __get_clause_tokens(tokens: List[sqlparse.sql.Token]) -> ClauseTokens:
     )
 
 
-# TODO: this was the only solution I could find to avoid the circular import
-def build_select_ast(sql: str):
+def __normalize_field(
+        field: SelectField,
+        tables: List[Table],
+        schema: DatabaseSchema
+):
+    if not isinstance(field, Field):
+        return
+
+    if field.parent is not None:
+        return
+
+    for table in schema.tables:
+        if field.name in table.columns:
+            for ast_table in tables:
+                if ast_table.name == table.name:
+                    if ast_table.alias:
+                        field.parent = ast_table.alias
+                    else:
+                        field.parent = ast_table.name
+                return
+
+
+def __normalize_select_ast(
+    ast: SelectAst,
+    schema: DatabaseSchema
+) -> SelectAst:
+
+    all_tables: List[Table] = [ast.from_clause.table] + [join.table for join in ast.from_clause.joins]
+
+    if ast.from_clause.joins:
+        for field in ast.select_clause.fields:
+            __normalize_field(field, all_tables, schema)
+
+    return ast
+
+
+def build_select_ast(sql: str, schema: DatabaseSchema):
+    # TODO: this was the only solution I could find to avoid the circular import
     from sql_to_ast.builder.where_clause_builder import get_where_clause
 
     statements = sqlparse.parse(sql)
@@ -104,9 +143,33 @@ def build_select_ast(sql: str):
     where_clause = get_where_clause(clause_tokens.where_clause[0]) if clause_tokens.where_clause else None
     group_by_clause = get_group_by_clause(clause_tokens.group_by_clause) if clause_tokens.group_by_clause else None
 
-    return SelectAst(
+    ast = SelectAst(
         select_clause=select_clause,
         from_clause=from_clause,
         where_clause=where_clause,
         group_by_clause=group_by_clause
     )
+
+    return __normalize_select_ast(ast, schema)
+
+
+if __name__ == '__main__':
+    schema = build_database_schema('mydb', f"""
+        CREATE TABLE Table1 (
+            a INT,
+            b INT
+        );
+
+        CREATE TABLE Table2 (
+            a INT,
+            c INT,
+            d INT
+        );
+    """)
+
+    result = build_select_ast(f"""
+    SELECT a
+    FROM Table1 JOIN table2 ON Table1.a = table2.a
+""", schema)
+
+    print(result)

@@ -1,6 +1,7 @@
 from ast_to_ef.transformers.constants import CONTEXT
 from sql_to_ast.select_ast_builder import build_select_ast
 from sql_to_ast.models import select_ast
+from sql_to_ast.models.database_schema import DatabaseSchema
 from ast_to_ef.transformers import from_clause_transformer, select_clause_transformer, group_by_clause_transformer, where_clause_transformer
 
 
@@ -30,41 +31,24 @@ def build_ef_raw_sql_code(sql: str, ast: select_ast.SelectAst):
     return f"""{from_code}.FromSqlRaw(@"{sql}"){select_code}"""
 
 
-def main():
-    sql = f"""
-SELECT DISTINCT T2.Name
-FROM country AS T1
-JOIN city AS T2 ON T2.CountryCode  =  T1.Code
-WHERE T1.Continent  =  'Europe'
-AND T1.Name NOT IN (SELECT T3.Name
-                    FROM country AS T3
-                    JOIN countrylanguage AS T4 ON T3.Code  =  T4.CountryCode WHERE T4.IsOfficial  =  'T'
-                    AND T4.Language  =  'English')"""
-
-    # sql = f"""SELECT Name FROM country WHERE IndepYear  >  1950"""
-    sql = f"SELECT Region FROM country AS T1 JOIN city AS T2 ON T1.Code  =  T2.CountryCode WHERE T2.Name  =  'Kabul'"
-
-    ast = build_select_ast(sql)
+def build_ef_code(sql: str, database_schema: DatabaseSchema):
+    ast = build_select_ast(sql, database_schema)
 
     raw_method_syntax_code = build_ef_code_from_select_ast(ast)
     raw_raw_sql_query = build_ef_raw_sql_code(sql, ast)
 
-    method_syntax_code = f"var methodSyntaxResult = {raw_method_syntax_code};"
-    raw_sql_code = f"var rawSqlResult = {raw_raw_sql_query};"
+    method_syntax_code = f"var methodSyntaxResult = {raw_method_syntax_code}"
+    raw_sql_code = f"var rawSqlResult = {raw_raw_sql_query}"
 
-    test_code = f"""
-    using var {CONTEXT} = new {ast.from_clause.table.name}Context();
+    code = f"""
+        using var {CONTEXT} = new {database_schema.name}_Context();
 
-    {method_syntax_code}
-    {raw_sql_code}
+        {method_syntax_code}
+        {raw_sql_code}
 
-    var areEqual = methodSyntaxResult.ToList().SequenceEqual(rawSqlResult.ToList());
+        var areEqual = methodSyntaxResult.ToList().SequenceEqual(rawSqlResult.ToList());
 
-    Console.WriteLine($"Are equal: {{areEqual}}");
+        Console.WriteLine($"Are equal: {{areEqual}}");
 """
 
-    print(test_code)
-
-
-if __name__ == "__main__":
-    main()
+    return code

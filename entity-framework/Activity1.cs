@@ -1,32 +1,65 @@
-using entity_framework.Models.allergy_1;
+using entity_framework.Models.activity_1;
 using Microsoft.EntityFrameworkCore;
 
 class Activity1Test
 {
     public static void Test()
     {
-        using var context = new Allergy1Context();
+        using var context = new Activity1Context();
 
-        // var sql = "SELECT count(*) FROM Has_allergy AS T1 JOIN Allergy_type AS T2 ON T1.allergy  =  T2.allergy WHERE T2.allergytype  =  'food'";
+        var methodSyntaxResult = context.Faculties.GroupBy(row => new { row.Building }).Select(row => new { row.Key });
 
-        // var resultSql = context.Has_Allergy.FromSqlRaw(sql)
-        // .FirstOrDefault();
 
-        var resultLinq = context.HasAllergies.Join(context.AllergyTypes, T1 => T1.Allergy, T2 => T2.Allergy, (T1, T2) => new { T1, T2 })
-    .Where(row => row.T2.AllergyType1 == "food")
-    .GroupBy(row => new { row.T1.Allergy, row.T2.AllergyType1 })
-    .Select(group => new
-    {
-        Count = group.Count(),
-        x = group.Key.AllergyType1
-    })
-    .Count();
 
-        Console.WriteLine(resultLinq);
+        // var methodSyntaxResult = context.Faculties.Where(row => row.Sex == "F").Select(row => new { row.Fname, row.Lname, row.Phone });
 
-        // if (resultSql != resultLinq)
-        // {
-        //     throw new Exception("Test failed");
-        // }
+        // var areEqual = methodSyntaxResult == rawSqlResult;
+
+        // Console.WriteLine($"Are equal: {areEqual}");
+        // using var context = new world_1Context();
+
+        // var methodSyntaxResult = context.country.Join(context.city, T1 => T1.Code, T2 => T2.CountryCode, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Kabul").Select(row => new { row.T1.Region });
+        // var rawSqlResult = context.country.FromSqlRaw(@"SELECT Region FROM country AS T1 JOIN city AS T2 ON T1.Code  =  T2.CountryCode WHERE T2.Name  =  'Kabul'").Select(row => new { row.Region });
+
+        // var areEqual = methodSyntaxResult.ToList().SequenceEqual(rawSqlResult.ToList());
+
+        // Console.WriteLine($"Are equal: {areEqual}");
+
+        // QUERY 1
+        //         var europeanCitiesMS = context.Cities
+        //             .Join(
+        //                 context.Countries,
+        //                 city => city.CountryCode,
+        //                 country => country.Code,
+        //                 (city, country) => new { City = city, Country = country }
+        //             )
+        //             .Where(joined => joined.Country.Continent == "Europe")
+        //             .Where(joined => !context.Countrylanguages
+        //                 .Any(cl => cl.CountryCode == joined.Country.Code && cl.IsOfficial == "T" && cl.Language == "English"))
+        //             .Select(joined => joined.City.Name)
+        //             .Distinct()
+        //             .ToList();
+
+        //         System.Console.WriteLine(europeanCitiesMS.Count);
+
+        //         var sql = @"SELECT DISTINCT T2.Name
+        // FROM country AS T1
+        // JOIN city AS T2 ON T2.CountryCode  =  T1.Code
+        // WHERE T1.Continent  =  'Europe'
+        // AND T1.Name NOT IN (SELECT T3.Name
+        //                     FROM country AS T3
+        //                     JOIN countrylanguage AS T4 ON T3.Code  =  T4.CountryCode WHERE T4.IsOfficial  =  'T'
+        //                     AND T4.Language  =  'English')";
+
+        //         var europeanCitiesSQL = context.Cities
+        //             .FromSqlRaw(sql)
+        //             .Select(city => city.Name)
+        //             .ToList();
+
+        //         System.Console.WriteLine(europeanCitiesSQL.Count);
+
+        //         var areEqual = europeanCitiesMS.SequenceEqual(europeanCitiesSQL);
+
+        //         System.Console.WriteLine(areEqual);
     }
 }

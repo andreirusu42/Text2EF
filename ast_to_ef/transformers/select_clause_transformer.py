@@ -43,6 +43,8 @@ def __build_select_fields(select_fields: List[select_clause_builder.SelectField]
 def __build_function(func: function.Function):
     if isinstance(func, function.CountFunction):
         return __build_count_function(func)
+    elif isinstance(func, function.AvgFunction):
+        return __build_average_function(func)
     else:
         raise ValueError(f"Invalid function type ({func})")
 
@@ -61,6 +63,13 @@ def __build_count_function(func: function.CountFunction):
         return f"{text}.Count()"
     else:
         raise ValueError(f"Invalid count function argument ({(func.argument,)})")
+
+
+def __build_average_function(func: function.AvgFunction):
+    if isinstance(func.argument, field.Field):
+        return f".Average({SELECTOR} => {SELECTOR}.{__build_field(func.argument)})"
+    else:
+        raise ValueError(f"Invalid average function argument ({(func.argument,)})")
 
 
 def __build_field(field: field.Field):
