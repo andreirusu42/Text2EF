@@ -7,7 +7,14 @@ class Activity1Test
     {
         using var context = new Activity1Context();
 
-        var methodSyntaxResult = context.Faculties.GroupBy(row => new { row.Building }).Select(row => new { row.Key });
+        var result = context.Faculties
+    .GroupBy(f => f.Building)
+    .Select(g => new
+    {
+        Count = g.Count(x => x.FacId == 2),
+        Building = g.Key
+    })
+    .ToList();
 
 
 

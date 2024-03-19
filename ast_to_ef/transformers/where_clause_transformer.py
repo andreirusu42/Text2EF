@@ -92,9 +92,9 @@ def __build_where_helper(where_condition: where_clause_builder.WhereCondition):
         left = __build_where_condition_operand(where_condition.left_operand)
         right = __build_where_condition_operand(where_condition.right_operand)
 
-        return f"{left} {ConditionOperatorToEF.from_condition_operator(
+        return f"""{left} {ConditionOperatorToEF.from_condition_operator(
             where_condition.operator
-        )} {right}"
+        )} {right}"""
 
     elif isinstance(where_condition, condition.ConditionBinaryLogicalExpression):
         left = __build_where_helper(where_condition.left_operand)
@@ -107,9 +107,9 @@ def __build_where_helper(where_condition: where_clause_builder.WhereCondition):
         if isinstance(where_condition.right_operand, condition.ConditionLogicalExpression):
             right = f"({right})"
 
-        return f"{left} {ConditionBinaryLogicalOperatorToEF.from_condition_logical_operator(
+        return f"""{left} {ConditionBinaryLogicalOperatorToEF.from_condition_logical_operator(
             where_condition.operator
-        )} {right}"
+        )} {right}"""
 
     elif isinstance(where_condition, condition.ConditionUnaryLogicalExpression):
         operand = __build_where_helper(where_condition.operand)

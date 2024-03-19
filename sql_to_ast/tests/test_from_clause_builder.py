@@ -71,6 +71,13 @@ class TestFromClauseBuilder(unittest.TestCase):
             from_.joins[1].condition.operator, join.JoinConditionOperator.EQUAL)
         self.assertEqual(from_.joins[1].type, join.JoinType.INNER)
 
+    # TODO: see if we'll need this
+    def _test_get_from_with_operators(self):
+        sql = "FROM table1 JOIN table2 ON table1.id = table2.id AND table1.name = table2.name"
+        from_ = self.get_from(sql)
+
+        self.assertEqual(from_.table.name, "table1")
+        self.assertEqual(from_.joins, [])
 
 if __name__ == '__main__':
     unittest.main()

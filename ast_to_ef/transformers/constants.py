@@ -1,4 +1,6 @@
 SELECTOR = "row"
+GROUP = "group"
+
 CONTEXT = "context"
 
 JOIN_LEFT_DEFAULT = "left"

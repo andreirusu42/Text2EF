@@ -5,8 +5,8 @@ from sql_to_ast.models import field, function, wildcard
 from ast_to_ef.transformers.constants import SELECTOR
 
 
-def build_select(select_clause: select_clause_builder.SelectClause):
-    result = __build_select_fields(select_clause.fields)
+def build_select(select_clause: select_clause_builder.SelectClause, has_group_by: bool):
+    result = __build_select_fields(select_clause.fields, has_group_by)
 
     if select_clause.is_distinct:
         result = f"{result}.Distinct()"
@@ -15,13 +15,13 @@ def build_select(select_clause: select_clause_builder.SelectClause):
 
 
 # TODO: handle Wildcard, though a quick lookup shows that it's not recommended to use it
-def __build_select_fields(select_fields: List[select_clause_builder.SelectField]):
+def __build_select_fields(select_fields: List[select_clause_builder.SelectField], has_group_by: bool):
     fields = []
     functions = []
 
     for select_field in select_fields:
         if isinstance(select_field, field.Field):
-            result = f"{f'{select_field.alias} = ' if select_field.alias is not None else ""}{SELECTOR}.{select_field.parent + '.' if select_field.parent else ''}{select_field.name}"
+            result = f"""{f"{select_field.alias} = " if select_field.alias is not None else ""}{SELECTOR}.{select_field.parent + '.' if select_field.parent else ''}{select_field.name}"""
             fields.append(result)
         elif isinstance(select_field, function.Function):
             result = __build_function(select_field)
@@ -31,11 +31,12 @@ def __build_select_fields(select_fields: List[select_clause_builder.SelectField]
 
     if fields and functions:
         raise ValueError(f"Invalid select fields ({fields}, {functions})")
-
     if fields:
         return f".Select({SELECTOR} => new {{ {', '.join(fields)} }})"
     elif functions:
-        return f"{'\n'.join(functions)}"
+        return "\n".join(functions)
+    elif fields and functions:
+        return 
     else:
         raise ValueError(f"No select fields found")
 

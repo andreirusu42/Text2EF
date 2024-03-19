@@ -12,5 +12,8 @@ class __Constants:
 
         self.DATABASES_PATH = './databases'
 
+        self.EF_PROJECT_PATH = './entity-framework'
+        self.EF_PROJECT_MODELS_PATH = path.join(self.EF_PROJECT_PATH, 'Models')
+
 
 constants = __Constants()

@@ -56,6 +56,7 @@ def __build_join_condition_from_comparison(token: sqlparse.sql.Comparison) -> Jo
     )
 
 
+# TODO: This is not going to work with "AND" / "OR" operators INSIDE the join condition. Neither with weird things like "ON 1 = 1", it expects fields;
 def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
     token_index = 0
 
