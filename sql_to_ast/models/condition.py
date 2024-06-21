@@ -53,6 +53,7 @@ class ConditionOperator(Enum):
     GT = ">"
     LTE = "<="
     GTE = ">="
+    DIFFERENT = "!="
     LIKE = "LIKE"
     IN = "IN"
     BETWEEN = "BETWEEN"
@@ -62,7 +63,7 @@ class ConditionOperator(Enum):
         for op in ConditionOperator:
             if op.value.lower() == s.lower():
                 return op
-        raise ValueError("Invalid operator string")
+        raise ValueError(f"Invalid operator string: {s}")
 
 
 class SingleCondition:

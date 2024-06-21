@@ -130,10 +130,12 @@ def build_select_ast(sql: str):
     # TODO: this was the only solution I could find to avoid the circular import
     from sql_to_ast.builder.where_clause_builder import get_where_clause
 
+    # TODO: we need to find a way to format it correctly and handle all bs
     sql = format_sql(sql)
-
     if sql.strip().endswith(';'):
         sql = sql.strip()[:-1].strip()
+    sql = sql.replace('avg (', 'AVG(')
+
     statements = sqlparse.parse(sql)
 
     if len(statements) != 1:

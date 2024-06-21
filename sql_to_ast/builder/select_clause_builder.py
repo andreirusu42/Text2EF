@@ -181,6 +181,7 @@ def __build_select_helper(tokens: List[sqlparse.sql.Token]) -> List[SelectField]
     fields = []
 
     for token in tokens:
+        print((token,))
         if isinstance(token, sqlparse.sql.IdentifierList):
             tokens = remove_whitespaces(token.tokens)
             tokens = remove_punctuation(tokens)
