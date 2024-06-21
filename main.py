@@ -97,19 +97,17 @@ def main():
     queries = list(queries)
     queries = sorted(queries, key=lambda x: x[0])
 
+    print(len(queries))
+
     for __index, (query, database_name) in enumerate(queries):
         print(f"Processing query: {query} | from database: {database_name}")
+
+        print(f"{__index} / {len(queries)}")
 
         # database_schema = database_schemas[database_name]
         # schema_mapping = schema_mappings[database_name]
 
-        try:
-            ast = build_select_ast(query)
-            print(ast)
-        except Exception as e:
-            print(query)
-            print(e)
-            input("Next: ")
+        ast = build_select_ast(query)
 
         # print(query)
         # print(ast)

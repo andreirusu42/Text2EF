@@ -55,11 +55,12 @@ class ConditionOperator(Enum):
     GTE = ">="
     LIKE = "LIKE"
     IN = "IN"
+    BETWEEN = "BETWEEN"
 
     @staticmethod
     def from_string(s: str):
         for op in ConditionOperator:
-            if op.value == s:
+            if op.value.lower() == s.lower():
                 return op
         raise ValueError("Invalid operator string")
 

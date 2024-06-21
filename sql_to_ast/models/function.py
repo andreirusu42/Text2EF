@@ -9,11 +9,12 @@ FunctionArgument = Field | Wildcard
 class FunctionType(Enum):
     AVG = "AVG"
     COUNT = "COUNT"
+    MIN = "MIN"
 
     @staticmethod
     def from_string(s: str):
         for t in FunctionType:
-            if t.value == s:
+            if t.value.lower() == s.lower():
                 return t
         raise ValueError("Invalid function type string")
 

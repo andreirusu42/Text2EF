@@ -131,6 +131,19 @@ def __build_in(tokens: List[sqlparse.sql.Token]) -> SingleCondition:
     )
 
 
+def __build_between(tokens: List[sqlparse.sql.Token]) -> SingleCondition:
+    if len(tokens) != 5:
+        raise ValueError(f"Expected 5 tokens, got: {len(tokens)} [{(tokens,)}]")
+
+    [left_token, _, value_1, _, value_2] = tokens
+
+    return SingleCondition(
+        left_operand=__construct_operand(left_token),
+        operator=ConditionOperator.BETWEEN,
+        right_operand=__construct_operand(sqlparse.sql.IdentifierList([value_1, value_2]))
+    )
+
+
 def __build_where(tokens: List[sqlparse.sql.Token]) -> WhereClause:
     condition = __build_where_helper(tokens)
 
@@ -208,6 +221,10 @@ def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereCondition:
             elif tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == 'IN':
                 operand_stack.append(__build_in(tokens[token_index: token_index + 3]))
                 token_index += 3
+
+            elif tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == 'BETWEEN':
+                operand_stack.append(__build_between(tokens[token_index: token_index + 5]))
+                token_index += 5
             else:
                 raise ValueError(f"Unexpected token: {token}")
         # TODO: this is another bold assumption, for things like "WHERE year = 1"

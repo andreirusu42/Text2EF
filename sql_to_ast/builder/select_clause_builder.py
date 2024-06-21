@@ -60,8 +60,35 @@ def __extract_function_from_tokens(tokens: List[sqlparse.sql.Token]) -> Function
         return __build_count_function(argument_tokens, alias)
     elif function_type == FunctionType.AVG:
         return __build_avg_function(argument_tokens, alias)
+    elif function_type == FunctionType.MIN:
+        return __build_min_function(argument_tokens, alias)
     else:
         raise ValueError(f"Unexpected function type {function_type}")
+
+
+def __build_min_function(argument_tokens: List[sqlparse.sql.Token], alias: str) -> Function:
+    if len(argument_tokens) != 1:
+        raise ValueError(f"Unexpected min function arguments {(argument_tokens,)}")
+
+    argument = argument_tokens[0]
+
+    if isinstance(argument, sqlparse.sql.Identifier):
+        field_identifier = __extract_field_from_identifier(argument)
+        return Function(
+            type=FunctionType.MIN,
+            argument=field_identifier,
+            alias=alias
+        )
+
+    elif argument.ttype == sqlparse.tokens.Wildcard and argument.value == '*':
+        return Function(
+            type=FunctionType.MIN,
+            argument=Wildcard(),
+            alias=alias,
+        )
+
+    else:
+        raise ValueError(f"Unexpected token {argument}")
 
 
 def __build_avg_function(argument_tokens: List[sqlparse.sql.Token], alias: str) -> AvgFunction:
