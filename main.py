@@ -3,8 +3,9 @@ import os
 from ast_to_ef.ef_code_builder import build_ef_code
 from ast_to_ef.schema_mapper import create_schema_map, SchemaMapping
 from sql_to_ast.builder.database_schema_builder import build_database_schema, DatabaseSchema
-
+from sql_to_ast.select_ast_builder import build_select_ast
 from constants import constants
+
 
 def find_context_file(database_name: str) -> str:
     folder_path = f"{constants.EF_PROJECT_MODELS_PATH}/{database_name}/"
@@ -12,8 +13,9 @@ def find_context_file(database_name: str) -> str:
     for filename in os.listdir(folder_path):
         if filename.endswith("Context.cs"):
             return os.path.join(folder_path, filename)
-        
+
     raise ValueError(f"Context file not found for database: {database_name}")
+
 
 def main2():
     schema = build_database_schema('mydb', f"""
@@ -81,38 +83,36 @@ def main():
 
         [query, database_name] = line.split('\t')
 
-        if database_name != "activity_1":
-            continue
-
         queries.add((query, database_name))
 
-        database_schema_path = os.path.join(constants.DATASET_TEST_DATABASE_PATH, database_name, 'schema.sql')
-        context_file_path = find_context_file(database_name=database_name)
+        # database_schema_path = os.path.join(constants.DATASET_TEST_DATABASE_PATH, database_name, 'schema.sql')
+        # context_file_path = find_context_file(database_name=database_name)
 
-        with open(database_schema_path, 'r') as file:
-            database_schema = file.read()
-            database_schemas[database_name] = build_database_schema(database_name, database_schema)
+        # with open(database_schema_path, 'r') as file:
+        #     database_schema = file.read()
+        #     database_schemas[database_name] = build_database_schema(database_name, database_schema)
 
-        schema_mappings[database_name] = create_schema_map(context_file_path=context_file_path)
+        # schema_mappings[database_name] = create_schema_map(context_file_path=context_file_path)
 
-    for query, database_name in queries:
+    queries = list(queries)
+    queries = sorted(queries, key=lambda x: x[0])
+
+    for __index, (query, database_name) in enumerate(queries):
         print(f"Processing query: {query} | from database: {database_name}")
 
-        query = f"""
-            SELECT COUNT(*)
-            FROM Faculty AS f
-            JOIN Faculty_Participates_in
-            ON f.FacID = Faculty_Participates_in.FacID
-        """
+        # database_schema = database_schemas[database_name]
+        # schema_mapping = schema_mappings[database_name]
 
-        database_schema = database_schemas[database_name]
-        schema_mapping = schema_mappings[database_name]
+        try:
+            ast = build_select_ast(query)
+            print(ast)
+        except Exception as e:
+            print(query)
+            print(e)
+            input("Next: ")
 
-        ef_code = build_ef_code(query, database_schema, schema_mapping)
-
-        print(ef_code)
-
-        input("Next: ")
+        # print(query)
+        # print(ast)
 
 
 if __name__ == '__main__':

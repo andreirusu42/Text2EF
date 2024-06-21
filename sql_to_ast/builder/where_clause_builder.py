@@ -63,7 +63,11 @@ def __construct_operand_helper(token: sqlparse.sql.Token) -> ConditionOperand:
 
     elif token.ttype == sqlparse.tokens.Literal.String.Single:
         return StringOperand(value=token.value[1:-1])
-
+    # TODO: this is a bold assumption, for things like "WHERE year = 1";
+    elif token.ttype == sqlparse.tokens.Keyword:
+        return Field(
+            name=token.value
+        )
     else:
         raise ValueError(f"Unsupported token: {token}")
 
@@ -206,6 +210,14 @@ def __build_where_helper(tokens: List[sqlparse.sql.Token]) -> WhereCondition:
                 token_index += 3
             else:
                 raise ValueError(f"Unexpected token: {token}")
+        # TODO: this is another bold assumption, for things like "WHERE year = 1"
+        elif token.ttype == sqlparse.tokens.Keyword:
+            comparison = sqlparse.sql.Comparison(tokens[token_index: token_index + 3])
+
+            condition = __build_comparison(comparison)
+
+            operand_stack.append(condition)
+            token_index += 3
         else:
             operand_stack.append(__build_comparison(token))
             token_index += 1

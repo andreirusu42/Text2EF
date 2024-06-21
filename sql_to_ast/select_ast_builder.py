@@ -1,5 +1,7 @@
 import sqlparse
 
+from sql_formatter.core import format_sql
+
 from typing import List
 
 from sql_to_ast.builder.helpers import remove_whitespaces
@@ -123,10 +125,15 @@ def __normalize_select_ast(
     return ast
 
 
-def build_select_ast(sql: str, schema: DatabaseSchema):
+# TODO: this was using database_schema, for normalising. we'll see if needed anymore
+def build_select_ast(sql: str):
     # TODO: this was the only solution I could find to avoid the circular import
     from sql_to_ast.builder.where_clause_builder import get_where_clause
 
+    sql = format_sql(sql)
+
+    if sql.strip().endswith(';'):
+        sql = sql.strip()[:-1].strip()
     statements = sqlparse.parse(sql)
 
     if len(statements) != 1:
@@ -150,7 +157,9 @@ def build_select_ast(sql: str, schema: DatabaseSchema):
         group_by_clause=group_by_clause
     )
 
-    return __normalize_select_ast(ast, schema)
+    return ast
+
+    # return __normalize_select_ast(ast, schema)
 
 
 if __name__ == '__main__':
