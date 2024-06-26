@@ -35,10 +35,10 @@ impl SchemaMapping {
             .and_then(|table| table.columns.get(&original_column_name.to_lowercase()))
     }
 
-    pub fn has_table(&self, original_table_name: &str) -> bool {
-        self.tables
-            .contains_key(&original_table_name.to_lowercase())
-    }
+    // pub fn has_table(&self, original_table_name: &str) -> bool {
+    //     self.tables
+    //         .contains_key(&original_table_name.to_lowercase())
+    // }
 }
 
 fn find_context_cs_file(folder_path: &str) -> Option<String> {
@@ -130,9 +130,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
         let model_property_occurrences = model_property_regex.captures_iter(&model_content);
         for occurrence in model_property_occurrences {
-            let field_type_with_qm = &occurrence[1];
-            let field_type = field_type_with_qm.trim_end_matches('?');
-            let is_optional = field_type_with_qm.ends_with('?');
+            // let field_type_with_qm = &occurrence[1];
+            // let field_type = field_type_with_qm.trim_end_matches('?');
+            // let is_optional = field_type_with_qm.ends_with('?');
 
             let field_name = &occurrence[2];
 
