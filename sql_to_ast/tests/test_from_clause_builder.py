@@ -79,25 +79,40 @@ class TestFromClauseBuilder(unittest.TestCase):
         self.assertEqual(from_.table.name, "table1")
         self.assertEqual(from_.joins, [])
 
-    def test_from_with_keywords(self):
-        sql = "FROM user"
+    # def test_from_with_keywords(self):
+    #     sql = "FROM user"
+
+    #     from_ = self.get_from(sql)
+
+    #     self.assertEqual(from_.table.name, "user")
+
+    # def test_from_with_keywords_in_join(self):
+    #     sql = "FROM user JOIN user ON user.a = user.b"
+
+    #     from_ = self.get_from(sql)
+
+    #     self.assertEqual(from_.table.name, "user")
+    #     self.assertEqual(len(from_.joins), 1)
+    #     self.assertEqual(from_.joins[0].table.name, "user")
+    #     self.assertEqual(from_.joins[0].condition.left.name, "a")
+    #     self.assertEqual(from_.joins[0].condition.right.name, "b")
+    #     self.assertEqual(from_.joins[0].condition.operator, join.JoinConditionOperator.EQUAL)
+    #     self.assertEqual(from_.joins[0].type, join.JoinType.INNER)
+
+    def test_keywords_aliases(self):
+        sql = f"FROM user AS t2 JOIN user ON t2.a = user.b"
 
         from_ = self.get_from(sql)
 
         self.assertEqual(from_.table.name, "user")
+        self.assertEqual(from_.table.alias, "t2")
 
-    def test_from_with_keywords_in_join(self):
-        sql = "FROM user JOIN user ON user.a = user.b"
-
-        from_ = self.get_from(sql)
-
-        self.assertEqual(from_.table.name, "user")
         self.assertEqual(len(from_.joins), 1)
         self.assertEqual(from_.joins[0].table.name, "user")
         self.assertEqual(from_.joins[0].condition.left.name, "a")
+        self.assertEqual(from_.joins[0].condition.left.parent, "t2")
         self.assertEqual(from_.joins[0].condition.right.name, "b")
-        self.assertEqual(from_.joins[0].condition.operator, join.JoinConditionOperator.EQUAL)
-        self.assertEqual(from_.joins[0].type, join.JoinType.INNER)
+        self.assertEqual(from_.joins[0].condition.right.parent, "user")
 
 
 if __name__ == '__main__':

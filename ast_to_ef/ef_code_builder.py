@@ -34,7 +34,7 @@ def build_ef_raw_sql_code(sql: str, ast: select_ast.SelectAst):
 
 
 def build_ef_code(sql: str, database_schema: DatabaseSchema, schema_mapping: SchemaMapping):
-    ast = build_select_ast(sql, database_schema)
+    ast = build_select_ast(sql)
     ast = map_select_ast_fields(ast, schema_mapping)
 
     raw_method_syntax_code = build_ef_code_from_select_ast(ast)

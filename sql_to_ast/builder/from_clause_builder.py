@@ -25,10 +25,10 @@ def get_from_clause(tokens: List[sqlparse.sql.Token]) -> FromClause:
     )
 
 
-def __build_table_from_keyword(token: sqlparse.sql.Token) -> Table:
+def __build_table_from_keyword(token: sqlparse.sql.Token, alias: str | None) -> Table:
     return Table(
         name=token.value,
-        alias=None
+        alias=alias
     )
 
 
@@ -69,13 +69,19 @@ def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
 
     # TODO: For some reason, if the table is really called "table", it fails, because sqlparse sees it as a keyword
     if tokens[token_index].ttype == sqlparse.tokens.Keyword:
-        table_ = __build_table_from_keyword(tokens[token_index])
+        table_token = tokens[token_index]
+
+        if tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == "AS":
+            alias = tokens[token_index + 2].value
+            token_index += 2
+
+        table_ = __build_table_from_keyword(table_token, alias)
+        token_index += 1
     elif isinstance(tokens[token_index], sqlparse.sql.Identifier):
         table_ = __build_table_from_identifier(tokens[token_index])
+        token_index += 1
     else:
         raise ValueError(f"Expected table name, got {(tokens[token_index], )}")
-
-    token_index += 1
 
     tokens_length = len(tokens)
 
@@ -97,13 +103,19 @@ def __build_from(tokens: List[sqlparse.sql.Token]) -> FromClause:
         token_index += 1
 
         if tokens[token_index].ttype == sqlparse.tokens.Keyword:
-            join_table = __build_table_from_keyword(tokens[token_index])
+            table_token = tokens[token_index]
+            if tokens[token_index + 1].ttype == sqlparse.tokens.Keyword and tokens[token_index + 1].value.upper() == "AS":
+                alias = tokens[token_index + 2].value
+                token_index += 2
+
+            join_table = __build_table_from_keyword(table_token, alias)
+            token_index += 1
+
         elif isinstance(tokens[token_index], sqlparse.sql.Identifier):
             join_table = __build_table_from_identifier(tokens[token_index])
+            token_index += 1
         else:
             raise ValueError(f"Expected table name, got {(tokens[token_index], )}")
-
-        token_index += 1
 
         if not (tokens[token_index].ttype == sqlparse.tokens.Keyword and tokens[token_index].value.upper() == "ON"):
             raise ValueError(f"Expected ON, got {(tokens[token_index], )}")

@@ -1,0 +1,1 @@
+python3 ./sql_to_ast/tests/test_where_clause_builder.py

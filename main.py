@@ -10,6 +10,8 @@ from constants import constants
 def find_context_file(database_name: str) -> str:
     folder_path = f"{constants.EF_PROJECT_MODELS_PATH}/{database_name}/"
 
+    print((folder_path,))
+
     for filename in os.listdir(folder_path):
         if filename.endswith("Context.cs"):
             return os.path.join(folder_path, filename)
@@ -17,7 +19,7 @@ def find_context_file(database_name: str) -> str:
     raise ValueError(f"Context file not found for database: {database_name}")
 
 
-def main2():
+def main():
     schema = build_database_schema('mydb', f"""
        create table Activity (
   actid INTEGER PRIMARY KEY,
@@ -61,16 +63,17 @@ create table Faculty (
 );
     """)
 
-    result = build_ef_code(f"""
-    SELECT COUNT(*) FROM Faculty GROUP BY building
-""", schema)
+    query = "SELECT fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor WHERE T2.fname = \"Linda\" AND T2.lname = \"Smith\""
+
+    schema_mapping = create_schema_map("./entity-framework/Models/activity_1/Activity1Context.cs")
+    result = build_ef_code(query, schema, schema_mapping)
 
     #  ORDER BY count(*) DESC LIMIT 1
 
     print(result)
 
 
-def main():
+def main2():
     with open(constants.DATASET_TRAIN_PATH, 'r') as file:
         raw_sql = file.readlines()
 
@@ -85,32 +88,43 @@ def main():
 
         queries.add((query, database_name))
 
-        # database_schema_path = os.path.join(constants.DATASET_TEST_DATABASE_PATH, database_name, 'schema.sql')
-        # context_file_path = find_context_file(database_name=database_name)
+        if database_name != 'activity_1':
+            continue
 
-        # with open(database_schema_path, 'r') as file:
-        #     database_schema = file.read()
-        #     database_schemas[database_name] = build_database_schema(database_name, database_schema)
+        database_schema_path = os.path.join(constants.DATASET_TEST_DATABASE_PATH, database_name, 'schema.sql')
+        context_file_path = find_context_file(database_name=database_name)
 
-        # schema_mappings[database_name] = create_schema_map(context_file_path=context_file_path)
+        with open(database_schema_path, 'r') as file:
+            database_schema = file.read()
+        database_schemas[database_name] = build_database_schema(database_name, database_schema)
+
+        schema_mappings[database_name] = create_schema_map(context_file_path=context_file_path)
+
+    mapping = schema_mappings['activity_1']
 
     queries = list(queries)
     queries = sorted(queries, key=lambda x: x[0])
 
     print(len(queries))
 
-    for __index, (query, database_name) in enumerate(queries):
-        print(f"Processing query: {query} | from database: {database_name}")
+    query = "SELECT fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor WHERE T2.fname = \"Linda\" AND T2.lname = \"Smith\""
 
-        print(f"{__index} / {len(queries)}")
+    ast = build_select_ast(query)
 
-        # database_schema = database_schemas[database_name]
-        # schema_mapping = schema_mappings[database_name]
+    print(ast)
 
-        ast = build_select_ast(query)
+    # for __index, (query, database_name) in enumerate(queries):
+    #     print(f"Processing query: {query} | from database: {database_name}")
 
-        # print(query)
-        # print(ast)
+    #     print(f"{__index} / {len(queries)}")
+
+    #     # database_schema = database_schemas[database_name]
+    #     # schema_mapping = schema_mappings[database_name]
+
+    #     ast = build_select_ast(query)
+
+    #     # print(query)
+    #     # print(ast)
 
 
 if __name__ == '__main__':

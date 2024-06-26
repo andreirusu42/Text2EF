@@ -11,10 +11,6 @@ def create_database():
         os.remove(path.join(constants.DATABASES_PATH, file_name))
 
     for file_name in os.listdir(constants.DATASET_DATABASE_PATH):
-
-        if file_name != "activity_1":
-            continue
-
         database_path = f"{path.join(constants.DATABASES_PATH, file_name)}.db"
 
         connection = sqlite3.connect(database_path)

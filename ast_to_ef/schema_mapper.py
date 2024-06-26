@@ -2,6 +2,7 @@ from collections import defaultdict
 import re
 from typing import List
 
+
 class Mapping:
     original_value: str
     mapped_value: str
@@ -12,6 +13,7 @@ class Mapping:
 
     def __repr__(self):
         return f"Mapping(original_value={self.original_value}, mapped_value={self.mapped_value})"
+
 
 class SchemaMapTable:
     table: Mapping
@@ -24,6 +26,7 @@ class SchemaMapTable:
     def __repr__(self):
         return f"SchemaMapTable(table={self.table}, columns={self.columns})"
 
+
 class SchemaMapping:
     tables: defaultdict[str, SchemaMapTable]
 
@@ -32,15 +35,20 @@ class SchemaMapping:
 
     def get_table_name(self, original_table_name: str) -> str:
         return self.tables[original_table_name.lower()].table.mapped_value
-    
+
     def get_column_name(self, original_table_name: str, original_column_name: str) -> str:
-        return self.tables[original_table_name.lower()].columns[original_column_name.lower()]
+        table = self.tables[original_table_name.lower()]
+
+        print(table)
+
+        return table.columns[original_column_name.lower()]
 
     def has_table(self, original_table_name: str) -> bool:
         return original_table_name.lower() in self.tables
 
     def __repr__(self):
         return f"SchemaMapping(tables={self.tables})"
+
 
 def create_schema_map(context_file_path: str) -> SchemaMapping:
     with open(context_file_path, "r") as file:
