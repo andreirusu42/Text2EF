@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sqlparser::ast::{BinaryOperator, Expr, Select, SelectItem, SetExpr, Statement};
+use sqlparser::ast::{BinaryOperator, Expr, GroupByExpr, Select, SelectItem, SetExpr, Statement};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
@@ -10,7 +10,8 @@ use schema_mapping::{create_schema_map, SchemaMapping};
 
 pub struct LinqQueryBuilder {
     schema_mapping: SchemaMapping,
-    selector: String,
+    row_selector: String,
+    group_selector: String,
 }
 
 impl LinqQueryBuilder {
@@ -19,8 +20,82 @@ impl LinqQueryBuilder {
 
         LinqQueryBuilder {
             schema_mapping,
-            selector: "row".to_string(),
+            row_selector: "row".to_string(),
+            group_selector: "group".to_string(),
         }
+    }
+
+    fn build_projection(
+        &self,
+        select: &Box<Select>,
+        tables_with_aliases_map: &HashMap<String, String>,
+        main_table_name: &str,
+        has_group_by: bool,
+    ) -> String {
+        let mut result = String::new();
+        let selector = if has_group_by {
+            &self.group_selector
+        } else {
+            &self.row_selector
+        };
+
+        result.push_str(&format!(".Select({} => new {{ ", selector));
+
+        let mut select_fields: Vec<String> = Vec::new();
+        for select_item in &select.projection {
+            if let SelectItem::UnnamedExpr(expr) = select_item {
+                if let Expr::Identifier(identifier) = expr {
+                    let column_name = identifier.to_string();
+                    let table_alias = self
+                        .get_table_alias_from_field_name(&tables_with_aliases_map, &column_name);
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&main_table_name, &column_name)
+                        .unwrap();
+
+                    if table_alias.is_empty() {
+                        if has_group_by {
+                            select_fields.push(format!("{} = {}.Key", column_name, selector));
+                        } else {
+                            select_fields.push(format!("{}.{}", selector, mapped_column_name));
+                        }
+                    } else {
+                        select_fields.push(format!(
+                            "{}.{}.{}",
+                            selector, table_alias, mapped_column_name
+                        ));
+                    }
+                } else if let Expr::CompoundIdentifier(identifier) = expr {
+                    let table_alias = identifier[0].to_string();
+                    let column_name = identifier[1].to_string();
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&main_table_name, &column_name)
+                        .unwrap();
+
+                    select_fields.push(format!(
+                        "{}.{}.{}",
+                        self.row_selector, table_alias, mapped_column_name
+                    ));
+                } else if let Expr::Function(function) = expr {
+                    if function.name.to_string() == "COUNT" {
+                        select_fields.push(format!("Count = {}.Count()", selector));
+                    } else {
+                        panic!("Unknown function");
+                    }
+                } else {
+                    panic!("Unknown expression type");
+                }
+            } else {
+                panic!("Unknown select item type");
+            }
+        }
+        result.push_str(&select_fields.join(", "));
+        result.push_str(" })");
+
+        return result;
     }
 
     fn get_table_alias_from_field_name<'a>(
@@ -91,14 +166,14 @@ impl LinqQueryBuilder {
         // TODO: can there be multiple tables in select.from? in which case?
         let table = &select.from[0];
 
-        if let sqlparser::ast::TableFactor::Table {
-            name,
-            alias: Some(alias),
-            ..
-        } = &table.relation
-        {
+        if let sqlparser::ast::TableFactor::Table { name, alias, .. } = &table.relation {
+            if let Some(alias) = alias {
+                main_table_alias = alias.to_string();
+            } else {
+                main_table_alias = String::new();
+            }
+
             main_table_name = name.to_string();
-            main_table_alias = alias.to_string();
 
             tables_with_aliases_map
                 .insert(main_table_name.to_string(), main_table_alias.to_string());
@@ -206,7 +281,7 @@ impl LinqQueryBuilder {
                 let left_condition = self.build_where_condition(left, &main_table_name);
                 linq_query = format!(
                     "{}{} => {}.{}",
-                    linq_query, self.selector, self.selector, left_condition
+                    linq_query, self.row_selector, self.row_selector, left_condition
                 );
 
                 if let BinaryOperator::And = *op {
@@ -216,57 +291,83 @@ impl LinqQueryBuilder {
                 }
 
                 let right_condition = self.build_where_condition(right, &main_table_name);
-                linq_query = format!("{}{}.{})", linq_query, self.selector, right_condition);
+                linq_query = format!("{}{}.{})", linq_query, self.row_selector, right_condition);
             } else {
                 panic!("Unknown expression type");
             }
         }
 
-        if select.projection.len() > 0 {
-            linq_query.push_str(&format!(".Select({} => new {{ ", self.selector));
-        }
-        let mut select_fields: Vec<String> = Vec::new();
-        for select_item in &select.projection {
-            if let SelectItem::UnnamedExpr(expr) = select_item {
-                if let Expr::Identifier(identifier) = expr {
-                    let column_name = identifier.to_string();
-                    let table_alias = self
-                        .get_table_alias_from_field_name(&tables_with_aliases_map, &column_name);
+        let is_only_function = select.projection.len() == 1
+            && if let Some(SelectItem::UnnamedExpr(Expr::Function(_))) = select.projection.get(0) {
+                true
+            } else {
+                false
+            };
+
+        let has_group_by = if let GroupByExpr::Expressions(expressions) = &select.group_by {
+            expressions.len() > 0
+        } else {
+            false
+        };
+
+        if let GroupByExpr::Expressions(expressions) = &select.group_by {
+            for expr in expressions {
+                if let Expr::Identifier(ident) = expr {
+                    let column_name = ident.to_string();
 
                     let mapped_column_name = self
                         .schema_mapping
                         .get_column_name(&main_table_name, &column_name)
                         .unwrap();
 
-                    select_fields.push(format!(
-                        "{}.{}.{}",
-                        self.selector, table_alias, mapped_column_name
-                    ));
-                } else if let Expr::CompoundIdentifier(identifier) = expr {
-                    let table_alias = identifier[0].to_string();
-                    let column_name = identifier[1].to_string();
-
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&main_table_name, &column_name)
-                        .unwrap();
-
-                    select_fields.push(format!(
-                        "{}.{}.{}",
-                        self.selector, table_alias, mapped_column_name
+                    linq_query.push_str(&format!(
+                        ".GroupBy({} => {}.{})",
+                        self.row_selector, self.row_selector, mapped_column_name
                     ));
                 } else {
                     panic!("Unknown expression type");
                 }
-            } else {
-                panic!("Unknown select item type");
             }
         }
 
-        linq_query.push_str(&select_fields.join(", "));
-        linq_query.push_str(" })");
+        if select.projection.len() > 0 {
+            if select.projection.len() == 1 {
+                if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
+                    if let Expr::Function(function) = expr {
+                        if function.name.to_string() == "COUNT" {
+                            linq_query.push_str(&format!(".Count()"));
+                        } else {
+                            panic!("Unknown function");
+                        }
+                    } else {
+                        linq_query.push_str(&self.build_projection(
+                            select,
+                            &tables_with_aliases_map,
+                            &main_table_name,
+                            has_group_by,
+                        ));
+                    }
+                }
+            } else {
+                linq_query.push_str(&self.build_projection(
+                    select,
+                    &tables_with_aliases_map,
+                    &main_table_name,
+                    has_group_by,
+                ));
+            }
+        }
 
-        linq_query.push_str(".ToList();");
+        // TODO: can be Distinct or Distinct On
+        if select.distinct.is_some() {
+            linq_query.push_str(".Distinct()");
+        }
+
+        if is_only_function {
+            // dunno yet
+        } else {
+            linq_query.push_str(".ToList();");
+        }
 
         return linq_query;
     }
@@ -285,18 +386,40 @@ impl LinqQueryBuilder {
             panic!("Unknown statement type");
         }
     }
+
+    pub fn create_test(&self, sql: &str, linq_query: &str) -> String {
+        let mut test = String::new();
+
+        test.push_str(&format!(
+            r##"
+public static void Test() {{
+    using var context = new Activity1Context();
+    
+    var query = "{}";
+}}
+        "##,
+            sql
+        ));
+
+        return test;
+    }
 }
 
 fn main() {
     let mut sqls: Vec<&str> = Vec::new();
-    sqls.push(r#"SELECT COUNT(*) FROM Faculty"#);
+    // sqls.push(r#"SELECT rank FROM Faculty"#);
+    // sqls.push(r#"SELECT DISTINCT rank FROM Faculty"#);
+    // sqls.push(r#"SELECT COUNT(*), rank FROM Faculty GROUP BY rank"#);
     // sqls.push(r#"SELECT T1.fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor WHERE T2.fname = "Linda" AND T2.lname = "Smith""#);
+    sqls.push(r#"SELECT T1.FacID FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor GROUP BY T1.FacID"#);
 
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
     for sql in sqls {
         let linq_query = linq_query_builder.build_query(sql);
-
         println!("{}", linq_query);
+
+        // let test = linq_query_builder.create_test(sql, &linq_query);
+        // println!("{}", test);
     }
 }
