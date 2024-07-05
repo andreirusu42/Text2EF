@@ -56,7 +56,7 @@ impl LinqQueryBuilder {
 
                     if table_alias.is_empty() {
                         if has_group_by {
-                            select_fields.push(format!("{} = {}.Key", column_name, selector));
+                            select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
                         } else {
                             select_fields.push(format!("{}.{}", selector, mapped_column_name));
                         }
@@ -75,12 +75,16 @@ impl LinqQueryBuilder {
                         .get_column_name(&main_table_name, &column_name)
                         .unwrap();
 
-                    select_fields.push(format!(
-                        "{}.{}.{}",
-                        self.row_selector, table_alias, mapped_column_name
-                    ));
+                    if has_group_by {
+                        select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                    } else {
+                        select_fields.push(format!(
+                            "{}.{}.{}",
+                            selector, table_alias, mapped_column_name
+                        ));
+                    }
                 } else if let Expr::Function(function) = expr {
-                    if function.name.to_string() == "COUNT" {
+                    if function.name.to_string().to_lowercase() == "count" {
                         select_fields.push(format!("Count = {}.Count()", selector));
                     } else {
                         panic!("Unknown function");
@@ -96,6 +100,55 @@ impl LinqQueryBuilder {
         result.push_str(" })");
 
         return result;
+    }
+
+    /*
+       In Entity Framework, the behavior is stricter and more akin to standard SQL rules which require you to include all non-aggregated columns in the GROUP BY clause.
+    */
+    fn build_group_by(&self, select: &Box<Select>, table_name: &str) -> String {
+        let mut group_by_fields: Vec<String> = Vec::new();
+
+        if let GroupByExpr::Expressions(expressions) = &select.group_by {
+            let mut result = format!(".GroupBy({} => new {{ ", self.row_selector);
+
+            if expressions.len() == 0 {
+                return String::new();
+            }
+
+            for expr in expressions {
+                if let Expr::Identifier(ident) = expr {
+                    let column_name = ident.to_string();
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&table_name, &column_name)
+                        .unwrap();
+
+                    group_by_fields.push(format!("{}.{}", self.row_selector, mapped_column_name));
+                } else if let Expr::CompoundIdentifier(identifiers) = expr {
+                    let table_alias = identifiers[0].to_string();
+                    let column_name = identifiers[1].to_string();
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&table_name, &column_name)
+                        .unwrap();
+
+                    group_by_fields.push(format!(
+                        "{}.{}.{}",
+                        self.row_selector, table_alias, mapped_column_name
+                    ));
+                } else {
+                    panic!("Unknown expression type");
+                }
+            }
+
+            result.push_str(&group_by_fields.join(", "));
+            result.push_str(" })");
+
+            return result;
+        }
+
+        return String::new();
     }
 
     fn get_table_alias_from_field_name<'a>(
@@ -190,110 +243,112 @@ impl LinqQueryBuilder {
 
         if &table.joins.len() > &0 {
             linq_query.push_str(".Join(");
-        }
+            for join in &table.joins {
+                let table_name: String;
+                if let sqlparser::ast::TableFactor::Table {
+                    name,
+                    alias: Some(alias),
+                    ..
+                } = &join.relation
+                {
+                    table_name = name.to_string();
+                    let table_alias = alias.to_string();
 
-        for join in &table.joins {
-            let table_name: String;
-            if let sqlparser::ast::TableFactor::Table {
-                name,
-                alias: Some(alias),
-                ..
-            } = &join.relation
-            {
-                table_name = name.to_string();
-                let table_alias = alias.to_string();
+                    let mapped_table_name =
+                        self.schema_mapping.get_table_name(&table_name).unwrap();
 
-                let mapped_table_name = self.schema_mapping.get_table_name(&table_name).unwrap();
+                    tables_with_aliases_map.insert(table_name.to_string(), table_alias.to_string());
 
-                tables_with_aliases_map.insert(table_name.to_string(), table_alias.to_string());
+                    linq_query.push_str(&format!("context.{}, ", mapped_table_name));
+                } else {
+                    panic!("Unknown table factor type");
+                }
 
-                linq_query.push_str(&format!("context.{}, ", mapped_table_name));
-            } else {
-                panic!("Unknown table factor type");
-            }
+                if let sqlparser::ast::JoinOperator::Inner(constraint) = &join.join_operator {
+                    if let sqlparser::ast::JoinConstraint::On(expr) = constraint {
+                        if let sqlparser::ast::Expr::BinaryOp { left, right, .. } = expr {
+                            let left_table_alias: String;
+                            let left_table_field: String;
 
-            if let sqlparser::ast::JoinOperator::Inner(constraint) = &join.join_operator {
-                if let sqlparser::ast::JoinConstraint::On(expr) = constraint {
-                    if let sqlparser::ast::Expr::BinaryOp { left, right, .. } = expr {
-                        let left_table_alias: String;
-                        let left_table_field: String;
+                            let right_table_alias: String;
+                            let right_table_field: String;
 
-                        let right_table_alias: String;
-                        let right_table_field: String;
+                            if let Expr::CompoundIdentifier(ident) = &**left {
+                                left_table_alias = ident[0].to_string();
+                                left_table_field = ident[1].to_string();
 
-                        if let Expr::CompoundIdentifier(ident) = &**left {
-                            left_table_alias = ident[0].to_string();
-                            left_table_field = ident[1].to_string();
+                                let mapped_column_name = self
+                                    .schema_mapping
+                                    .get_column_name(&main_table_name, &left_table_field)
+                                    .unwrap();
 
-                            let mapped_column_name = self
-                                .schema_mapping
-                                .get_column_name(&main_table_name, &left_table_field)
-                                .unwrap();
+                                linq_query.push_str(&format!(
+                                    "{} => {}.{}, ",
+                                    left_table_alias, left_table_alias, mapped_column_name
+                                ));
+                            } else {
+                                panic!("Not a Compound Identifier");
+                            }
+
+                            if let Expr::CompoundIdentifier(ident) = &**right {
+                                right_table_alias = ident[0].to_string();
+                                right_table_field = ident[1].to_string();
+
+                                let mapped_column_name = self
+                                    .schema_mapping
+                                    .get_column_name(&table_name, &right_table_field)
+                                    .unwrap();
+
+                                linq_query.push_str(&format!(
+                                    "{} => {}.{}, ",
+                                    right_table_alias, right_table_alias, mapped_column_name
+                                ));
+                            } else {
+                                panic!("Not a Compound Identifier");
+                            }
 
                             linq_query.push_str(&format!(
-                                "{} => {}.{}, ",
-                                left_table_alias, left_table_alias, mapped_column_name
+                                "({}, {}) => new {{ {}, {} }})",
+                                left_table_alias,
+                                right_table_alias,
+                                left_table_alias,
+                                right_table_alias
                             ));
                         } else {
-                            panic!("Not a Compound Identifier");
+                            panic!("Unknown expression type");
                         }
-
-                        if let Expr::CompoundIdentifier(ident) = &**right {
-                            right_table_alias = ident[0].to_string();
-                            right_table_field = ident[1].to_string();
-
-                            let mapped_column_name = self
-                                .schema_mapping
-                                .get_column_name(&table_name, &right_table_field)
-                                .unwrap();
-
-                            linq_query.push_str(&format!(
-                                "{} => {}.{}, ",
-                                right_table_alias, right_table_alias, mapped_column_name
-                            ));
-                        } else {
-                            panic!("Not a Compound Identifier");
-                        }
-
-                        linq_query.push_str(&format!(
-                            "({}, {}) => new {{ {}, {} }})",
-                            left_table_alias,
-                            right_table_alias,
-                            left_table_alias,
-                            right_table_alias
-                        ));
                     } else {
-                        panic!("Unknown expression type");
+                        panic!("Unknown join constraint type");
                     }
                 } else {
-                    panic!("Unknown join constraint type");
+                    panic!("Unknown join operator type");
                 }
-            } else {
-                panic!("Unknown join operator type");
             }
         }
 
         if select.selection.is_some() {
             linq_query.push_str(".Where(");
-        }
-        if let Some(selection) = &select.selection {
-            if let Expr::BinaryOp { left, op, right } = selection {
-                let left_condition = self.build_where_condition(left, &main_table_name);
-                linq_query = format!(
-                    "{}{} => {}.{}",
-                    linq_query, self.row_selector, self.row_selector, left_condition
-                );
 
-                if let BinaryOperator::And = *op {
-                    linq_query.push_str(" && ");
+            if let Some(selection) = &select.selection {
+                if let Expr::BinaryOp { left, op, right } = selection {
+                    let left_condition = self.build_where_condition(left, &main_table_name);
+                    linq_query = format!(
+                        "{}{} => {}.{}",
+                        linq_query, self.row_selector, self.row_selector, left_condition
+                    );
+
+                    if let BinaryOperator::And = *op {
+                        linq_query.push_str(" && ");
+                    } else {
+                        panic!("Unknown operator");
+                    }
+
+                    let right_condition = self.build_where_condition(right, &main_table_name);
+                    linq_query =
+                        format!("{}{}.{})", linq_query, self.row_selector, right_condition);
                 } else {
-                    panic!("Unknown operator");
+                    panic!("Unknown expression type");
                 }
-
-                let right_condition = self.build_where_condition(right, &main_table_name);
-                linq_query = format!("{}{}.{})", linq_query, self.row_selector, right_condition);
-            } else {
-                panic!("Unknown expression type");
             }
         }
 
@@ -310,25 +365,8 @@ impl LinqQueryBuilder {
             false
         };
 
-        if let GroupByExpr::Expressions(expressions) = &select.group_by {
-            for expr in expressions {
-                if let Expr::Identifier(ident) = expr {
-                    let column_name = ident.to_string();
-
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&main_table_name, &column_name)
-                        .unwrap();
-
-                    linq_query.push_str(&format!(
-                        ".GroupBy({} => {}.{})",
-                        self.row_selector, self.row_selector, mapped_column_name
-                    ));
-                } else {
-                    panic!("Unknown expression type");
-                }
-            }
-        }
+        let group_by = self.build_group_by(select, &main_table_name);
+        linq_query.push_str(&group_by);
 
         if select.projection.len() > 0 {
             if select.projection.len() == 1 {
@@ -405,21 +443,51 @@ public static void Test() {{
     }
 }
 
-fn main() {
-    let mut sqls: Vec<&str> = Vec::new();
-    // sqls.push(r#"SELECT rank FROM Faculty"#);
-    // sqls.push(r#"SELECT DISTINCT rank FROM Faculty"#);
-    // sqls.push(r#"SELECT COUNT(*), rank FROM Faculty GROUP BY rank"#);
-    // sqls.push(r#"SELECT T1.fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor WHERE T2.fname = "Linda" AND T2.lname = "Smith""#);
-    sqls.push(r#"SELECT T1.FacID FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor GROUP BY T1.FacID"#);
+fn tests() {
+    let mut queries_and_results: Vec<(&str, &str)> = Vec::new();
+
+    queries_and_results.push((
+        r#"SELECT rank FROM Faculty"#,
+        r#"context.Faculties.Select(row => new { row.Rank }).ToList();"#,
+    ));
+
+    queries_and_results.push((
+        r#"SELECT DISTINCT rank FROM Faculty"#,
+        r#"context.Faculties.Select(row => new { row.Rank }).Distinct().ToList();"#,
+    ));
+
+    queries_and_results.push((
+        r#"SELECT T1.fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor WHERE T2.fname = "Linda" AND T2.lname = "Smith""#,
+        r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Fname == "Linda" && row.T2.Lname == "Smith").Select(row => new { row.T1.Fname, row.T1.Lname }).ToList();"#,
+    ));
+
+    queries_and_results.push((
+        r#"SELECT COUNT(*), rank FROM Faculty GROUP BY rank"#,
+        r#"context.Faculties.GroupBy(row => new { row.Rank }).Select(group => new { Count = group.Count(), group.Key.Rank }).ToList();"#,
+    ));
+
+    queries_and_results.push((
+        r#"SELECT T1.FacID FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor GROUP BY T1.FacID"#,
+        r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).Select(group => new { group.Key.FacId }).ToList();"#,
+    ));
 
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
-    for sql in sqls {
-        let linq_query = linq_query_builder.build_query(sql);
-        println!("{}", linq_query);
+    for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
+        let result = linq_query_builder.build_query(sql);
 
-        // let test = linq_query_builder.create_test(sql, &linq_query);
-        // println!("{}", test);
+        if result == *expected_result {
+            println!("Test {} passed", index + 1);
+        } else {
+            println!("Test {} failed", index + 1);
+            println!("SQL: {}", sql);
+            println!("Expected | Got");
+            println!("{}\n{}", expected_result, result);
+            return;
+        }
     }
+}
+
+fn main() {
+    tests();
 }
