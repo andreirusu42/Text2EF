@@ -1,6 +1,9 @@
 use std::collections::HashMap;
+use std::os::macos::raw;
 
-use sqlparser::ast::{BinaryOperator, Expr, GroupByExpr, Select, SelectItem, SetExpr, Statement};
+use sqlparser::ast::{
+    BinaryOperator, Expr, GroupByExpr, Query, Select, SelectItem, SetExpr, Statement,
+};
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
@@ -31,6 +34,7 @@ impl LinqQueryBuilder {
         tables_with_aliases_map: &HashMap<String, String>,
         main_table_name: &str,
         has_group_by: bool,
+        group_by_fields: Vec<String>,
     ) -> String {
         let mut result = String::new();
         let selector = if has_group_by {
@@ -56,7 +60,12 @@ impl LinqQueryBuilder {
 
                     if table_alias.is_empty() {
                         if has_group_by {
-                            select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                            if group_by_fields.contains(&mapped_column_name) {
+                                select_fields
+                                    .push(format!("{}.Key.{}", selector, mapped_column_name));
+                            } else {
+                                select_fields.push(format!("{}.{}", selector, mapped_column_name));
+                            }
                         } else {
                             select_fields.push(format!("{}.{}", selector, mapped_column_name));
                         }
@@ -76,7 +85,12 @@ impl LinqQueryBuilder {
                         .unwrap();
 
                     if has_group_by {
-                        select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                        if group_by_fields.contains(&mapped_column_name) {
+                            select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                        } else {
+                            select_fields
+                                .push(format!("{}.First().{}", selector, mapped_column_name));
+                        }
                     } else {
                         select_fields.push(format!(
                             "{}.{}.{}",
@@ -105,14 +119,15 @@ impl LinqQueryBuilder {
     /*
        In Entity Framework, the behavior is stricter and more akin to standard SQL rules which require you to include all non-aggregated columns in the GROUP BY clause.
     */
-    fn build_group_by(&self, select: &Box<Select>, table_name: &str) -> String {
+    fn build_group_by(&self, select: &Box<Select>, table_name: &str) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
+        let mut raw_group_by_fields: Vec<String> = Vec::new();
 
         if let GroupByExpr::Expressions(expressions) = &select.group_by {
             let mut result = format!(".GroupBy({} => new {{ ", self.row_selector);
 
             if expressions.len() == 0 {
-                return String::new();
+                return (String::new(), Vec::new());
             }
 
             for expr in expressions {
@@ -124,6 +139,7 @@ impl LinqQueryBuilder {
                         .unwrap();
 
                     group_by_fields.push(format!("{}.{}", self.row_selector, mapped_column_name));
+                    raw_group_by_fields.push(mapped_column_name.to_string());
                 } else if let Expr::CompoundIdentifier(identifiers) = expr {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
@@ -137,6 +153,7 @@ impl LinqQueryBuilder {
                         "{}.{}.{}",
                         self.row_selector, table_alias, mapped_column_name
                     ));
+                    raw_group_by_fields.push(mapped_column_name.to_string());
                 } else {
                     panic!("Unknown expression type");
                 }
@@ -145,10 +162,10 @@ impl LinqQueryBuilder {
             result.push_str(&group_by_fields.join(", "));
             result.push_str(" })");
 
-            return result;
+            return (result, raw_group_by_fields);
         }
 
-        return String::new();
+        return (String::new(), Vec::new());
     }
 
     fn get_table_alias_from_field_name<'a>(
@@ -208,13 +225,19 @@ impl LinqQueryBuilder {
         return condition;
     }
 
-    pub fn build_query_helper(&self, select: &Box<Select>) -> String {
+    pub fn build_query_helper(&self, query: &Box<Query>) -> String {
         let mut linq_query: String = "context.".to_string();
 
         let main_table_name: String;
         let main_table_alias: String;
 
         let mut tables_with_aliases_map: HashMap<String, String> = HashMap::new();
+
+        let select = if let SetExpr::Select(select) = &*query.body {
+            select
+        } else {
+            panic!("Unknown set expression type");
+        };
 
         // TODO: can there be multiple tables in select.from? in which case?
         let table = &select.from[0];
@@ -365,8 +388,36 @@ impl LinqQueryBuilder {
             false
         };
 
-        let group_by = self.build_group_by(select, &main_table_name);
-        linq_query.push_str(&group_by);
+        let (group_by_query, group_by_fields) = self.build_group_by(select, &main_table_name);
+        linq_query.push_str(&group_by_query);
+
+        let selector = if has_group_by {
+            &self.group_selector
+        } else {
+            &self.row_selector
+        };
+
+        if query.order_by.len() > 0 {
+            for order_by in &query.order_by {
+                if order_by.asc.unwrap() {
+                    linq_query.push_str(".OrderBy(");
+                } else {
+                    linq_query.push_str(".OrderByDescending(");
+                }
+
+                if let Expr::Function(func) = &order_by.expr {
+                    if func.name.to_string().to_lowercase() == "count" {
+                        linq_query.push_str(&format!("{} => {}.Count()", selector, selector));
+                    } else {
+                        panic!("Unknown function");
+                    }
+                } else {
+                    panic!("Unknown expression type");
+                }
+            }
+
+            linq_query.push_str(")");
+        }
 
         if select.projection.len() > 0 {
             if select.projection.len() == 1 {
@@ -383,6 +434,7 @@ impl LinqQueryBuilder {
                             &tables_with_aliases_map,
                             &main_table_name,
                             has_group_by,
+                            group_by_fields,
                         ));
                     }
                 }
@@ -392,8 +444,21 @@ impl LinqQueryBuilder {
                     &tables_with_aliases_map,
                     &main_table_name,
                     has_group_by,
+                    group_by_fields,
                 ));
             }
+        }
+
+        if query.limit.is_some() {
+            linq_query.push_str(".Take(");
+            if let Some(limit) = &query.limit {
+                if let Expr::Value(value) = limit {
+                    linq_query.push_str(&format!("{}", value));
+                } else {
+                    panic!("Unknown expression type");
+                }
+            }
+            linq_query.push_str(")");
         }
 
         // TODO: can be Distinct or Distinct On
@@ -402,7 +467,7 @@ impl LinqQueryBuilder {
         }
 
         if is_only_function {
-            // dunno yet
+            linq_query.push_str(".ToList();");
         } else {
             linq_query.push_str(".ToList();");
         }
@@ -415,11 +480,7 @@ impl LinqQueryBuilder {
         let ast = Parser::parse_sql(&dialect, sql).unwrap();
 
         if let Statement::Query(query) = &ast[0] {
-            if let SetExpr::Select(select) = &*query.body {
-                return self.build_query_helper(select);
-            } else {
-                panic!("Unknown set expression type");
-            }
+            return self.build_query_helper(query);
         } else {
             panic!("Unknown statement type");
         }
@@ -469,6 +530,11 @@ fn tests() {
     queries_and_results.push((
         r#"SELECT T1.FacID FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor GROUP BY T1.FacID"#,
         r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).Select(group => new { group.Key.FacId }).ToList();"#,
+    ));
+
+    queries_and_results.push((
+        r#"SELECT T1.activity_name FROM Activity AS T1 JOIN Faculty_participates_in AS T2 ON T1.actID  =  T2.actID GROUP BY T1.actID ORDER BY count(*) DESC LIMIT 1"#,
+        "context.Activities.Join(context.FacultyParticipatesIns, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.Actid }).OrderByDescending(group => group.Count()).Select(group => new { group.First().ActivityName }).Take(1).ToList();"
     ));
 
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
