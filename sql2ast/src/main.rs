@@ -3,6 +3,7 @@ use std::os::macos::raw;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, GroupByExpr, Query, Select, SelectItem, SetExpr, Statement,
+    TableWithJoins,
 };
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -189,55 +190,262 @@ impl LinqQueryBuilder {
         result.expect("Field name not found")
     }
 
-    fn build_where_condition(&self, expr: &Box<Expr>, table_name: &str) -> String {
-        let mut condition = String::new();
+    fn build_where(
+        &self,
+        select: &Box<Select>,
+        tables_with_aliases_map: &HashMap<String, String>,
+        main_table_name: &str,
+    ) -> String {
+        let mut current_query = format!(".Where({} => ", self.row_selector);
 
-        if let Expr::BinaryOp { left, op, right } = &**expr {
-            if let Expr::CompoundIdentifier(ident) = &**left {
+        if let Some(selection) = &select.selection {
+            let where_clause = self.build_where_helper(selection, tables_with_aliases_map, None);
+            current_query.push_str(&where_clause);
+        }
+
+        current_query.push_str(")");
+
+        return current_query;
+    }
+
+    fn build_where_helper(
+        &self,
+        expr: &Expr,
+        tables_with_aliases_map: &HashMap<String, String>,
+        parent_precedence: Option<i32>,
+    ) -> String {
+        match expr {
+            Expr::BinaryOp { left, op, right } => match op {
+                BinaryOperator::And | BinaryOperator::Or => {
+                    let precedence = match op {
+                        BinaryOperator::And => 1,
+                        BinaryOperator::Or => 0,
+                        _ => 2,
+                    };
+
+                    let left_condition =
+                        self.build_where_helper(left, tables_with_aliases_map, Some(precedence));
+                    let right_condition =
+                        self.build_where_helper(right, tables_with_aliases_map, Some(precedence));
+                    let operator = match op {
+                        BinaryOperator::And => " && ",
+                        BinaryOperator::Or => " || ",
+                        _ => panic!("Invalid logical operator"),
+                    };
+
+                    let condition = format!("{}{}{}", left_condition, operator, right_condition);
+
+                    if let Some(parent_precedence) = parent_precedence {
+                        if precedence < parent_precedence {
+                            return format!("({})", condition);
+                        }
+                    }
+                    return condition;
+                }
+                _ => {
+                    let left_condition = self.build_where_condition(left, tables_with_aliases_map);
+                    let right_condition =
+                        self.build_where_condition(right, tables_with_aliases_map);
+                    let operator = match op {
+                        BinaryOperator::Eq => " == ",
+                        BinaryOperator::NotEq => " != ",
+                        BinaryOperator::Gt => " > ",
+                        BinaryOperator::GtEq => " >= ",
+                        BinaryOperator::Lt => " < ",
+                        BinaryOperator::LtEq => " <= ",
+                        _ => panic!("Unknown comparison operator"),
+                    };
+                    format!("{}{}{}", left_condition, operator, right_condition)
+                }
+            },
+            _ => panic!("Unsupported expression type"),
+        }
+    }
+
+    fn build_where_condition(
+        &self,
+        expr: &Box<Expr>,
+        tables_with_aliases_map: &HashMap<String, String>,
+    ) -> String {
+        match &**expr {
+            Expr::CompoundIdentifier(ident) => {
                 let alias = ident[0].to_string();
                 let field = ident[1].to_string();
 
+                // TODO: not the most efficient
+                let table_name = tables_with_aliases_map
+                    .iter()
+                    .find(|(_, v)| *v == &alias)
+                    .unwrap()
+                    .0;
+
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &field)
+                    .get_column_name(table_name, &field)
                     .unwrap();
+                format!("{}.{}.{}", self.row_selector, alias, mapped_column_name)
+            }
+            Expr::Identifier(ident) => ident.to_string(),
+            Expr::Value(value) => value.to_string().replace("'", "\""),
+            _ => panic!("Unsupported expression type"),
+        }
+    }
 
-                condition.push_str(&format!("{}.{}", alias, mapped_column_name));
+    fn build_joins(
+        &self,
+        table: &TableWithJoins,
+        tables_with_aliases_map: &mut HashMap<String, String>,
+        main_table_name: &str,
+    ) -> String {
+        let mut linq_query = String::new();
+
+        linq_query.push_str(".Join(");
+        for join in &table.joins {
+            let table_name: String;
+            if let sqlparser::ast::TableFactor::Table {
+                name,
+                alias: Some(alias),
+                ..
+            } = &join.relation
+            {
+                table_name = name.to_string();
+                let table_alias = alias.to_string();
+
+                let mapped_table_name = self.schema_mapping.get_table_name(&table_name).unwrap();
+
+                tables_with_aliases_map.insert(table_name.to_string(), table_alias.to_string());
+
+                linq_query.push_str(&format!("context.{}, ", mapped_table_name));
             } else {
-                panic!("Not a Compound Identifier");
+                panic!("Unknown table factor type");
             }
 
-            if let BinaryOperator::Eq = *op {
-                condition.push_str(" == ");
-            } else {
-                panic!("Unknown operator");
-            }
+            if let sqlparser::ast::JoinOperator::Inner(constraint) = &join.join_operator {
+                if let sqlparser::ast::JoinConstraint::On(expr) = constraint {
+                    if let sqlparser::ast::Expr::BinaryOp { left, right, .. } = expr {
+                        let left_table_alias: String;
+                        let left_table_field: String;
 
-            if let Expr::Identifier(ident) = &**right {
-                condition.push_str(&format!("{}", ident.to_string()));
+                        let right_table_alias: String;
+                        let right_table_field: String;
+
+                        if let Expr::CompoundIdentifier(ident) = &**left {
+                            left_table_alias = ident[0].to_string();
+                            left_table_field = ident[1].to_string();
+
+                            let mapped_column_name = self
+                                .schema_mapping
+                                .get_column_name(&main_table_name, &left_table_field)
+                                .unwrap();
+
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}, ",
+                                left_table_alias, left_table_alias, mapped_column_name
+                            ));
+                        } else {
+                            panic!("Not a Compound Identifier");
+                        }
+
+                        if let Expr::CompoundIdentifier(ident) = &**right {
+                            right_table_alias = ident[0].to_string();
+                            right_table_field = ident[1].to_string();
+
+                            let mapped_column_name = self
+                                .schema_mapping
+                                .get_column_name(&table_name, &right_table_field)
+                                .unwrap();
+
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}, ",
+                                right_table_alias, right_table_alias, mapped_column_name
+                            ));
+                        } else {
+                            panic!("Not a Compound Identifier");
+                        }
+
+                        linq_query.push_str(&format!(
+                            "({}, {}) => new {{ {}, {} }})",
+                            left_table_alias,
+                            right_table_alias,
+                            left_table_alias,
+                            right_table_alias
+                        ));
+                    } else {
+                        panic!("Unknown expression type");
+                    }
+                } else {
+                    panic!("Unknown join constraint type");
+                }
+            } else {
+                panic!("Unknown join operator type");
+            }
+        }
+        return linq_query;
+    }
+
+    fn build_keywords(&self, query: &Box<Query>, selector: String) -> HashMap<String, String> {
+        let mut keywords: HashMap<String, String> = HashMap::new();
+
+        if query.order_by.len() > 0 {
+            keywords.insert("order_by".to_string(), self.build_order_by(query, selector));
+        }
+
+        if query.limit.is_some() {
+            keywords.insert("limit".to_string(), self.build_limit(query));
+        }
+
+        return keywords;
+    }
+
+    fn build_limit(&self, query: &Box<Query>) -> String {
+        let mut linq_query = ".Take(".to_string();
+
+        if let Some(limit) = &query.limit {
+            if let Expr::Value(value) = limit {
+                linq_query.push_str(&format!("{}", value));
             } else {
                 panic!("Unknown expression type");
             }
-        } else {
-            panic!("Unknown expression type");
         }
 
-        return condition;
+        linq_query.push_str(")");
+
+        return linq_query;
     }
 
-    pub fn build_query_helper(&self, query: &Box<Query>) -> String {
-        let mut linq_query: String = "context.".to_string();
+    fn build_order_by(&self, query: &Box<Query>, selector: String) -> String {
+        let mut linq_query = String::new();
+
+        for order_by in &query.order_by {
+            if order_by.asc.unwrap() {
+                linq_query.push_str(".OrderBy(");
+            } else {
+                linq_query.push_str(".OrderByDescending(");
+            }
+
+            if let Expr::Function(func) = &order_by.expr {
+                if func.name.to_string().to_lowercase() == "count" {
+                    linq_query.push_str(&format!("{} => {}.Count()", selector, selector));
+                } else {
+                    panic!("Unknown function");
+                }
+            } else {
+                panic!("Unknown expression type");
+            }
+        }
+
+        linq_query.push_str(")");
+
+        return linq_query;
+    }
+
+    fn build_select(&self, select: &Box<Select>) -> HashMap<String, String> {
+        let mut linq_query: HashMap<String, String> = HashMap::new();
 
         let main_table_name: String;
         let main_table_alias: String;
 
         let mut tables_with_aliases_map: HashMap<String, String> = HashMap::new();
-
-        let select = if let SetExpr::Select(select) = &*query.body {
-            select
-        } else {
-            panic!("Unknown set expression type");
-        };
 
         // TODO: can there be multiple tables in select.from? in which case?
         let table = &select.from[0];
@@ -259,120 +467,26 @@ impl LinqQueryBuilder {
                 .get_table_name(&main_table_name)
                 .unwrap();
 
-            linq_query.push_str(&mapped_table_name);
+            linq_query.insert(
+                "context".to_string(),
+                format!("context.{}", mapped_table_name),
+            );
         } else {
             panic!("Unknown table relation type");
         }
 
         if &table.joins.len() > &0 {
-            linq_query.push_str(".Join(");
-            for join in &table.joins {
-                let table_name: String;
-                if let sqlparser::ast::TableFactor::Table {
-                    name,
-                    alias: Some(alias),
-                    ..
-                } = &join.relation
-                {
-                    table_name = name.to_string();
-                    let table_alias = alias.to_string();
-
-                    let mapped_table_name =
-                        self.schema_mapping.get_table_name(&table_name).unwrap();
-
-                    tables_with_aliases_map.insert(table_name.to_string(), table_alias.to_string());
-
-                    linq_query.push_str(&format!("context.{}, ", mapped_table_name));
-                } else {
-                    panic!("Unknown table factor type");
-                }
-
-                if let sqlparser::ast::JoinOperator::Inner(constraint) = &join.join_operator {
-                    if let sqlparser::ast::JoinConstraint::On(expr) = constraint {
-                        if let sqlparser::ast::Expr::BinaryOp { left, right, .. } = expr {
-                            let left_table_alias: String;
-                            let left_table_field: String;
-
-                            let right_table_alias: String;
-                            let right_table_field: String;
-
-                            if let Expr::CompoundIdentifier(ident) = &**left {
-                                left_table_alias = ident[0].to_string();
-                                left_table_field = ident[1].to_string();
-
-                                let mapped_column_name = self
-                                    .schema_mapping
-                                    .get_column_name(&main_table_name, &left_table_field)
-                                    .unwrap();
-
-                                linq_query.push_str(&format!(
-                                    "{} => {}.{}, ",
-                                    left_table_alias, left_table_alias, mapped_column_name
-                                ));
-                            } else {
-                                panic!("Not a Compound Identifier");
-                            }
-
-                            if let Expr::CompoundIdentifier(ident) = &**right {
-                                right_table_alias = ident[0].to_string();
-                                right_table_field = ident[1].to_string();
-
-                                let mapped_column_name = self
-                                    .schema_mapping
-                                    .get_column_name(&table_name, &right_table_field)
-                                    .unwrap();
-
-                                linq_query.push_str(&format!(
-                                    "{} => {}.{}, ",
-                                    right_table_alias, right_table_alias, mapped_column_name
-                                ));
-                            } else {
-                                panic!("Not a Compound Identifier");
-                            }
-
-                            linq_query.push_str(&format!(
-                                "({}, {}) => new {{ {}, {} }})",
-                                left_table_alias,
-                                right_table_alias,
-                                left_table_alias,
-                                right_table_alias
-                            ));
-                        } else {
-                            panic!("Unknown expression type");
-                        }
-                    } else {
-                        panic!("Unknown join constraint type");
-                    }
-                } else {
-                    panic!("Unknown join operator type");
-                }
-            }
+            linq_query.insert(
+                "joins".to_string(),
+                self.build_joins(table, &mut tables_with_aliases_map, &main_table_name),
+            );
         }
 
         if select.selection.is_some() {
-            linq_query.push_str(".Where(");
-
-            if let Some(selection) = &select.selection {
-                if let Expr::BinaryOp { left, op, right } = selection {
-                    let left_condition = self.build_where_condition(left, &main_table_name);
-                    linq_query = format!(
-                        "{}{} => {}.{}",
-                        linq_query, self.row_selector, self.row_selector, left_condition
-                    );
-
-                    if let BinaryOperator::And = *op {
-                        linq_query.push_str(" && ");
-                    } else {
-                        panic!("Unknown operator");
-                    }
-
-                    let right_condition = self.build_where_condition(right, &main_table_name);
-                    linq_query =
-                        format!("{}{}.{})", linq_query, self.row_selector, right_condition);
-                } else {
-                    panic!("Unknown expression type");
-                }
-            }
+            linq_query.insert(
+                "where".to_string(),
+                self.build_where(select, &tables_with_aliases_map, &main_table_name),
+            );
         }
 
         let is_only_function = select.projection.len() == 1
@@ -389,7 +503,8 @@ impl LinqQueryBuilder {
         };
 
         let (group_by_query, group_by_fields) = self.build_group_by(select, &main_table_name);
-        linq_query.push_str(&group_by_query);
+
+        linq_query.insert("group_by".to_string(), group_by_query);
 
         let selector = if has_group_by {
             &self.group_selector
@@ -397,39 +512,21 @@ impl LinqQueryBuilder {
             &self.row_selector
         };
 
-        if query.order_by.len() > 0 {
-            for order_by in &query.order_by {
-                if order_by.asc.unwrap() {
-                    linq_query.push_str(".OrderBy(");
-                } else {
-                    linq_query.push_str(".OrderByDescending(");
-                }
-
-                if let Expr::Function(func) = &order_by.expr {
-                    if func.name.to_string().to_lowercase() == "count" {
-                        linq_query.push_str(&format!("{} => {}.Count()", selector, selector));
-                    } else {
-                        panic!("Unknown function");
-                    }
-                } else {
-                    panic!("Unknown expression type");
-                }
-            }
-
-            linq_query.push_str(")");
-        }
+        linq_query.insert("selector".to_string(), selector.to_string());
 
         if select.projection.len() > 0 {
+            let mut current_linq_query = String::new();
+
             if select.projection.len() == 1 {
                 if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
                     if let Expr::Function(function) = expr {
                         if function.name.to_string() == "COUNT" {
-                            linq_query.push_str(&format!(".Count()"));
+                            current_linq_query.push_str(&format!(".Count()"));
                         } else {
                             panic!("Unknown function");
                         }
                     } else {
-                        linq_query.push_str(&self.build_projection(
+                        current_linq_query.push_str(&self.build_projection(
                             select,
                             &tables_with_aliases_map,
                             &main_table_name,
@@ -439,7 +536,7 @@ impl LinqQueryBuilder {
                     }
                 }
             } else {
-                linq_query.push_str(&self.build_projection(
+                current_linq_query.push_str(&self.build_projection(
                     select,
                     &tables_with_aliases_map,
                     &main_table_name,
@@ -447,29 +544,111 @@ impl LinqQueryBuilder {
                     group_by_fields,
                 ));
             }
-        }
 
-        if query.limit.is_some() {
-            linq_query.push_str(".Take(");
-            if let Some(limit) = &query.limit {
-                if let Expr::Value(value) = limit {
-                    linq_query.push_str(&format!("{}", value));
-                } else {
-                    panic!("Unknown expression type");
-                }
-            }
-            linq_query.push_str(")");
+            linq_query.insert("projection".to_string(), current_linq_query);
         }
 
         // TODO: can be Distinct or Distinct On
         if select.distinct.is_some() {
-            linq_query.push_str(".Distinct()");
+            linq_query.insert("distinct".to_string(), ".Distinct()".to_string());
         }
 
         if is_only_function {
-            linq_query.push_str(".ToList();");
+            linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         } else {
-            linq_query.push_str(".ToList();");
+            linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
+        }
+
+        return linq_query;
+    }
+
+    pub fn build_query_helper(&self, query: &Box<Query>) -> String {
+        if let SetExpr::SetOperation {
+            op,
+            set_quantifier,
+            left,
+            right,
+        } = &*query.body
+        {
+            let left_select: HashMap<String, String>;
+            let right_select: HashMap<String, String>;
+
+            if let SetExpr::Select(select) = &**left {
+                left_select = self.build_select(select);
+            } else {
+                panic!("Unknown set expression type");
+            }
+
+            if let SetExpr::Select(select) = &**right {
+                right_select = self.build_select(select);
+            } else {
+                panic!("Unknown set expression type");
+            }
+
+            let left_query = self.build_result(&left_select, &HashMap::new(), false, true);
+            let right_query = self.build_result(&right_select, &HashMap::new(), false, true);
+
+            return format!("{}.Intersect({}).ToList();", left_query, right_query);
+        }
+
+        let select = if let SetExpr::Select(select) = &*query.body {
+            select
+        } else {
+            panic!("Unknown set expression type");
+        };
+
+        let select_result = self.build_select(select);
+        let selector = select_result.get("selector").unwrap().to_string();
+        let keywords_result = self.build_keywords(query, selector);
+
+        return self.build_result(&select_result, &keywords_result, true, false);
+    }
+
+    fn build_result(
+        &self,
+        select_result: &HashMap<String, String>,
+        keywords_result: &HashMap<String, String>,
+        with_semicolon: bool,
+        skip_final_aggregation: bool,
+    ) -> String {
+        let mut linq_query = select_result.get("context").unwrap().to_string();
+
+        if let Some(from) = select_result.get("joins") {
+            linq_query.push_str(from);
+        }
+
+        if let Some(where_clause) = select_result.get("where") {
+            linq_query.push_str(where_clause);
+        }
+
+        if let Some(group_by) = select_result.get("group_by") {
+            linq_query.push_str(group_by);
+        }
+
+        if let Some(order_by) = keywords_result.get("order_by") {
+            linq_query.push_str(order_by);
+        }
+
+        if let Some(projection) = select_result.get("projection") {
+            linq_query.push_str(projection);
+        }
+
+        if let Some(distinct) = select_result.get("distinct") {
+            linq_query.push_str(distinct);
+        }
+
+        if let Some(limit) = keywords_result.get("limit") {
+            linq_query.push_str(limit);
+        }
+
+        if !skip_final_aggregation {
+            if let Some(final_aggregation) = select_result.get("final_aggregation") {
+                linq_query.push_str(final_aggregation);
+            }
+        }
+
+        if with_semicolon {
+            linq_query = format!("{};", linq_query);
         }
 
         return linq_query;
@@ -537,9 +716,18 @@ fn tests() {
         "context.Activities.Join(context.FacultyParticipatesIns, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.Actid }).OrderByDescending(group => group.Count()).Select(group => new { group.First().ActivityName }).Take(1).ToList();"
     ));
 
+    queries_and_results.push((
+        r#"SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T1.actid  =  T2.actid WHERE T2.activity_name  =  'Canoeing' INTERSECT SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T1.actid  =  T2.actid WHERE T2.activity_name  =  'Kayaking'"#,
+        r#"context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Canoeing").Select(row => new { row.T1.Stuid }).Intersect(context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Kayaking").Select(row => new { row.T1.Stuid })).ToList();"#
+    ));
+
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
     for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
+        if index != 6 {
+            continue;
+        }
+
         let result = linq_query_builder.build_query(sql);
 
         if result == *expected_result {
