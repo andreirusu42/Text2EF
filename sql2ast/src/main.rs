@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::os::macos::raw;
+use std::path::MAIN_SEPARATOR;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, GroupByExpr, Query, Select, SelectItem, SetExpr, Statement,
@@ -80,9 +81,15 @@ impl LinqQueryBuilder {
                     let table_alias = identifier[0].to_string();
                     let column_name = identifier[1].to_string();
 
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == &table_alias)
+                        .unwrap()
+                        .0;
+
                     let mapped_column_name = self
                         .schema_mapping
-                        .get_column_name(&main_table_name, &column_name)
+                        .get_column_name(&table_name, &column_name)
                         .unwrap();
 
                     if has_group_by {
@@ -295,23 +302,29 @@ impl LinqQueryBuilder {
         &self,
         table: &TableWithJoins,
         tables_with_aliases_map: &mut HashMap<String, String>,
-        main_table_name: &str,
     ) -> String {
         let mut linq_query = String::new();
+        let mut joined_aliases: Vec<String> = Vec::new();
 
-        linq_query.push_str(".Join(");
         for join in &table.joins {
-            let table_name: String;
+            linq_query.push_str(".Join(");
+
+            let mapped_table_name: String;
+            let table_alias: String;
             if let sqlparser::ast::TableFactor::Table {
                 name,
                 alias: Some(alias),
                 ..
             } = &join.relation
             {
-                table_name = name.to_string();
-                let table_alias = alias.to_string();
+                let table_name = name.to_string();
+                table_alias = alias.to_string();
 
-                let mapped_table_name = self.schema_mapping.get_table_name(&table_name).unwrap();
+                mapped_table_name = self
+                    .schema_mapping
+                    .get_table_name(&table_name)
+                    .unwrap()
+                    .to_string();
 
                 tables_with_aliases_map.insert(table_name.to_string(), table_alias.to_string());
 
@@ -323,25 +336,15 @@ impl LinqQueryBuilder {
             if let sqlparser::ast::JoinOperator::Inner(constraint) = &join.join_operator {
                 if let sqlparser::ast::JoinConstraint::On(expr) = constraint {
                     if let sqlparser::ast::Expr::BinaryOp { left, right, .. } = expr {
-                        let left_table_alias: String;
-                        let left_table_field: String;
+                        let mut left_table_alias: String;
+                        let mut left_table_field: String;
 
-                        let right_table_alias: String;
-                        let right_table_field: String;
+                        let mut right_table_alias: String;
+                        let mut right_table_field: String;
 
                         if let Expr::CompoundIdentifier(ident) = &**left {
                             left_table_alias = ident[0].to_string();
                             left_table_field = ident[1].to_string();
-
-                            let mapped_column_name = self
-                                .schema_mapping
-                                .get_column_name(&main_table_name, &left_table_field)
-                                .unwrap();
-
-                            linq_query.push_str(&format!(
-                                "{} => {}.{}, ",
-                                left_table_alias, left_table_alias, mapped_column_name
-                            ));
                         } else {
                             panic!("Not a Compound Identifier");
                         }
@@ -349,27 +352,94 @@ impl LinqQueryBuilder {
                         if let Expr::CompoundIdentifier(ident) = &**right {
                             right_table_alias = ident[0].to_string();
                             right_table_field = ident[1].to_string();
-
-                            let mapped_column_name = self
-                                .schema_mapping
-                                .get_column_name(&table_name, &right_table_field)
-                                .unwrap();
-
-                            linq_query.push_str(&format!(
-                                "{} => {}.{}, ",
-                                right_table_alias, right_table_alias, mapped_column_name
-                            ));
                         } else {
                             panic!("Not a Compound Identifier");
                         }
 
-                        linq_query.push_str(&format!(
-                            "({}, {}) => new {{ {}, {} }})",
-                            left_table_alias,
-                            right_table_alias,
-                            left_table_alias,
-                            right_table_alias
-                        ));
+                        if table_alias == left_table_alias {
+                            let temp_table_alias = left_table_alias.clone();
+                            let temp_table_field = left_table_field.clone();
+
+                            left_table_alias = right_table_alias.clone();
+                            left_table_field = right_table_field.clone();
+
+                            right_table_alias = temp_table_alias;
+                            right_table_field = temp_table_field;
+                        }
+
+                        let left_table_name = tables_with_aliases_map
+                            .iter()
+                            .find(|(_, v)| *v == &left_table_alias)
+                            .unwrap()
+                            .0;
+                        let mapped_left_field = self
+                            .schema_mapping
+                            .get_column_name(&left_table_name, &left_table_field)
+                            .unwrap();
+
+                        let right_table_name = tables_with_aliases_map
+                            .iter()
+                            .find(|(_, v)| *v == &right_table_alias)
+                            .unwrap()
+                            .0;
+                        let mapped_right_field = self
+                            .schema_mapping
+                            .get_column_name(&right_table_name, &right_table_field)
+                            .unwrap();
+
+                        let outer_key_selector: String;
+
+                        if joined_aliases.len() == 0 {
+                            outer_key_selector = left_table_alias.to_string();
+                            joined_aliases.push(left_table_alias.clone());
+                        } else {
+                            outer_key_selector = "joined".to_string();
+                        }
+
+                        if outer_key_selector == "joined" {
+                            let mut joined_aliases_str = String::new();
+
+                            for alias in &joined_aliases {
+                                joined_aliases_str.push_str(&format!("joined.{}, ", alias));
+                            }
+
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}.{}, ",
+                                outer_key_selector,
+                                outer_key_selector,
+                                left_table_alias,
+                                mapped_left_field
+                            ));
+
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}, ",
+                                right_table_alias, right_table_alias, mapped_right_field
+                            ));
+
+                            linq_query.push_str(&format!(
+                                "({}, {}) => new {{ {}{} }})",
+                                outer_key_selector,
+                                right_table_alias,
+                                joined_aliases_str,
+                                right_table_alias
+                            ));
+                        } else {
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}, {} => {}.{}, ({}, {}) => new {{ {}, {} }})",
+                                left_table_alias,
+                                left_table_alias,
+                                mapped_left_field,
+                                right_table_alias,
+                                right_table_alias,
+                                mapped_right_field,
+                                left_table_alias,
+                                right_table_alias,
+                                left_table_alias,
+                                right_table_alias
+                            ));
+                        }
+
+                        joined_aliases.push(right_table_alias.clone());
                     } else {
                         panic!("Unknown expression type");
                     }
@@ -478,7 +548,7 @@ impl LinqQueryBuilder {
         if &table.joins.len() > &0 {
             linq_query.insert(
                 "joins".to_string(),
-                self.build_joins(table, &mut tables_with_aliases_map, &main_table_name),
+                self.build_joins(table, &mut tables_with_aliases_map),
             );
         }
 
@@ -697,7 +767,7 @@ fn tests() {
     ));
 
     queries_and_results.push((
-        r#"SELECT T1.fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor WHERE T2.fname = "Linda" AND T2.lname = "Smith""#,
+        r#"SELECT T1.fname, T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T2.advisor = T1.FacID WHERE T2.fname = "Linda" AND T2.lname = "Smith""#,
         r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Fname == "Linda" && row.T2.Lname == "Smith").Select(row => new { row.T1.Fname, row.T1.Lname }).ToList();"#,
     ));
 
@@ -721,13 +791,14 @@ fn tests() {
         r#"context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Canoeing").Select(row => new { row.T1.Stuid }).Intersect(context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Kayaking").Select(row => new { row.T1.Stuid })).ToList();"#
     ));
 
+    queries_and_results.push((
+        r#"SELECT T3.activity_name FROM Faculty AS T1 JOIN Faculty_participates_in AS T2 ON T2.facID  =  T1.facID JOIN Activity AS T3 ON T3.actid  =  T2.actid WHERE T1.fname  =  "Mark" AND T1.lname  =  "Giuliano""#,
+        r#"context.Faculties.Join(context.FacultyParticipatesIns, T1 => T1.FacId, T2 => T2.FacId, (T1, T2) => new { T1, T2 }).Join(context.Activities, joined => joined.T2.Actid, T3 => T3.Actid, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Fname == "Mark" && row.T1.Lname == "Giuliano").Select(row => new { row.T3.ActivityName }).ToList();"#
+    ));
+
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
     for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-        if index != 6 {
-            continue;
-        }
-
         let result = linq_query_builder.build_query(sql);
 
         if result == *expected_result {
