@@ -43,7 +43,7 @@ fn tests() {
 
     queries_and_results.push((
         r#"SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T1.actid  =  T2.actid WHERE T2.activity_name  =  'Canoeing' INTERSECT SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T1.actid  =  T2.actid WHERE T2.activity_name  =  'Kayaking'"#,
-        r#"context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Canoeing").Select(row => new { row.T1.Stuid }).Intersect(context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Kayaking").Select(row => new { row.T1.Stuid })).ToList();"#
+        r#"context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Canoeing").Select(row => row.T1.Stuid).Intersect(context.ParticipatesIns.Join(context.Activities, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.ActivityName == "Kayaking").Select(row => row.T1.Stuid)).ToList();"#
     ));
 
     queries_and_results.push((
@@ -66,6 +66,16 @@ fn tests() {
         r#"context.Faculties.Where(row => row.Sex == "M").Select(row => new { row.FacId }).ToList();"#,
     ));
 
+    queries_and_results.push((
+        r#"SELECT FacID FROM Faculty_participates_in INTERSECT SELECT advisor FROM Student"#,
+        "context.FacultyParticipatesIns.Select(row => row.FacId).Intersect(context.Students.Select(row => row.Advisor)).ToList();",
+    ));
+
+    queries_and_results.push((
+        r#"SELECT building FROM Faculty WHERE rank = 'Professor' GROUP BY building HAVING count(*) >= 10"#,
+        r#"context.Faculties.Where(row => row.Rank == "Professor").GroupBy(row => new { row.Building }).Where(group => group.Count() >= 10).Select(group => new { group.Key.Building }).ToList();"#,
+    ));
+
     // queries_and_results.push((
     //     r#"SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T2.actid = T2.actid WHERE T2.activity_name = 'Canoeing' INTERSECT SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T2.actid = T2.actid WHERE T2.activity_name = 'Kayaking'"#,
     //     r#""#
@@ -74,7 +84,7 @@ fn tests() {
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
     for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-        // if index != 2 {
+        // if index != 12 {
         //     continue;
         // }
 
@@ -116,7 +126,7 @@ using entity_framework.Models.activity_1;
         "#,
             index,
             result,
-            sql.replace("\"", "'")
+            sql.replace("\"", "'"),
         ));
     }
 
@@ -128,7 +138,16 @@ using entity_framework.Models.activity_1;
     ));
 
     for index in 0..sqls_and_results.len() {
-        c_sharp_code.push_str(&format!("Test{}();\n", index));
+        c_sharp_code.push_str(&format!(
+            r#"
+            var test_passed_{} = Test{}();
+            if (!test_passed_{}) {{
+                Console.WriteLine("Test {} failed");
+                return;
+            }}
+        "#,
+            index, index, index, index
+        ));
     }
 
     c_sharp_code.push_str("}}");

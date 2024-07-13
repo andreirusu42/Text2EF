@@ -33,6 +33,7 @@ impl LinqQueryBuilder {
         main_table_name: &str,
         has_group_by: bool,
         group_by_fields: Vec<String>,
+        use_new_object_for_select_when_single_field: bool,
     ) -> String {
         let mut result = String::new();
         let selector = if has_group_by {
@@ -41,9 +42,21 @@ impl LinqQueryBuilder {
             &self.row_selector
         };
 
-        result.push_str(&format!(".Select({} => new {{ ", selector));
+        let has_only_one_field = select.projection.len() == 1;
+        let should_use_new = if has_only_one_field {
+            use_new_object_for_select_when_single_field
+        } else {
+            true
+        };
+
+        result.push_str(&format!(".Select({} => ", selector));
+
+        if should_use_new {
+            result.push_str("new { ");
+        }
 
         let mut select_fields: Vec<String> = Vec::new();
+
         for select_item in &select.projection {
             if let SelectItem::UnnamedExpr(expr) = select_item {
                 if let Expr::Identifier(identifier) = expr {
@@ -118,7 +131,12 @@ impl LinqQueryBuilder {
             }
         }
         result.push_str(&select_fields.join(", "));
-        result.push_str(" })");
+
+        if should_use_new {
+            result.push_str(" })");
+        } else {
+            result.push_str(")");
+        }
 
         return result;
     }
@@ -200,17 +218,25 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         tables_with_aliases_map: &HashMap<String, String>,
-    ) -> String {
-        let mut current_query = format!(".Where({} => ", self.row_selector);
+    ) -> (String, String) {
+        let mut selection_query = format!(".Where({} => ", self.row_selector);
+        let mut having_query = String::new();
 
         if let Some(selection) = &select.selection {
-            let where_clause = self.build_where_helper(selection, tables_with_aliases_map, None);
-            current_query.push_str(&where_clause);
+            let where_clause =
+                self.build_where_helper(selection, tables_with_aliases_map, None, false);
+            selection_query.push_str(&where_clause);
         }
 
-        current_query.push_str(")");
+        if let Some(having) = &select.having {
+            let having_clause =
+                self.build_where_helper(having, tables_with_aliases_map, None, true);
+            having_query = format!(".Where({} => {})", self.group_selector, having_clause);
+        }
 
-        return current_query;
+        selection_query.push_str(")");
+
+        return (selection_query, having_query);
     }
 
     fn build_where_helper(
@@ -218,6 +244,7 @@ impl LinqQueryBuilder {
         expr: &Expr,
         tables_with_aliases_map: &HashMap<String, String>,
         parent_precedence: Option<i32>,
+        is_having: bool,
     ) -> String {
         match expr {
             Expr::BinaryOp { left, op, right } => match op {
@@ -228,10 +255,18 @@ impl LinqQueryBuilder {
                         _ => 2,
                     };
 
-                    let left_condition =
-                        self.build_where_helper(left, tables_with_aliases_map, Some(precedence));
-                    let right_condition =
-                        self.build_where_helper(right, tables_with_aliases_map, Some(precedence));
+                    let left_condition = self.build_where_helper(
+                        left,
+                        tables_with_aliases_map,
+                        Some(precedence),
+                        is_having,
+                    );
+                    let right_condition = self.build_where_helper(
+                        right,
+                        tables_with_aliases_map,
+                        Some(precedence),
+                        is_having,
+                    );
                     let operator = match op {
                         BinaryOperator::And => " && ",
                         BinaryOperator::Or => " || ",
@@ -248,9 +283,10 @@ impl LinqQueryBuilder {
                     return condition;
                 }
                 _ => {
-                    let left_condition = self.build_where_condition(left, tables_with_aliases_map);
+                    let left_condition =
+                        self.build_where_condition(left, tables_with_aliases_map, is_having);
                     let right_condition =
-                        self.build_where_condition(right, tables_with_aliases_map);
+                        self.build_where_condition(right, tables_with_aliases_map, is_having);
                     let operator = match op {
                         BinaryOperator::Eq => " == ",
                         BinaryOperator::NotEq => " != ",
@@ -271,7 +307,14 @@ impl LinqQueryBuilder {
         &self,
         expr: &Box<Expr>,
         tables_with_aliases_map: &HashMap<String, String>,
+        is_having: bool,
     ) -> String {
+        let selector = if is_having {
+            &self.group_selector
+        } else {
+            &self.row_selector
+        };
+
         match &**expr {
             Expr::CompoundIdentifier(ident) => {
                 let alias = ident[0].to_string();
@@ -288,7 +331,7 @@ impl LinqQueryBuilder {
                     .schema_mapping
                     .get_column_name(table_name, &field)
                     .unwrap();
-                format!("{}.{}.{}", self.row_selector, alias, mapped_column_name)
+                format!("{}.{}.{}", selector, alias, mapped_column_name)
             }
             Expr::Identifier(ident) => {
                 let field = ident.to_string();
@@ -312,7 +355,14 @@ impl LinqQueryBuilder {
                     .schema_mapping
                     .get_column_name(&table_name, &field)
                     .unwrap();
-                format!("{}.{}", self.row_selector, mapped_column_name)
+                format!("{}.{}", selector, mapped_column_name)
+            }
+            Expr::Function(func) => {
+                if func.name.to_string().to_lowercase() == "count" {
+                    return format!("{}.Count()", selector);
+                } else {
+                    panic!("Unknown function");
+                }
             }
             Expr::Value(value) => value.to_string().replace("'", "\""),
             _ => panic!("Unsupported expression type"),
@@ -538,7 +588,11 @@ impl LinqQueryBuilder {
         return linq_query;
     }
 
-    fn build_select(&self, select: &Box<Select>) -> HashMap<String, String> {
+    fn build_select(
+        &self,
+        select: &Box<Select>,
+        use_new_object_for_select: bool,
+    ) -> HashMap<String, String> {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
         let main_table_name: String;
@@ -582,10 +636,11 @@ impl LinqQueryBuilder {
         }
 
         if select.selection.is_some() {
-            linq_query.insert(
-                "where".to_string(),
-                self.build_where(select, &tables_with_aliases_map),
-            );
+            let (select_where, having_where) = self.build_where(select, &tables_with_aliases_map);
+
+            linq_query.insert("select_where".to_string(), select_where);
+
+            linq_query.insert("having_where".to_string(), having_where);
         }
 
         let is_only_function = select.projection.len() == 1
@@ -631,6 +686,7 @@ impl LinqQueryBuilder {
                             &main_table_name,
                             has_group_by,
                             group_by_fields,
+                            use_new_object_for_select,
                         ));
                     }
                 }
@@ -641,6 +697,7 @@ impl LinqQueryBuilder {
                     &main_table_name,
                     has_group_by,
                     group_by_fields,
+                    use_new_object_for_select,
                 ));
             }
 
@@ -670,13 +727,13 @@ impl LinqQueryBuilder {
             let right_select: HashMap<String, String>;
 
             if let SetExpr::Select(select) = &**left {
-                left_select = self.build_select(select);
+                left_select = self.build_select(select, false);
             } else {
                 panic!("Unknown set expression type");
             }
 
             if let SetExpr::Select(select) = &**right {
-                right_select = self.build_select(select);
+                right_select = self.build_select(select, false);
             } else {
                 panic!("Unknown set expression type");
             }
@@ -699,7 +756,7 @@ impl LinqQueryBuilder {
             panic!("Unknown set expression type");
         };
 
-        let select_result = self.build_select(select);
+        let select_result = self.build_select(select, true);
         let selector = select_result.get("selector").unwrap().to_string();
         let keywords_result = self.build_keywords(query, selector);
 
@@ -719,12 +776,16 @@ impl LinqQueryBuilder {
             linq_query.push_str(from);
         }
 
-        if let Some(where_clause) = select_result.get("where") {
-            linq_query.push_str(where_clause);
+        if let Some(select_where_clause) = select_result.get("select_where") {
+            linq_query.push_str(select_where_clause);
         }
 
         if let Some(group_by) = select_result.get("group_by") {
             linq_query.push_str(group_by);
+        }
+
+        if let Some(having_where_clause) = select_result.get("having_where") {
+            linq_query.push_str(having_where_clause);
         }
 
         if let Some(order_by) = keywords_result.get("order_by") {

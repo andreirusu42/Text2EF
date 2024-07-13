@@ -43,19 +43,51 @@ class Tester
 
     private static List<Dictionary<string, object>> ExecuteLinqQuery<TResult>(object linqQuery)
     {
-
-        if (linqQuery is IEnumerable<TResult> query)
+        if (linqQuery is System.Collections.IEnumerable query)
         {
-            var linqResults = query
-             .Select(item => item.GetType().GetProperties().ToDictionary(p => NormalizeColumnName(p.Name), p => p.GetValue(item)))
-             .ToList();
+            var enumerator = query.GetEnumerator();
+            if (!enumerator.MoveNext())
+            {
+                return new List<Dictionary<string, object>>();
+            }
 
-            return linqResults;
+            var firstItem = enumerator.Current;
+
+            if (firstItem == null)
+            {
+                return new List<Dictionary<string, object>>();
+            }
+
+            var isPrimitive = firstItem.GetType().IsPrimitive || firstItem is string || firstItem is int;
+
+            if (isPrimitive)
+            {
+                var primitiveResults = query.Cast<object>().Select(item =>
+                    new Dictionary<string, object> { { "Value", item } }).ToList();
+                return primitiveResults;
+            }
+            else
+            {
+                var complexResults = query.Cast<object>().Select(item =>
+                    item.GetType()
+                        .GetProperties()
+                        .ToDictionary(p => NormalizeColumnName(p.Name), p => p.GetValue(item))
+                ).ToList();
+
+                return complexResults;
+            }
         }
 
-        var results = new List<Dictionary<string, object>>
+        var results = new List<Dictionary<string, object>> { };
+
+        if (linqQuery is int)
         {
-            linqQuery.GetType().GetProperties().ToDictionary(p => NormalizeColumnName(p.Name), p => p.GetValue(linqQuery))
+            results.Add(new Dictionary<string, object> { { "Value", linqQuery } });
+        }
+
+        else
+        {
+            linqQuery.GetType().GetProperties().ToDictionary(p => NormalizeColumnName(p.Name), p => p.GetValue(linqQuery));
         };
 
         return results;
@@ -63,6 +95,24 @@ class Tester
 
     private static bool CompareResults(List<Dictionary<string, object>> linqResults, List<Dictionary<string, object>> sqlResults)
     {
+        // there is this one case where we only compare one field. in this case,
+        // we will compare the values directly
+
+        if (linqResults.Count > 0 && linqResults[0].Count == 1)
+        {
+            var linqStringsWithoutKeys = linqResults.Select(dict => dict.Values.First().ToString()).ToList();
+            var sqlStringsWithoutKeys = sqlResults.Select(dict => dict.Values.First().ToString()).ToList();
+
+            bool areEqualWithoutKeys = linqStringsWithoutKeys.Count == sqlStringsWithoutKeys.Count && !linqStringsWithoutKeys.Except(sqlStringsWithoutKeys).Any();
+
+            // Console.WriteLine("Linq results:");
+            // Console.WriteLine(string.Join("\n", linqStringsWithoutKeys));
+            // Console.WriteLine("Sql results:");
+            // Console.WriteLine(string.Join("\n", sqlStringsWithoutKeys));
+
+            return areEqualWithoutKeys;
+        }
+
         var linqStrings = linqResults.Select(dict => string.Join(", ", dict.Select(kv => $"{kv.Key}={kv.Value}"))).ToList();
         var sqlStrings = sqlResults.Select(dict => string.Join(", ", dict.Select(kv => $"{kv.Key}={kv.Value}"))).ToList();
 
@@ -82,17 +132,17 @@ class Tester
         var sqlResults = ExecuteSqlQuery(sqlQuery);
 
 
-        // for (int i = 0; i < sqlResults.Count; i++)
-        // {
-        //     var row = sqlResults[i];
-        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        // }
+        for (int i = 0; i < sqlResults.Count; i++)
+        {
+            var row = sqlResults[i];
+            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
 
-        // for (int i = 0; i < linqResults.Count; i++)
-        // {
-        //     var row = linqResults[i];
-        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        // }
+        for (int i = 0; i < linqResults.Count; i++)
+        {
+            var row = linqResults[i];
+            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
 
         return CompareResults(linqResults, sqlResults);
     }
@@ -106,6 +156,7 @@ class Tester
         var normalizedColumnName = System.Text.RegularExpressions.Regex
             .Replace(columnName, "([a-z])([A-Z])", "$1_$2")
             .ToLower();
+
 
         return normalizedColumnName;
     }
