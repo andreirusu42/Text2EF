@@ -219,13 +219,13 @@ impl LinqQueryBuilder {
         select: &Box<Select>,
         tables_with_aliases_map: &HashMap<String, String>,
     ) -> (String, String) {
-        let mut selection_query = format!(".Where({} => ", self.row_selector);
+        let mut selection_query = String::new();
         let mut having_query = String::new();
 
         if let Some(selection) = &select.selection {
             let where_clause =
                 self.build_where_helper(selection, tables_with_aliases_map, None, false);
-            selection_query.push_str(&where_clause);
+            selection_query = format!(".Where({} => {})", self.row_selector, where_clause);
         }
 
         if let Some(having) = &select.having {
@@ -233,8 +233,6 @@ impl LinqQueryBuilder {
                 self.build_where_helper(having, tables_with_aliases_map, None, true);
             having_query = format!(".Where({} => {})", self.group_selector, having_clause);
         }
-
-        selection_query.push_str(")");
 
         return (selection_query, having_query);
     }
@@ -635,7 +633,7 @@ impl LinqQueryBuilder {
             );
         }
 
-        if select.selection.is_some() {
+        if select.selection.is_some() || select.having.is_some() {
             let (select_where, having_where) = self.build_where(select, &tables_with_aliases_map);
 
             linq_query.insert("select_where".to_string(), select_where);
