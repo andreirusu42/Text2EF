@@ -81,6 +81,11 @@ fn tests() {
         r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).Where(group => group.Count() >= 2).Select(group => new { group.Key.FacId }).ToList();"#,
     ));
 
+    queries_and_results.push((
+        r#"SELECT count(DISTINCT FacID) FROM Faculty_participates_in"#,
+        r#"context.FacultyParticipatesIns.Select(row => row.FacId).Distinct().Count();"#,
+    ));
+
     // queries_and_results.push((
     //     r#"SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T2.actid = T2.actid WHERE T2.activity_name = 'Canoeing' INTERSECT SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T2.actid = T2.actid WHERE T2.activity_name = 'Kayaking'"#,
     //     r#""#
@@ -89,7 +94,7 @@ fn tests() {
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
     for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-        // if index != 12 {
+        // if index != 14 {
         //     continue;
         // }
 

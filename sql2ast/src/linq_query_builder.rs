@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, GroupByExpr, Query, Select, SelectItem, SetExpr, Statement,
-    TableWithJoins,
+    BinaryOperator, Expr, FunctionArg, FunctionArguments, GroupByExpr, Query, Select, SelectItem,
+    SetExpr, Statement, TableWithJoins,
 };
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -673,7 +673,59 @@ impl LinqQueryBuilder {
                 if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
                     if let Expr::Function(function) = expr {
                         if function.name.to_string().to_lowercase() == "count" {
-                            current_linq_query.push_str(&format!(".Count()"));
+                            if let FunctionArguments::List(list) = &function.args {
+                                let is_distinct = if let x = list.duplicate_treatment.unwrap() {
+                                    x.to_string().to_lowercase() == "distinct"
+                                } else {
+                                    false
+                                };
+
+                                if list.args.len() == 1 {
+                                    if let FunctionArg::Unnamed(ident) = &list.args[0] {
+                                        let column_name = ident.to_string();
+                                        let table_alias = self
+                                            .get_table_alias_from_field_name(
+                                                &tables_with_aliases_map,
+                                                &column_name,
+                                            )
+                                            .unwrap();
+
+                                        let mapped_column_name = self
+                                            .schema_mapping
+                                            .get_column_name(&main_table_name, &column_name)
+                                            .unwrap();
+
+                                        if table_alias.is_empty() {
+                                            current_linq_query.push_str(&format!(
+                                                ".Select({} => {}.{})",
+                                                self.row_selector,
+                                                self.row_selector,
+                                                mapped_column_name
+                                            ));
+                                        } else {
+                                            current_linq_query.push_str(&format!(
+                                                ".Select({} => {}.{}.{})",
+                                                self.row_selector,
+                                                self.row_selector,
+                                                table_alias,
+                                                mapped_column_name
+                                            ));
+                                        }
+
+                                        if is_distinct {
+                                            current_linq_query.push_str(".Distinct()");
+                                        }
+
+                                        current_linq_query.push_str(".Count()");
+                                    } else {
+                                        panic!("Invalid function argument");
+                                    }
+                                } else {
+                                    panic!("Invalid number of arguments for Count function");
+                                }
+                            } else {
+                                panic!("Invalid function arguments");
+                            }
                         } else {
                             panic!("Unknown function");
                         }
