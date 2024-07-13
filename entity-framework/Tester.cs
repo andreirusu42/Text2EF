@@ -132,17 +132,17 @@ class Tester
         var sqlResults = ExecuteSqlQuery(sqlQuery);
 
 
-        for (int i = 0; i < sqlResults.Count; i++)
-        {
-            var row = sqlResults[i];
-            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        }
+        // for (int i = 0; i < sqlResults.Count; i++)
+        // {
+        //     var row = sqlResults[i];
+        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        // }
 
-        for (int i = 0; i < linqResults.Count; i++)
-        {
-            var row = linqResults[i];
-            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        }
+        // for (int i = 0; i < linqResults.Count; i++)
+        // {
+        //     var row = linqResults[i];
+        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        // }
 
         return CompareResults(linqResults, sqlResults);
     }

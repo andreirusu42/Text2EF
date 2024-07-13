@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, FunctionArg, FunctionArguments, GroupByExpr, Query, Select, SelectItem,
-    SetExpr, Statement, TableWithJoins,
+    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr, Query,
+    Select, SelectItem, SetExpr, Statement, TableWithJoins,
 };
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -674,7 +674,7 @@ impl LinqQueryBuilder {
                     if let Expr::Function(function) = expr {
                         if function.name.to_string().to_lowercase() == "count" {
                             if let FunctionArguments::List(list) = &function.args {
-                                let is_distinct = if let x = list.duplicate_treatment.unwrap() {
+                                let is_distinct = if let Some(x) = list.duplicate_treatment {
                                     x.to_string().to_lowercase() == "distinct"
                                 } else {
                                     false
@@ -682,34 +682,39 @@ impl LinqQueryBuilder {
 
                                 if list.args.len() == 1 {
                                     if let FunctionArg::Unnamed(ident) = &list.args[0] {
-                                        let column_name = ident.to_string();
-                                        let table_alias = self
-                                            .get_table_alias_from_field_name(
-                                                &tables_with_aliases_map,
-                                                &column_name,
-                                            )
-                                            .unwrap();
-
-                                        let mapped_column_name = self
-                                            .schema_mapping
-                                            .get_column_name(&main_table_name, &column_name)
-                                            .unwrap();
-
-                                        if table_alias.is_empty() {
-                                            current_linq_query.push_str(&format!(
-                                                ".Select({} => {}.{})",
-                                                self.row_selector,
-                                                self.row_selector,
-                                                mapped_column_name
-                                            ));
+                                        if let FunctionArgExpr::Wildcard = ident {
+                                            // using .Distinct().Count() from below
                                         } else {
-                                            current_linq_query.push_str(&format!(
-                                                ".Select({} => {}.{}.{})",
-                                                self.row_selector,
-                                                self.row_selector,
-                                                table_alias,
-                                                mapped_column_name
-                                            ));
+                                            let column_name = ident.to_string();
+
+                                            let table_alias = self
+                                                .get_table_alias_from_field_name(
+                                                    &tables_with_aliases_map,
+                                                    &column_name,
+                                                )
+                                                .unwrap();
+
+                                            let mapped_column_name = self
+                                                .schema_mapping
+                                                .get_column_name(&main_table_name, &column_name)
+                                                .unwrap();
+
+                                            if table_alias.is_empty() {
+                                                current_linq_query.push_str(&format!(
+                                                    ".Select({} => {}.{})",
+                                                    self.row_selector,
+                                                    self.row_selector,
+                                                    mapped_column_name
+                                                ));
+                                            } else {
+                                                current_linq_query.push_str(&format!(
+                                                    ".Select({} => {}.{}.{})",
+                                                    self.row_selector,
+                                                    self.row_selector,
+                                                    table_alias,
+                                                    mapped_column_name
+                                                ));
+                                            }
                                         }
 
                                         if is_distinct {

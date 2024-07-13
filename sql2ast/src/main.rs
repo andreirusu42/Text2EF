@@ -86,6 +86,11 @@ fn tests() {
         r#"context.FacultyParticipatesIns.Select(row => row.FacId).Distinct().Count();"#,
     ));
 
+    queries_and_results.push((
+        r#"SELECT count(*) FROM Faculty_participates_in"#,
+        r#"context.FacultyParticipatesIns.Count();"#,
+    ));
+
     // queries_and_results.push((
     //     r#"SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T2.actid = T2.actid WHERE T2.activity_name = 'Canoeing' INTERSECT SELECT T1.stuid FROM participates_in AS T1 JOIN activity AS T2 ON T2.actid = T2.actid WHERE T2.activity_name = 'Kayaking'"#,
     //     r#""#
@@ -94,9 +99,9 @@ fn tests() {
     let linq_query_builder = LinqQueryBuilder::new("../entity-framework/Models/activity_1");
 
     for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-        // if index != 14 {
-        //     continue;
-        // }
+        if index != 15 {
+            continue;
+        }
 
         let result = linq_query_builder.build_query(sql);
 
@@ -228,8 +233,8 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }
 
 // TODO: handle HAVING and EXCEPT
