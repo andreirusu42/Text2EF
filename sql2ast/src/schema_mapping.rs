@@ -91,9 +91,10 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
     let table_regex =
         regex::Regex::new(r"public virtual DbSet<(.*)> (.*) \{ get; set; \}").unwrap();
-    let entity_regex =
-        regex::Regex::new(r"modelBuilder\.Entity<(.*)>\(\s*entity\s* =>\s*\{([\s\S]*?)\}\);")
-            .unwrap();
+    let entity_regex = regex::Regex::new(
+        r"modelBuilder\.Entity<(\w+)>\(\s*entity\s*=>\s*\{((?:\{[^{}]*\}|[^{}])*)\}\);",
+    )
+    .unwrap();
 
     for cap in table_regex.captures_iter(&context_content) {
         let original_entity_name = cap[1].to_lowercase();

@@ -776,7 +776,7 @@ impl LinqQueryBuilder {
                     if let Expr::Function(function) = expr {
                         let function_name = function.name.to_string().to_lowercase();
 
-                        if ["count", "avg"].contains(&function_name.as_str()) {
+                        if ["count", "avg", "sum"].contains(&function_name.as_str()) {
                             if let FunctionArguments::List(list) = &function.args {
                                 let is_distinct = if let Some(x) = list.duplicate_treatment {
                                     x.to_string().to_lowercase() == "distinct"
@@ -787,20 +787,30 @@ impl LinqQueryBuilder {
                                 if list.args.len() == 1 {
                                     if let FunctionArg::Unnamed(ident) = &list.args[0] {
                                         if let FunctionArgExpr::Wildcard = ident {
-                                            // using .Distinct().Count() from below
-                                        } else {
-                                            let column_name = ident.to_string();
+                                            // using .Distinct().[Func]() from below
+                                        } else if let FunctionArgExpr::Expr(expr) = ident {
+                                            let column_name: String;
+                                            let table_alias: String;
 
-                                            let table_alias = self
-                                                .get_table_alias_from_field_name(
-                                                    &tables_with_aliases_map,
-                                                    &column_name,
-                                                )
-                                                .unwrap();
+                                            if let Expr::Identifier(ident) = expr {
+                                                column_name = ident.to_string();
+                                                table_alias = self
+                                                    .get_table_alias_from_field_name(
+                                                        &tables_with_aliases_map,
+                                                        &column_name,
+                                                    )
+                                                    .unwrap()
+                                                    .to_string();
+                                            } else if let Expr::CompoundIdentifier(ident) = expr {
+                                                table_alias = ident[0].to_string();
+                                                column_name = ident[1].to_string();
+                                            } else {
+                                                panic!("Invalid function argument");
+                                            }
 
                                             let table_name = tables_with_aliases_map
                                                 .iter()
-                                                .find(|(_, v)| *v == table_alias)
+                                                .find(|(_, v)| *v == &table_alias)
                                                 .unwrap()
                                                 .0;
 
@@ -825,6 +835,8 @@ impl LinqQueryBuilder {
                                                     mapped_column_name
                                                 ));
                                             }
+                                        } else {
+                                            panic!("Invalid function argument");
                                         }
 
                                         if is_distinct {
@@ -833,8 +845,10 @@ impl LinqQueryBuilder {
 
                                         let mapped_function_name = if function_name == "count" {
                                             "Count"
-                                        } else {
+                                        } else if function_name == "avg" {
                                             "Average"
+                                        } else {
+                                            "Sum"
                                         };
 
                                         current_linq_query
