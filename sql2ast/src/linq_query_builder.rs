@@ -10,7 +10,7 @@ use sqlparser::parser::Parser;
 use super::schema_mapping::{create_schema_map, SchemaMapping};
 
 pub struct LinqQueryBuilder {
-    schema_mapping: SchemaMapping,
+    pub schema_mapping: SchemaMapping,
     row_selector: String,
     group_selector: String,
 }
@@ -297,6 +297,40 @@ impl LinqQueryBuilder {
                     format!("{}{}{}", left_condition, operator, right_condition)
                 }
             },
+            Expr::Like { expr, pattern, .. } => {
+                if let Expr::Identifier(ident) = &**expr {
+                    let field = ident.to_string();
+
+                    let alias_option =
+                        self.get_table_alias_from_field_name(tables_with_aliases_map, &field);
+
+                    if alias_option.is_none() {
+                        return field; // this happens when using double quotes on a string
+                    }
+
+                    let alias = alias_option.unwrap();
+
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == alias)
+                        .unwrap()
+                        .0;
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&table_name, &field)
+                        .unwrap();
+
+                    let value = pattern.to_string();
+
+                    return format!(
+                        "EF.Functions.Like({}.{}, {})",
+                        self.row_selector, mapped_column_name, value
+                    );
+                } else {
+                    panic!("Unsupported expression type");
+                }
+            }
             _ => panic!("Unsupported expression type"),
         }
     }

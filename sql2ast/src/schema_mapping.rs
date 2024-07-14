@@ -9,6 +9,7 @@ pub struct SchemaMapTable {
 
 #[derive(Debug)]
 pub struct SchemaMapping {
+    pub context: String,
     pub tables: HashMap<String, SchemaMapTable>,
 }
 
@@ -76,6 +77,15 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let context_content =
         fs::read_to_string(context_file_path).expect("Failed to read the context file");
 
+    let context_name_regex = regex::Regex::new(r"public partial class (.*) : DbContext").unwrap();
+    let context_name = context_name_regex
+        .captures(&context_content)
+        .expect("Failed to find the context name")
+        .get(1)
+        .unwrap()
+        .as_str()
+        .to_string();
+
     let mut tables = HashMap::new();
     let mut schema_map_tables = HashMap::new();
 
@@ -109,8 +119,13 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         let original_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
         let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
 
-        let original_table_name =
-            original_table_name_regex.captures(entity_content).unwrap()[1].to_lowercase();
+        let original_table_name_capture = original_table_name_regex.captures(entity_content);
+
+        let original_table_name = if let Some(original) = original_table_name_capture {
+            original[1].to_lowercase()
+        } else {
+            entity_name.to_lowercase()
+        };
 
         let context_property_occurrences: Vec<&str> = context_property_regex
             .captures_iter(entity_content)
@@ -151,6 +166,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     }
 
     SchemaMapping {
+        context: context_name,
         tables: schema_map_tables,
     }
 }
