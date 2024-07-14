@@ -686,8 +686,92 @@ impl LinqQueryBuilder {
             }
 
             if let Expr::Function(func) = &order_by.expr {
-                if func.name.to_string().to_lowercase() == "count" {
-                    linq_query.push_str(&format!("{} => {}.Count()", selector, selector));
+                let function_name = func.name.to_string().to_lowercase();
+
+                if ["count", "avg", "sum"].contains(&function_name.as_str()) {
+                    let args = if let FunctionArguments::List(list) = &func.args {
+                        &list.args
+                    } else {
+                        panic!("Invalid function arguments");
+                    };
+
+                    if args.len() != 1 {
+                        panic!("Invalid number of arguments for count/avg function");
+                    }
+
+                    let mapped_function_name = if function_name == "count" {
+                        "Count"
+                    } else if function_name == "sum" {
+                        "Sum"
+                    } else {
+                        "Average"
+                    };
+
+                    if let FunctionArg::Unnamed(ident) = &args[0] {
+                        if let FunctionArgExpr::Wildcard = ident {
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}()",
+                                selector, selector, mapped_function_name
+                            ));
+                        } else if let FunctionArgExpr::Expr(expr) = ident {
+                            let column_name: String;
+                            let table_alias: String;
+
+                            if let Expr::Identifier(ident) = expr {
+                                column_name = ident.to_string();
+                                table_alias = self
+                                    .get_table_alias_from_field_name(
+                                        &tables_with_aliases_map,
+                                        &column_name,
+                                    )
+                                    .unwrap()
+                                    .to_string();
+                            } else if let Expr::CompoundIdentifier(ident) = expr {
+                                table_alias = ident[0].to_string();
+                                column_name = ident[1].to_string();
+                            } else {
+                                panic!("Invalid function argument");
+                            }
+
+                            let table_name = tables_with_aliases_map
+                                .iter()
+                                .find(|(_, v)| *v == &table_alias)
+                                .unwrap()
+                                .0;
+
+                            let mapped_column_name = self
+                                .schema_mapping
+                                .get_column_name(&table_name, &column_name)
+                                .unwrap();
+
+                            if table_alias.is_empty() {
+                                linq_query.push_str(&format!(
+                                    "{} => {}.{}({} => {}.{})",
+                                    selector,
+                                    selector,
+                                    mapped_function_name,
+                                    self.row_selector,
+                                    self.row_selector,
+                                    mapped_column_name
+                                ));
+                            } else {
+                                linq_query.push_str(&format!(
+                                    "{} => {}.{}({} => {}.{}.{})",
+                                    selector,
+                                    selector,
+                                    mapped_function_name,
+                                    self.row_selector,
+                                    self.row_selector,
+                                    table_alias,
+                                    mapped_column_name
+                                ));
+                            }
+                        } else {
+                            panic!("Invalid function argument");
+                        }
+                    } else {
+                        panic!("Invalid function argument");
+                    }
                 } else {
                     panic!("Unknown function");
                 }

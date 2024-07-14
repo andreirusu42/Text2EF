@@ -117,21 +117,25 @@ fn tests() {
         (
             r#"SELECT apt_number FROM Apartments ORDER BY room_count ASC"#,
             r#"context.Apartments.OrderBy(row => row.RoomCount).Select(row => new { row.AptNumber }).ToList();"#,
+        ),
+        (
+            r#"SELECT apt_type_code FROM Apartments GROUP BY apt_type_code ORDER BY avg(room_count) DESC LIMIT 3"#,
+            r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).OrderByDescending(group => group.Average(row => row.RoomCount)).Select(group => new { group.Key.AptTypeCode }).Take(3).ToList();"#,
         )
     ));
 
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        if db_name != "apartment_rentals" {
-            continue
-        }
+        // if db_name != "apartment_rentals" {
+        //     continue
+        // }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            if index != 5 {
-                continue;
-            }
+            // if index != 6 {
+            //     continue;
+            // }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
