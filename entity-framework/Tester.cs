@@ -1,11 +1,9 @@
-using entity_framework.Models.activity_1;
 using Microsoft.EntityFrameworkCore;
 
 class Tester
 {
-    private static List<Dictionary<string, object>> ExecuteSqlQuery(string query)
+    private static List<Dictionary<string, object>> ExecuteSqlQuery(string query, DbContext context)
     {
-        using var context = new Activity1Context();
         var connection = context.Database.GetDbConnection();
 
         var sqlQueryResults = new List<Dictionary<string, object>>();
@@ -126,23 +124,23 @@ class Tester
         return areEqual;
     }
 
-    public static bool Test(object linqQuery, string sqlQuery)
+    public static bool Test(object linqQuery, string sqlQuery, DbContext context)
     {
         var linqResults = ExecuteLinqQuery<object>(linqQuery);
-        var sqlResults = ExecuteSqlQuery(sqlQuery);
+        var sqlResults = ExecuteSqlQuery(sqlQuery, context);
 
 
-        // for (int i = 0; i < sqlResults.Count; i++)
-        // {
-        //     var row = sqlResults[i];
-        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        // }
+        for (int i = 0; i < sqlResults.Count; i++)
+        {
+            var row = sqlResults[i];
+            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
 
-        // for (int i = 0; i < linqResults.Count; i++)
-        // {
-        //     var row = linqResults[i];
-        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        // }
+        for (int i = 0; i < linqResults.Count; i++)
+        {
+            var row = linqResults[i];
+            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
 
         return CompareResults(linqResults, sqlResults);
     }
@@ -151,10 +149,13 @@ class Tester
     {
         // Normalize the column name by converting it to lower case
         // and replacing camelCase or PascalCase with snake_case
+        // Also, replace opening paranthesis with underscore and remove the closing one, e.g. "avg(Price) => avg_price"
         if (string.IsNullOrEmpty(columnName)) return columnName;
 
         var normalizedColumnName = System.Text.RegularExpressions.Regex
             .Replace(columnName, "([a-z])([A-Z])", "$1_$2")
+            .Replace("(", "_")
+            .Replace(")", "")
             .ToLower();
 
 

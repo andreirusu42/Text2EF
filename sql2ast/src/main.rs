@@ -97,18 +97,26 @@ fn tests() {
         (
             r#"SELECT building_full_name FROM Apartment_Buildings WHERE building_full_name LIKE "%court%""#,
             r#"context.ApartmentBuildings.Where(row => EF.Functions.Like(row.BuildingFullName, "%court%")).Select(row => new { row.BuildingFullName }).ToList();"#,
+        ),
+        (
+            r#"SELECT min(bathroom_count) , max(bathroom_count) FROM Apartments"#,
+            r#"context.Apartments.GroupBy(row => 1).Select(group => new { MinBathroomCount = group.Min(row => row.BathroomCount), MaxBathroomCount = group.Max(row => row.BathroomCount) }).ToList();"#,
         )
     ));
 
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        if db_name != "apartment_rentals" {
-            continue
-        }
+        // if db_name != "apartment_rentals" {
+        //     continue
+        // }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
+            // if index != 1 {
+            //     continue;
+            // }
+
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
             let result = linq_query_builder.build_query(sql);
@@ -243,5 +251,3 @@ fn main() {
     tests();
     // create_tests_to_file();
 }
-
-// TODO: handle HAVING and EXCEPT

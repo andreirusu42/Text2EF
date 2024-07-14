@@ -34,9 +34,11 @@ impl LinqQueryBuilder {
         has_group_by: bool,
         group_by_fields: Vec<String>,
         use_new_object_for_select_when_single_field: bool,
-    ) -> String {
-        let mut result = String::new();
-        let selector = if has_group_by {
+    ) -> (String, String) {
+        let mut select_result = String::new();
+        let mut group_by_result = String::new();
+
+        let mut selector = if has_group_by {
             &self.group_selector
         } else {
             &self.row_selector
@@ -49,13 +51,34 @@ impl LinqQueryBuilder {
             true
         };
 
-        result.push_str(&format!(".Select({} => ", selector));
+        let mut select_fields: Vec<String> = Vec::new();
 
-        if should_use_new {
-            result.push_str("new { ");
+        // If there is more than one function, we need to add the GroupBy(row => 1)
+
+        if !has_group_by {
+            // filter by Expr::Function in select.projection
+
+            let mut number_of_functions = 0;
+
+            for select_item in &select.projection {
+                if let SelectItem::UnnamedExpr(expr) = select_item {
+                    if let Expr::Function(..) = expr {
+                        number_of_functions += 1;
+                    }
+                }
+            }
+
+            if number_of_functions > 1 {
+                group_by_result.push_str(&format!(".GroupBy({} => 1)", selector));
+                selector = &self.group_selector;
+            }
         }
 
-        let mut select_fields: Vec<String> = Vec::new();
+        select_result.push_str(&format!(".Select({} => ", selector));
+
+        if should_use_new {
+            select_result.push_str("new { ");
+        }
 
         for select_item in &select.projection {
             if let SelectItem::UnnamedExpr(expr) = select_item {
@@ -118,8 +141,53 @@ impl LinqQueryBuilder {
                         ));
                     }
                 } else if let Expr::Function(function) = expr {
-                    if function.name.to_string().to_lowercase() == "count" {
+                    let function_name = function.name.to_string().to_lowercase();
+
+                    // TODO: this only works now because we haven't had Count(something), only Count(*)
+                    if function_name == "count" {
                         select_fields.push(format!("Count = {}.Count()", selector));
+                    } else if ["min", "max"].contains(&function_name.as_str()) {
+                        let column_name = if let FunctionArguments::List(list) = &function.args {
+                            if list.args.len() == 1 {
+                                if let FunctionArg::Unnamed(ident) = &list.args[0] {
+                                    ident.to_string()
+                                } else {
+                                    panic!("Invalid function argument");
+                                }
+                            } else {
+                                panic!("Invalid number of arguments for Min/Max function");
+                            }
+                        } else {
+                            panic!("Invalid function arguments");
+                        };
+
+                        let table_alias = self
+                            .get_table_alias_from_field_name(&tables_with_aliases_map, &column_name)
+                            .unwrap();
+
+                        let mapped_column_name = self
+                            .schema_mapping
+                            .get_column_name(&main_table_name, &column_name)
+                            .unwrap();
+
+                        let mapped_function_name =
+                            if function_name == "min" { "Min" } else { "Max" };
+
+                        let field_name = format!("{}{}", mapped_function_name, mapped_column_name);
+
+                        if table_alias.is_empty() {
+                            select_fields.push(format!(
+                                "{} = {}.{}({} => {}.{})",
+                                field_name,
+                                selector,
+                                mapped_function_name,
+                                self.row_selector,
+                                self.row_selector,
+                                mapped_column_name,
+                            ));
+                        } else {
+                            select_fields.push(format!("nuuu"));
+                        }
                     } else {
                         panic!("Unknown function");
                     }
@@ -130,15 +198,15 @@ impl LinqQueryBuilder {
                 panic!("Unknown select item type");
             }
         }
-        result.push_str(&select_fields.join(", "));
+        select_result.push_str(&select_fields.join(", "));
 
         if should_use_new {
-            result.push_str(" })");
+            select_result.push_str(" })");
         } else {
-            result.push_str(")");
+            select_result.push_str(")");
         }
 
-        return result;
+        return (select_result, group_by_result);
     }
 
     /*
@@ -769,25 +837,37 @@ impl LinqQueryBuilder {
                             panic!("Unknown function");
                         }
                     } else {
-                        current_linq_query.push_str(&self.build_projection(
+                        let (select_result, group_by_result) = self.build_projection(
                             select,
                             &tables_with_aliases_map,
                             &main_table_name,
                             has_group_by,
                             group_by_fields,
                             use_new_object_for_select,
-                        ));
+                        );
+
+                        current_linq_query.push_str(&select_result);
+
+                        if !has_group_by {
+                            linq_query.insert("group_by".to_string(), group_by_result);
+                        }
                     }
                 }
             } else {
-                current_linq_query.push_str(&self.build_projection(
+                let (select_result, group_by_result) = self.build_projection(
                     select,
                     &tables_with_aliases_map,
                     &main_table_name,
                     has_group_by,
                     group_by_fields,
                     use_new_object_for_select,
-                ));
+                );
+
+                current_linq_query.push_str(&select_result);
+
+                if !has_group_by {
+                    linq_query.insert("group_by".to_string(), group_by_result);
+                }
             }
 
             linq_query.insert("projection".to_string(), current_linq_query);
