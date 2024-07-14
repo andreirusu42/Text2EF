@@ -632,11 +632,19 @@ impl LinqQueryBuilder {
         return linq_query;
     }
 
-    fn build_keywords(&self, query: &Box<Query>, selector: String) -> HashMap<String, String> {
+    fn build_keywords(
+        &self,
+        query: &Box<Query>,
+        selector: String,
+        tables_with_aliases_map: &HashMap<String, String>,
+    ) -> HashMap<String, String> {
         let mut keywords: HashMap<String, String> = HashMap::new();
 
         if query.order_by.len() > 0 {
-            keywords.insert("order_by".to_string(), self.build_order_by(query, selector));
+            keywords.insert(
+                "order_by".to_string(),
+                self.build_order_by(query, selector, tables_with_aliases_map),
+            );
         }
 
         if query.limit.is_some() {
@@ -662,7 +670,12 @@ impl LinqQueryBuilder {
         return linq_query;
     }
 
-    fn build_order_by(&self, query: &Box<Query>, selector: String) -> String {
+    fn build_order_by(
+        &self,
+        query: &Box<Query>,
+        selector: String,
+        tables_with_aliases_map: &HashMap<String, String>,
+    ) -> String {
         let mut linq_query = String::new();
 
         for order_by in &query.order_by {
@@ -678,6 +691,36 @@ impl LinqQueryBuilder {
                 } else {
                     panic!("Unknown function");
                 }
+            } else if let Expr::Identifier(ident) = &order_by.expr {
+                let column_name = ident.to_string();
+
+                let table_alias = self
+                    .get_table_alias_from_field_name(tables_with_aliases_map, &column_name)
+                    .unwrap()
+                    .to_string();
+
+                let table_name = tables_with_aliases_map
+                    .iter()
+                    .find(|(_, v)| *v == &table_alias)
+                    .unwrap()
+                    .0;
+
+                let mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(&table_name, &column_name)
+                    .unwrap();
+
+                if table_alias.is_empty() {
+                    linq_query.push_str(&format!(
+                        "{} => {}.{}",
+                        selector, selector, mapped_column_name
+                    ));
+                } else {
+                    linq_query.push_str(&format!(
+                        "{} => {}.{}.{}",
+                        selector, selector, table_alias, mapped_column_name
+                    ));
+                }
             } else {
                 panic!("Unknown expression type");
             }
@@ -692,7 +735,7 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         use_new_object_for_select: bool,
-    ) -> HashMap<String, String> {
+    ) -> (HashMap<String, String>, HashMap<String, String>) {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
         let main_table_name: String;
@@ -913,7 +956,7 @@ impl LinqQueryBuilder {
             linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         }
 
-        return linq_query;
+        return (linq_query, tables_with_aliases_map);
     }
 
     fn build_query_helper(&self, query: &Box<Query>) -> String {
@@ -925,13 +968,13 @@ impl LinqQueryBuilder {
             let right_select: HashMap<String, String>;
 
             if let SetExpr::Select(select) = &**left {
-                left_select = self.build_select(select, false);
+                left_select = self.build_select(select, false).0;
             } else {
                 panic!("Unknown set expression type");
             }
 
             if let SetExpr::Select(select) = &**right {
-                right_select = self.build_select(select, false);
+                right_select = self.build_select(select, false).0;
             } else {
                 panic!("Unknown set expression type");
             }
@@ -954,9 +997,9 @@ impl LinqQueryBuilder {
             panic!("Unknown set expression type");
         };
 
-        let select_result = self.build_select(select, true);
+        let (select_result, tables_with_aliases_map) = self.build_select(select, true);
         let selector = select_result.get("selector").unwrap().to_string();
-        let keywords_result = self.build_keywords(query, selector);
+        let keywords_result = self.build_keywords(query, selector, &tables_with_aliases_map);
 
         return self.build_result(&select_result, &keywords_result, true, false);
     }
