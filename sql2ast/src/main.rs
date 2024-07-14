@@ -101,21 +101,29 @@ fn tests() {
         (
             r#"SELECT min(bathroom_count) , max(bathroom_count) FROM Apartments"#,
             r#"context.Apartments.GroupBy(row => 1).Select(group => new { MinBathroomCount = group.Min(row => row.BathroomCount), MaxBathroomCount = group.Max(row => row.BathroomCount) }).ToList();"#,
+        ),
+        (
+            r#"SELECT avg(bedroom_count) FROM Apartments"#,
+            r#"context.Apartments.Select(row => row.BedroomCount).Average();"#,
+        ),
+        (
+            r#"SELECT avg(room_count) FROM Apartment_Bookings AS T1 JOIN Apartments AS T2 ON T1.apt_id = T2.apt_id WHERE T1.booking_status_code = "Provisional""#,
+            r#"context.ApartmentBookings.Join(context.Apartments, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.BookingStatusCode == "Provisional").Select(row => row.T2.RoomCount).Average();"#,
         )
     ));
 
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        // if db_name != "apartment_rentals" {
-        //     continue
-        // }
+        if db_name != "apartment_rentals" {
+            continue
+        }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if index != 1 {
-            //     continue;
-            // }
+            if index != 4 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
@@ -248,6 +256,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }

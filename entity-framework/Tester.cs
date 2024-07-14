@@ -78,8 +78,10 @@ class Tester
 
         var results = new List<Dictionary<string, object>> { };
 
-        if (linqQuery is int)
+
+        if (linqQuery is int || linqQuery is double)
         {
+
             results.Add(new Dictionary<string, object> { { "Value", linqQuery } });
         }
 

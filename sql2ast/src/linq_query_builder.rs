@@ -774,7 +774,9 @@ impl LinqQueryBuilder {
             if select.projection.len() == 1 {
                 if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
                     if let Expr::Function(function) = expr {
-                        if function.name.to_string().to_lowercase() == "count" {
+                        let function_name = function.name.to_string().to_lowercase();
+
+                        if ["count", "avg"].contains(&function_name.as_str()) {
                             if let FunctionArguments::List(list) = &function.args {
                                 let is_distinct = if let Some(x) = list.duplicate_treatment {
                                     x.to_string().to_lowercase() == "distinct"
@@ -796,9 +798,15 @@ impl LinqQueryBuilder {
                                                 )
                                                 .unwrap();
 
+                                            let table_name = tables_with_aliases_map
+                                                .iter()
+                                                .find(|(_, v)| *v == table_alias)
+                                                .unwrap()
+                                                .0;
+
                                             let mapped_column_name = self
                                                 .schema_mapping
-                                                .get_column_name(&main_table_name, &column_name)
+                                                .get_column_name(&table_name, &column_name)
                                                 .unwrap();
 
                                             if table_alias.is_empty() {
@@ -823,7 +831,14 @@ impl LinqQueryBuilder {
                                             current_linq_query.push_str(".Distinct()");
                                         }
 
-                                        current_linq_query.push_str(".Count()");
+                                        let mapped_function_name = if function_name == "count" {
+                                            "Count"
+                                        } else {
+                                            "Average"
+                                        };
+
+                                        current_linq_query
+                                            .push_str(&format!(".{}()", mapped_function_name));
                                     } else {
                                         panic!("Invalid function argument");
                                     }
