@@ -84,6 +84,7 @@ impl LinqQueryBuilder {
             if let SelectItem::UnnamedExpr(expr) = select_item {
                 if let Expr::Identifier(identifier) = expr {
                     let column_name = identifier.to_string();
+
                     let table_alias = self
                         .get_table_alias_from_field_name(&tables_with_aliases_map, &column_name)
                         .unwrap();
@@ -351,9 +352,9 @@ impl LinqQueryBuilder {
                 }
                 _ => {
                     let left_condition =
-                        self.build_where_condition(left, tables_with_aliases_map, is_having);
+                        self.build_where_expr(left, tables_with_aliases_map, is_having, expr);
                     let right_condition =
-                        self.build_where_condition(right, tables_with_aliases_map, is_having);
+                        self.build_where_expr(right, tables_with_aliases_map, is_having, expr);
                     let operator = match op {
                         BinaryOperator::Eq => " == ",
                         BinaryOperator::NotEq => " != ",
@@ -441,11 +442,12 @@ impl LinqQueryBuilder {
         }
     }
 
-    fn build_where_condition(
+    fn build_where_expr(
         &self,
         expr: &Box<Expr>,
         tables_with_aliases_map: &HashMap<String, String>,
         is_having: bool,
+        root_expr: &Expr,
     ) -> String {
         let selector = if is_having {
             &self.group_selector
@@ -502,7 +504,40 @@ impl LinqQueryBuilder {
                     panic!("Unknown function");
                 }
             }
-            Expr::Value(value) => value.to_string().replace("'", "\""),
+            Expr::Value(value) => {
+                let left = match &root_expr {
+                    Expr::BinaryOp { left, .. } => left,
+                    _ => panic!("Unsupported expression type"),
+                };
+
+                if let Expr::CompoundIdentifier(ident) = &**left {
+                    let alias = ident[0].to_string();
+                    let field = ident[1].to_string();
+
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == &alias)
+                        .unwrap()
+                        .0;
+
+                    let mapped_column =
+                        self.schema_mapping.get_column(&table_name, &field).unwrap();
+
+                    if mapped_column.field_type == "bool" {
+                        if let sqlparser::ast::Value::Number(num, ..) = value {
+                            if num == "0" {
+                                return "false".to_string();
+                            } else {
+                                return "true".to_string();
+                            }
+                        } else {
+                            panic!("Unsupported value type");
+                        }
+                    }
+                }
+
+                return value.to_string().replace("'", "\"");
+            }
             _ => panic!("Unsupported expression type"),
         }
     }
@@ -575,14 +610,6 @@ impl LinqQueryBuilder {
                             right_table_alias = temp_table_alias;
                             right_table_field = temp_table_field;
                         }
-
-                        // println!(
-                        //     "left_table_alias: {}, left_table_field: {}, right_table_alias: {}, right_table_field: {}",
-                        //     left_table_alias, left_table_field, right_table_alias, right_table_field
-                        // );
-
-                        // println!("{:?}", left);
-                        // println!("{:?}", right);
 
                         let left_table_name = tables_with_aliases_map
                             .iter()

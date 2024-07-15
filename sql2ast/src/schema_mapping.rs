@@ -2,9 +2,16 @@ use std::collections::HashMap;
 use std::fs;
 
 #[derive(Debug)]
+pub struct Column {
+    pub name: String,
+    pub field_type: String,
+    pub is_optional: bool,
+}
+
+#[derive(Debug)]
 pub struct SchemaMapTable {
     pub table: String,
-    pub columns: HashMap<String, String>,
+    pub columns: HashMap<String, Column>,
 }
 
 #[derive(Debug)]
@@ -20,10 +27,26 @@ impl SchemaMapping {
             .map(|table| &table.table)
     }
 
-    pub fn get_table_columns(&self, original_table_name: &str) -> Option<&HashMap<String, String>> {
-        self.tables
+    pub fn get_table_columns(&self, original_table_name: &str) -> Option<&HashMap<String, Column>> {
+        let columns = self
+            .tables
             .get(&original_table_name.to_lowercase())
-            .map(|table| &table.columns)
+            .map(|table| &table.columns);
+
+        return columns;
+    }
+
+    pub fn get_column(
+        &self,
+        original_table_name: &str,
+        original_column_name: &str,
+    ) -> Option<&Column> {
+        let column = self
+            .tables
+            .get(&original_table_name.to_lowercase())
+            .and_then(|table| table.columns.get(&original_column_name.to_lowercase()));
+
+        return column;
     }
 
     pub fn get_column_name(
@@ -31,9 +54,9 @@ impl SchemaMapping {
         original_table_name: &str,
         original_column_name: &str,
     ) -> Option<&String> {
-        self.tables
-            .get(&original_table_name.to_lowercase())
-            .and_then(|table| table.columns.get(&original_column_name.to_lowercase()))
+        let column = self.get_column(original_table_name, original_column_name);
+
+        return column.map(|column| &column.name);
     }
 
     // pub fn has_table(&self, original_table_name: &str) -> bool {
@@ -104,7 +127,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     }
 
     for cap in entity_regex.captures_iter(&context_content) {
-        let mut properties = HashMap::new();
+        let mut model_file_properties: HashMap<String, Column> = HashMap::new();
+        let mut context_file_mapping: HashMap<String, String> = HashMap::new();
+        let mut columns: HashMap<String, Column> = HashMap::new();
 
         let entity_name = &cap[1];
         let entity_content = &cap[2];
@@ -142,27 +167,58 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                 .map(|original_column_match| original_column_match[1].to_lowercase())
                 .unwrap_or_else(|| mapped_column_name.to_lowercase());
 
-            properties.insert(original_column_name, mapped_column_name);
+            context_file_mapping.insert(original_column_name, mapped_column_name.to_lowercase());
         }
 
         let model_property_occurrences = model_property_regex.captures_iter(&model_content);
         for occurrence in model_property_occurrences {
-            // let field_type_with_qm = &occurrence[1];
-            // let field_type = field_type_with_qm.trim_end_matches('?');
-            // let is_optional = field_type_with_qm.ends_with('?');
+            let field_type_with_qm = &occurrence[1];
+            let field_type = field_type_with_qm.trim_end_matches('?');
+            let is_optional = field_type_with_qm.ends_with('?');
 
             let field_name = &occurrence[2];
 
             // TODO: we'll sometime have to do something with the virtual fields (which are relations basically)
 
-            if !properties.contains_key(&field_name.to_lowercase()) {
-                properties.insert(field_name.to_lowercase(), field_name.to_string());
+            if !model_file_properties.contains_key(&field_name.to_lowercase()) {
+                model_file_properties.insert(
+                    field_name.to_lowercase(),
+                    Column {
+                        name: field_name.to_string(),
+                        field_type: field_type.to_string(),
+                        is_optional,
+                    },
+                );
             }
+        }
+
+        for (original_column_name, mapped_column_name) in context_file_mapping {
+            if let Some(property) = model_file_properties.get(&mapped_column_name) {
+                columns.insert(
+                    original_column_name,
+                    Column {
+                        name: property.name.clone(),
+                        field_type: property.field_type.clone(),
+                        is_optional: property.is_optional,
+                    },
+                );
+                model_file_properties.remove(&mapped_column_name);
+            }
+        }
+        for (column_name, property) in model_file_properties {
+            columns.insert(
+                column_name,
+                Column {
+                    name: property.name,
+                    field_type: property.field_type,
+                    is_optional: property.is_optional,
+                },
+            );
         }
 
         let schema_map_table = SchemaMapTable {
             table: tables[&entity_name.to_lowercase()].clone(),
-            columns: properties,
+            columns,
         };
         schema_map_tables.insert(original_table_name, schema_map_table);
     }

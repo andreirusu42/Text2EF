@@ -129,6 +129,10 @@ fn tests() {
         (
             r#"SELECT apt_type_code , bathroom_count , bedroom_count FROM Apartments GROUP BY apt_type_code ORDER BY sum(room_count) DESC LIMIT 1"#,
             r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).OrderByDescending(group => group.Sum(row => row.RoomCount)).Select(group => new { group.Key.AptTypeCode, group.First().BathroomCount, group.First().BedroomCount }).Take(1).ToList();"#,
+        ),
+        (
+            r#"SELECT T1.apt_number FROM Apartments AS T1 JOIN View_Unit_Status AS T2 ON T1.apt_id = T2.apt_id WHERE T2.available_yn = 0 INTERSECT SELECT T1.apt_number FROM Apartments AS T1 JOIN View_Unit_Status AS T2 ON T1.apt_id = T2.apt_id WHERE T2.available_yn = 1"#,
+            r#"context.Apartments.Join(context.ViewUnitStatuses, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.AvailableYn == false).Select(row => row.T1.AptNumber).Intersect(context.Apartments.Join(context.ViewUnitStatuses, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.AvailableYn == true).Select(row => row.T1.AptNumber)).ToList();"#,
         )
     ));
 
@@ -141,7 +145,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if index != 8 {
+            // if index != 9 {
             //     continue;
             // }
 
@@ -281,6 +285,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }
