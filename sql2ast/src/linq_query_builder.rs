@@ -148,7 +148,7 @@ impl LinqQueryBuilder {
                     // TODO: this only works now because we haven't had Count(something), only Count(*)
                     if function_name == "count" {
                         select_fields.push(format!("Count = {}.Count()", selector));
-                    } else if ["min", "max"].contains(&function_name.as_str()) {
+                    } else if ["min", "max", "avg"].contains(&function_name.as_str()) {
                         let column_name = if let FunctionArguments::List(list) = &function.args {
                             if list.args.len() == 1 {
                                 if let FunctionArg::Unnamed(ident) = &list.args[0] {
@@ -157,7 +157,7 @@ impl LinqQueryBuilder {
                                     panic!("Invalid function argument");
                                 }
                             } else {
-                                panic!("Invalid number of arguments for Min/Max function");
+                                panic!("Invalid number of arguments for Min/Max/Avg function");
                             }
                         } else {
                             panic!("Invalid function arguments");
@@ -172,8 +172,13 @@ impl LinqQueryBuilder {
                             .get_column_name(&main_table_name, &column_name)
                             .unwrap();
 
-                        let mapped_function_name =
-                            if function_name == "min" { "Min" } else { "Max" };
+                        let mapped_function_name = if function_name == "min" {
+                            "Min"
+                        } else if function_name == "max" {
+                            "Max"
+                        } else {
+                            "Average"
+                        };
 
                         let field_name = format!("{}{}", mapped_function_name, mapped_column_name);
 
@@ -537,6 +542,12 @@ impl LinqQueryBuilder {
                 }
 
                 return value.to_string().replace("'", "\"");
+            }
+            Expr::Subquery(subquery) => {
+                let subquery_result =
+                    self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+
+                return subquery_result;
             }
             _ => panic!("Unsupported expression type"),
         }
@@ -968,7 +979,7 @@ impl LinqQueryBuilder {
                     if let Expr::Function(function) = expr {
                         let function_name = function.name.to_string().to_lowercase();
 
-                        if ["count", "avg", "sum"].contains(&function_name.as_str()) {
+                        if ["count", "avg", "sum", "min", "max"].contains(&function_name.as_str()) {
                             if let FunctionArguments::List(list) = &function.args {
                                 let is_distinct = if let Some(x) = list.duplicate_treatment {
                                     x.to_string().to_lowercase() == "distinct"
@@ -1039,6 +1050,10 @@ impl LinqQueryBuilder {
                                             "Count"
                                         } else if function_name == "avg" {
                                             "Average"
+                                        } else if function_name == "min" {
+                                            "Min"
+                                        } else if function_name == "Max" {
+                                            "Max"
                                         } else {
                                             "Sum"
                                         };

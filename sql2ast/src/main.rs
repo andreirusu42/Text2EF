@@ -136,18 +136,25 @@ fn tests() {
         )
     ));
 
+    all_queries_and_results.insert("allergy_1".to_string(), vec![
+        (
+            r#"SELECT LName FROM Student WHERE age = (SELECT min(age) FROM Student)"#,
+            r#"context.Students.Where(row => row.Age == context.Students.Select(row => row.Age).Min()).Select(row => new { row.Lname }).ToList();"#,
+        )
+    ]);
+
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        // if db_name != "apartment_rentals" {
-        //     continue
-        // }
+        if db_name != "allergy_1" {
+            continue
+        }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if index != 9 {
-            //     continue;
-            // }
+            if index != 0 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
@@ -167,7 +174,7 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    let db_names = vec!["activity_1".to_string(), "apartment_rentals".to_string()];
+    let db_names = vec!["activity_1".to_string(), "apartment_rentals".to_string(), "allergy_1".to_string()];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
         let mut c_sharp_code = String::new();
