@@ -166,65 +166,25 @@ fn tests() {
     }
 }
 
-fn create_tests(sqls_and_results: &Vec<(String, String)>, db_name: &str, context_name: &str) {
-    // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
-    let mut c_sharp_code = format!(
-        "using entity_framework.Models.{};\n\nusing Microsoft.EntityFrameworkCore;\n\nclass Program {{\n", 
-        db_name
-    );
-
-    for (index, (sql, result)) in sqls_and_results.iter().enumerate() {
-        c_sharp_code.push_str(&format!(
-            r#"
-        static bool Test{}()
-        {{
-            var context = new {}();
-            var linq_query = {}
-            var sql_query = "{}";
-
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-
-            return test_passed;
-        }}
-        "#,
-            index,
-            context_name,
-            result,
-            sql.replace("\"", "'"),
-        ));
-    }
-
-    c_sharp_code.push_str(&format!(
-        r#"
-        static void Main()
-        {{
-    "#
-    ));
-
-    for index in 0..sqls_and_results.len() {
-        c_sharp_code.push_str(&format!(
-            r#"
-            var test_passed_{} = Test{}();
-            if (!test_passed_{}) {{
-                Console.WriteLine("Test {} failed");
-                return;
-            }}
-        "#,
-            index, index, index, index
-        ));
-    }
-
-    c_sharp_code.push_str("}}");
-
-    let file_path: &str = "Program.cs";
-
-    let mut file = File::create(file_path).expect("Could not create file");
-
-    file.write_all(c_sharp_code.as_bytes())
-        .expect("Could not write to file");
-}
-
 fn create_tests_to_file() {
+    let db_names = vec!["activity_1".to_string(), "apartment_rentals".to_string()];
+
+        // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
+        let mut c_sharp_code = String::new();
+        let mut main_code = String :: new();
+
+        for db_name in &db_names {
+            c_sharp_code = format!(
+                "{}using entity_framework.Models.{};\n", 
+                c_sharp_code, db_name
+            );
+        }
+        
+        c_sharp_code = format!(
+            "{}\nusing Microsoft.EntityFrameworkCore;\n\nclass Program {{\n", 
+            c_sharp_code
+        );
+
     let path =
         Path::new("/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ast/src/train_gold.sql");
 
@@ -250,41 +210,66 @@ fn create_tests_to_file() {
         }
     }
 
-    // let db_name = "activity_1";
-    // let context_name = "Activity1Context";
-    let db_name = "apartment_rentals";
+    for db_name in &db_names {
+        let queries = queries.get(db_name.as_str()).unwrap();
 
-    let queries = queries.get(db_name).unwrap();
+        let linq_query_builder =
+            LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
-    let linq_query_builder =
-        LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
-
-    let mut sql_and_results: Vec<(String, String)> = Vec::new();
-
-    for (index, query) in queries.iter().enumerate() {
-        // wrong in the dataset, activity_1
-        if query.to_lowercase().contains("t2.actid = t2.actid") {
-            continue;
+            // TODO: not from here pls
+        let context_name = &linq_query_builder.schema_mapping.context;
+    
+        let mut sql_and_results: Vec<(String, String)> = Vec::new();
+    
+        for (index, query) in queries.iter().enumerate() {
+            // wrong in the dataset, activity_1
+            if query.to_lowercase().contains("t2.actid = t2.actid") {
+                continue;
+            }
+    
+            // wrong in the dataset, apartment_rentals
+            if query.to_lowercase().contains("t1.booking_start_date , t1.booking_start_date") {
+                continue;
+            }
+    
+            println!("Processing query {}", index + 1);
+            println!("{}", query);
+    
+            let result = linq_query_builder.build_query(query);
+    
+            sql_and_results.push((query.to_string(), result.to_string()));
         }
 
-        // wrong in the dataset, apartment_rentals
-        if query.to_lowercase().contains("t1.booking_start_date , t1.booking_start_date") {
-            continue;
-        }
+        c_sharp_code.push_str(&format!("\nstatic void Test{}() {{ var context = new {}(); \n var tests = new (object, string)[] {{", context_name, context_name));
 
-        println!("Processing query {}", index + 1);
-        println!("{}", query);
+        let result = sql_and_results
+        .iter()
+        .map(|(a, b)| format!("({}, \"{}\"),", b.trim_end_matches(";"), a.escape_debug()))
+        .collect::<Vec<String>>()
+        .join("\n");
 
-        let result = linq_query_builder.build_query(query);
+        c_sharp_code.push_str(&result);
 
-        sql_and_results.push((query.to_string(), result.to_string()));
+        c_sharp_code.push_str(&format!("}};\n\n for (int i = 0; i < tests.Length; ++i) {{ var (linq_query, sql_query) = tests[i];\n\nvar test_passed = Tester.Test(linq_query, sql_query, context); \n if (!test_passed) {{ Console.WriteLine($\"Test {{ i + 1 }} failed.\"); }} }} }}"));
+        
+        main_code.push_str(&format!("Console.WriteLine(\"Running tests for {}\");\n Test{}();\n", context_name, context_name));
     }
 
-    // TODO: shouldn't get it from linq_query_builder
-    create_tests(&sql_and_results, db_name, &linq_query_builder.schema_mapping.context);
+    c_sharp_code.push_str(&format!("\n\nstatic void Main() {{ {} }}", main_code));
+   
+
+    c_sharp_code.push_str("}");
+
+    let file_path: &str = "Program.cs";
+
+    let mut file = File::create(file_path).expect("Could not create file");
+
+    file.write_all(c_sharp_code.as_bytes())
+        .expect("Could not write to file");
+
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }
