@@ -99,7 +99,8 @@ impl LinqQueryBuilder {
                                 select_fields
                                     .push(format!("{}.Key.{}", selector, mapped_column_name));
                             } else {
-                                select_fields.push(format!("{}.{}", selector, mapped_column_name));
+                                select_fields
+                                    .push(format!("{}.First().{}", selector, mapped_column_name));
                             }
                         } else {
                             select_fields.push(format!("{}.{}", selector, mapped_column_name));
@@ -394,6 +395,43 @@ impl LinqQueryBuilder {
                     return format!(
                         "EF.Functions.Like({}.{}, {})",
                         self.row_selector, mapped_column_name, value
+                    );
+                } else {
+                    panic!("Unsupported expression type");
+                }
+            }
+            Expr::InSubquery {
+                subquery,
+                expr,
+                negated,
+            } => {
+                let built_subquery =
+                    self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+
+                if let Expr::Identifier(ident) = &**expr {
+                    let field = ident.to_string();
+
+                    let alias_option =
+                        self.get_table_alias_from_field_name(tables_with_aliases_map, &field);
+
+                    let alias = alias_option.unwrap();
+
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == alias)
+                        .unwrap()
+                        .0;
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&table_name, &field)
+                        .unwrap();
+
+                    let operator = if *negated { "!" } else { "" };
+
+                    return format!(
+                        "{}{}.Contains({}.{})",
+                        operator, built_subquery, self.row_selector, mapped_column_name,
                     );
                 } else {
                     panic!("Unsupported expression type");
@@ -1043,7 +1081,13 @@ impl LinqQueryBuilder {
         return (linq_query, tables_with_aliases_map);
     }
 
-    fn build_query_helper(&self, query: &Box<Query>) -> String {
+    fn build_query_helper(
+        &self,
+        query: &Box<Query>,
+        use_new_object_for_select: Option<bool>,
+        with_semicolon: Option<bool>,
+        skip_final_aggregation: Option<bool>,
+    ) -> String {
         if let SetExpr::SetOperation {
             op, left, right, ..
         } = &*query.body
@@ -1081,11 +1125,37 @@ impl LinqQueryBuilder {
             panic!("Unknown set expression type");
         };
 
-        let (select_result, tables_with_aliases_map) = self.build_select(select, true);
+        let should_use_new_object_for_select =
+            if let Some(use_new_object) = use_new_object_for_select {
+                use_new_object
+            } else {
+                true
+            };
+
+        let (select_result, tables_with_aliases_map) =
+            self.build_select(select, should_use_new_object_for_select);
         let selector = select_result.get("selector").unwrap().to_string();
         let keywords_result = self.build_keywords(query, selector, &tables_with_aliases_map);
 
-        return self.build_result(&select_result, &keywords_result, true, false);
+        let should_use_semicolon = if let Some(with_semicolon) = with_semicolon {
+            with_semicolon
+        } else {
+            true
+        };
+
+        let should_skip_final_aggregation =
+            if let Some(skip_final_aggregation) = skip_final_aggregation {
+                skip_final_aggregation
+            } else {
+                false
+            };
+
+        return self.build_result(
+            &select_result,
+            &keywords_result,
+            should_use_semicolon,
+            should_skip_final_aggregation,
+        );
     }
 
     fn build_result(
@@ -1147,7 +1217,7 @@ impl LinqQueryBuilder {
         let ast = Parser::parse_sql(&dialect, sql).unwrap();
 
         if let Statement::Query(query) = &ast[0] {
-            return self.build_query_helper(query);
+            return self.build_query_helper(query, None, None, None);
         } else {
             panic!("Unknown statement type");
         }

@@ -121,6 +121,14 @@ fn tests() {
         (
             r#"SELECT apt_type_code FROM Apartments GROUP BY apt_type_code ORDER BY avg(room_count) DESC LIMIT 3"#,
             r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).OrderByDescending(group => group.Average(row => row.RoomCount)).Select(group => new { group.Key.AptTypeCode }).Take(3).ToList();"#,
+        ),
+        (
+            r#"SELECT count(*) FROM Apartments WHERE apt_id NOT IN (SELECT apt_id FROM Apartment_Facilities)"#,
+            r#"context.Apartments.Where(row => !context.ApartmentFacilities.Select(row => row.AptId).Contains(row.AptId)).Count();"#,
+        ),
+        (
+            r#"SELECT apt_type_code , bathroom_count , bedroom_count FROM Apartments GROUP BY apt_type_code ORDER BY sum(room_count) DESC LIMIT 1"#,
+            r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).OrderByDescending(group => group.Sum(row => row.RoomCount)).Select(group => new { group.Key.AptTypeCode, group.First().BathroomCount, group.First().BedroomCount }).Take(1).ToList();"#,
         )
     ));
 
@@ -133,7 +141,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if index != 6 {
+            // if index != 8 {
             //     continue;
             // }
 
@@ -155,28 +163,28 @@ fn tests() {
 }
 
 fn create_tests(sqls_and_results: &Vec<(String, String)>, db_name: &str, context_name: &str) {
-    let mut c_sharp_code = r#"
-using entity_framework.Models.activity_1;
-    
-    class Program {
-    "#
-    .to_string();
+    // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
+    let mut c_sharp_code = format!(
+        "using entity_framework.Models.{};\n\nusing Microsoft.EntityFrameworkCore;\n\nclass Program {{\n", 
+        db_name
+    );
 
     for (index, (sql, result)) in sqls_and_results.iter().enumerate() {
         c_sharp_code.push_str(&format!(
             r#"
         static bool Test{}()
         {{
-            var context = new Activity1Context();
+            var context = new {}();
             var linq_query = {}
             var sql_query = "{}";
 
-            var test_passed = Tester.Test(linq_query, sql_query);
+            var test_passed = Tester.Test(linq_query, sql_query, context);
 
             return test_passed;
         }}
         "#,
             index,
+            context_name,
             result,
             sql.replace("\"", "'"),
         ));
@@ -250,8 +258,13 @@ fn create_tests_to_file() {
     let mut sql_and_results: Vec<(String, String)> = Vec::new();
 
     for (index, query) in queries.iter().enumerate() {
-        // wrong in the dataset
+        // wrong in the dataset, activity_1
         if query.to_lowercase().contains("t2.actid = t2.actid") {
+            continue;
+        }
+
+        // wrong in the dataset, apartment_rentals
+        if query.to_lowercase().contains("t1.booking_start_date , t1.booking_start_date") {
             continue;
         }
 
