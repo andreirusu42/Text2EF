@@ -149,10 +149,25 @@ impl LinqQueryBuilder {
                     if function_name == "count" {
                         select_fields.push(format!("Count = {}.Count()", selector));
                     } else if ["min", "max", "avg"].contains(&function_name.as_str()) {
-                        let column_name = if let FunctionArguments::List(list) = &function.args {
+                        let column_name: String;
+                        let column_alias: String;
+
+                        if let FunctionArguments::List(list) = &function.args {
                             if list.args.len() == 1 {
                                 if let FunctionArg::Unnamed(ident) = &list.args[0] {
-                                    ident.to_string()
+                                    if let FunctionArgExpr::Expr(expr) = ident {
+                                        if let Expr::Identifier(ident) = expr {
+                                            column_name = ident.to_string();
+                                            column_alias = String::new();
+                                        } else if let Expr::CompoundIdentifier(ident) = expr {
+                                            column_alias = ident[0].to_string();
+                                            column_name = ident[1].to_string();
+                                        } else {
+                                            panic!("Invalid function argument");
+                                        }
+                                    } else {
+                                        panic!("Invalid function argument");
+                                    }
                                 } else {
                                     panic!("Invalid function argument");
                                 }
@@ -167,9 +182,15 @@ impl LinqQueryBuilder {
                             .get_table_alias_from_field_name(&tables_with_aliases_map, &column_name)
                             .unwrap();
 
+                        let table_name = tables_with_aliases_map
+                            .iter()
+                            .find(|(_, v)| *v == table_alias)
+                            .unwrap()
+                            .0;
+
                         let mapped_column_name = self
                             .schema_mapping
-                            .get_column_name(&main_table_name, &column_name)
+                            .get_column_name(&table_name, &column_name)
                             .unwrap();
 
                         let mapped_function_name = if function_name == "min" {
@@ -193,7 +214,16 @@ impl LinqQueryBuilder {
                                 mapped_column_name,
                             ));
                         } else {
-                            select_fields.push(format!("nuuu"));
+                            select_fields.push(format!(
+                                "{} = {}.{}({} => {}.{}.{})",
+                                field_name,
+                                selector,
+                                mapped_function_name,
+                                self.row_selector,
+                                self.row_selector,
+                                column_alias,
+                                mapped_column_name,
+                            ));
                         }
                     } else {
                         panic!("Unknown function");
@@ -970,6 +1000,18 @@ impl LinqQueryBuilder {
                 "context".to_string(),
                 format!("context.{}", mapped_table_name),
             );
+        } else if let sqlparser::ast::TableFactor::Derived {
+            lateral,
+            subquery,
+            alias,
+        } = &table.relation
+        {
+            let subquery_result =
+                self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+
+            main_table_name = String::new();
+
+            linq_query.insert("context".to_string(), subquery_result);
         } else {
             panic!("Unknown table relation type");
         }

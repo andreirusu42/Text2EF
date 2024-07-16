@@ -163,18 +163,29 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("baseball_1".to_string(), vec![
+        (
+            r#"SELECT T1.name , T1.team_id , max(T2.salary) FROM team AS T1 JOIN salary AS T2 ON T1.team_id = T2.team_id GROUP BY T1.team_id;"#,
+            r#"context.Teams.Join(context.Salaries, T1 => T1.TeamId, T2 => T2.TeamId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeamId }).Select(group => new { group.First().T1.Name, group.Key.TeamId, MaxSalary1 = group.Max(row => row.T2.Salary1) }).ToList();"#,
+        ),
+        (
+            r#"SELECT count(*) FROM ( SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_winner = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' UNION SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_loser = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' );"#,
+            r#"context.Postseasons.Join(context.Teams, T1 => T1.TeamIdWinner, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings").Union(context.Postseasons.Join(context.Teams, T1 => T1.TeamIdLoser, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings")).Count();"#,
+        )
+    ]);
+
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        if db_name != "assets_maintenance" {
-            continue
-        }
+        // if db_name != "baseball_1" {
+        //     continue
+        // }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            if index != 2 {
-                continue;
-            }
+            // if index != 1 {
+            //     continue;
+            // }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
@@ -194,8 +205,12 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    let db_names = vec!["activity_1".to_string(), "apartment_rentals".to_string(), "allergy_1".to_string(), 
-    "assets_maintenance".to_string()
+    let db_names = vec![
+    "activity_1".to_string(),
+    "apartment_rentals".to_string(),
+    "allergy_1".to_string(), 
+    "assets_maintenance".to_string(),
+    "baseball_1".to_string()
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -265,6 +280,11 @@ fn create_tests_to_file() {
             if query.to_lowercase().contains("t2.allergytype") { // the field should be allergy_type
                 continue;
             }
+
+            // wrong in the dataset, assets_maintenance
+            if query.to_lowercase().contains("ref_company_types") {
+                continue;
+            }
     
             println!("Processing query {}", index + 1);
             println!("{}", query);
@@ -304,6 +324,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }
