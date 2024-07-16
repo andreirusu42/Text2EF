@@ -83,7 +83,8 @@ fn tests() {
             r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).Where(group => group.Count() >= 2).Select(group => new { group.Key.FacId }).ToList();"#,
         ),
     
-(            r#"SELECT count(DISTINCT FacID) FROM Faculty_participates_in"#,
+        ( 
+            r#"SELECT count(DISTINCT FacID) FROM Faculty_participates_in"#,
             r#"context.FacultyParticipatesIns.Select(row => row.FacId).Distinct().Count();"#,
         ),
     
@@ -147,16 +148,31 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("assets_maintenance".to_string(), vec![
+        (
+            r#"SELECT T1.company_id , T1.company_name FROM Third_Party_Companies AS T1 JOIN Maintenance_Engineers AS T2 ON T1.company_id = T2.company_id GROUP BY T1.company_id HAVING count(*) >= 2 UNION SELECT T3.company_id , T3.company_name FROM Third_Party_Companies AS T3 JOIN Maintenance_Contracts AS T4 ON T3.company_id = T4.maintenance_contract_company_id GROUP BY T3.company_id HAVING count(*) >= 2"#,
+            r#"context.ThirdPartyCompanies.Join(context.MaintenanceEngineers, T1 => T1.CompanyId, T2 => T2.CompanyId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.CompanyId }).Where(group => group.Count() >= 2).Select(group => new { group.Key.CompanyId, group.First().T1.CompanyName }).Union(context.ThirdPartyCompanies.Join(context.MaintenanceContracts, T3 => T3.CompanyId, T4 => T4.MaintenanceContractCompanyId, (T3, T4) => new { T3, T4 }).GroupBy(row => new { row.T3.CompanyId }).Where(group => group.Count() >= 2).Select(group => new { group.Key.CompanyId, group.First().T3.CompanyName })).ToList();"#,
+        ),
+        (
+            r#"SELECT T1.staff_name , T1.staff_id FROM Staff AS T1 JOIN Fault_Log AS T2 ON T1.staff_id = T2.recorded_by_staff_id EXCEPT SELECT T3.staff_name , T3.staff_id FROM Staff AS T3 JOIN Engineer_Visits AS T4 ON T3.staff_id = T4.contact_staff_id"#,
+            r#"context.Staff.Join(context.FaultLogs, T1 => T1.StaffId, T2 => T2.RecordedByStaffId, (T1, T2) => new { T1, T2 }).Select(row => new { row.T1.StaffName, row.T1.StaffId }).Except(context.Staff.Join(context.EngineerVisits, T3 => T3.StaffId, T4 => T4.ContactStaffId, (T3, T4) => new { T3, T4 }).Select(row => new { row.T3.StaffName, row.T3.StaffId })).ToList();"#,
+        ),
+        (
+            r#"SELECT T1.engineer_id , T1.first_name , T1.last_name FROM Maintenance_Engineers AS T1 JOIN Engineer_Visits AS T2 GROUP BY T1.engineer_id ORDER BY count(*) DESC LIMIT 1"#,
+            r#"context.MaintenanceEngineers.SelectMany(T1 => context.EngineerVisits, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EngineerId }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.EngineerId, group.First().T1.FirstName, group.First().T1.LastName }).Take(1).ToList();"#,
+        )
+    ]);
+
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        if db_name != "allergy_1" {
+        if db_name != "assets_maintenance" {
             continue
         }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            if index != 1 {
+            if index != 2 {
                 continue;
             }
 
@@ -178,7 +194,9 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    let db_names = vec!["activity_1".to_string(), "apartment_rentals".to_string(), "allergy_1".to_string()];
+    let db_names = vec!["activity_1".to_string(), "apartment_rentals".to_string(), "allergy_1".to_string(), 
+    "assets_maintenance".to_string()
+    ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
         let mut c_sharp_code = String::new();
@@ -286,6 +304,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }

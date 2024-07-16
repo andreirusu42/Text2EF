@@ -244,9 +244,6 @@ impl LinqQueryBuilder {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
 
-                    println!("{:?}", table_alias);
-                    println!("{:?}", column_name);
-
                     let mapped_column_name = self
                         .schema_mapping
                         .get_column_name(&table_name, &column_name)
@@ -701,6 +698,24 @@ impl LinqQueryBuilder {
                     } else {
                         panic!("Unknown expression type");
                     }
+                } else if let sqlparser::ast::JoinConstraint::None = constraint {
+                    if let sqlparser::ast::TableFactor::Table { alias, .. } = &table.relation {
+                        if let Some(alias) = alias {
+                            let main_table_alias = alias.to_string();
+
+                            return format!(
+                                ".SelectMany({} => context.{}, ({}, {}) => new {{ {}, {} }})",
+                                main_table_alias,
+                                mapped_table_name,
+                                main_table_alias,
+                                table_alias,
+                                main_table_alias,
+                                table_alias
+                            );
+                        } else {
+                            panic!("No alias for main table");
+                        }
+                    }
                 } else {
                     panic!("Unknown join constraint type");
                 }
@@ -1080,7 +1095,7 @@ impl LinqQueryBuilder {
                                             "Average"
                                         } else if function_name == "min" {
                                             "Min"
-                                        } else if function_name == "Max" {
+                                        } else if function_name == "max" {
                                             "Max"
                                         } else {
                                             "Sum"
@@ -1198,6 +1213,8 @@ impl LinqQueryBuilder {
                 result = format!("{}.Intersect({})", left_query, right_query);
             } else if let sqlparser::ast::SetOperator::Except = op {
                 result = format!("{}.Except({})", left_query, right_query);
+            } else if let sqlparser::ast::SetOperator::Union = op {
+                result = format!("{}.Union({})", left_query, right_query);
             } else {
                 panic!("Unknown set operator");
             }
@@ -1205,14 +1222,14 @@ impl LinqQueryBuilder {
             let should_use_semicolon = if let Some(with_semicolon) = with_semicolon {
                 with_semicolon
             } else {
-                false
+                true
             };
 
             let should_skip_final_aggregation =
                 if let Some(skip_final_aggregation) = skip_final_aggregation {
                     skip_final_aggregation
                 } else {
-                    true
+                    false
                 };
 
             if !should_skip_final_aggregation {
