@@ -151,7 +151,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         let original_table_name = if let Some(original) = original_table_name_capture {
             original[1].to_lowercase()
         } else {
-            entity_name.to_lowercase() + "s" // TODO: this is not the solution xD
+            tables[&entity_name.to_lowercase()].to_lowercase()
         };
 
         let context_property_occurrences: Vec<&str> = context_property_regex
