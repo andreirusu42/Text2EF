@@ -312,6 +312,7 @@ impl LinqQueryBuilder {
                 if result.is_some() {
                     panic!("Ambiguous field name");
                 }
+
                 result = Some(table_alias);
             }
         }
@@ -383,6 +384,7 @@ impl LinqQueryBuilder {
                             return format!("({})", condition);
                         }
                     }
+
                     return condition;
                 }
                 _ => {
@@ -399,6 +401,7 @@ impl LinqQueryBuilder {
                         BinaryOperator::LtEq => " <= ",
                         _ => panic!("Unknown comparison operator"),
                     };
+
                     format!("{}{}{}", left_condition, operator, right_condition)
                 }
             },
@@ -555,7 +558,12 @@ impl LinqQueryBuilder {
                     .schema_mapping
                     .get_column_name(&table_name, &field)
                     .unwrap();
-                format!("{}.{}", selector, mapped_column_name)
+
+                if alias.is_empty() {
+                    return format!("{}.{}", selector, mapped_column_name);
+                }
+
+                format!("{}.{}.{}", selector, alias, mapped_column_name)
             }
             Expr::Function(func) => {
                 if func.name.to_string().to_lowercase() == "count" {

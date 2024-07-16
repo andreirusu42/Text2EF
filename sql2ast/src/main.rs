@@ -175,23 +175,24 @@ fn tests() {
         (
             r#"SELECT sum(T1.attendance) FROM home_game AS T1 JOIN team AS T2 ON T1.team_id = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' AND T1.year BETWEEN 2000 AND 2010;"#,
             r#"context.HomeGames.Join(context.Teams, T1 => T1.TeamId, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings" && row.T1.Year >= 2000 && row.T1.Year <= 2010).Select(row => row.T1.Attendance).Sum();"#,
+        ),
+        (
+            r#"SELECT name_first , name_last FROM player AS T1 JOIN all_star AS T2 ON T1.player_id = T2.player_id WHERE YEAR = 1998"#,
+            r#"context.Players.Join(context.AllStars, T1 => T1.PlayerId, T2 => T2.PlayerId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Year == 1998).Select(row => new { row.T1.NameFirst, row.T1.NameLast }).ToList();"#,
         )
     ]);
 
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        if db_name != "baseball_1" {
-            continue
-        }
-
+       
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            if index != 2 {
-                continue;
-            }
+            // if db_name != "activity_1" || index != 10 {
+            //     continue;
+            // }
 
-            println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
+            println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 
             let result = linq_query_builder.build_query(sql);
 
@@ -328,6 +329,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }
