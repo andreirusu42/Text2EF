@@ -140,6 +140,10 @@ fn tests() {
         (
             r#"SELECT LName FROM Student WHERE age = (SELECT min(age) FROM Student)"#,
             r#"context.Students.Where(row => row.Age == context.Students.Select(row => row.Age).Min()).Select(row => new { row.Lname }).ToList();"#,
+        ),
+        (
+            r#"SELECT lname , age FROM Student WHERE StuID IN (SELECT StuID FROM Has_allergy WHERE Allergy = "Milk" INTERSECT SELECT StuID FROM Has_allergy WHERE Allergy = "Cat")"#,
+            r#"context.Students.Where(row => context.HasAllergies.Where(row => row.Allergy == "Milk").Select(row => row.StuId).Intersect(context.HasAllergies.Where(row => row.Allergy == "Cat").Select(row => row.StuId)).Contains(row.StuId)).Select(row => new { row.Lname, row.Age }).ToList();"#
         )
     ]);
 
@@ -152,7 +156,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            if index != 0 {
+            if index != 1 {
                 continue;
             }
 
@@ -236,6 +240,11 @@ fn create_tests_to_file() {
     
             // wrong in the dataset, apartment_rentals
             if query.to_lowercase().contains("t1.booking_start_date , t1.booking_start_date") {
+                continue;
+            }
+
+            // wrong in the dataset, allergy_1
+            if query.to_lowercase().contains("t2.allergytype") { // the field should be allergy_type
                 continue;
             }
     

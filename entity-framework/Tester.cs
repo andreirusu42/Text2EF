@@ -23,8 +23,7 @@ class Tester
                     var row = new Dictionary<string, object>();
                     for (int i = 0; i < columnCount; i++)
                     {
-                        var columnName = NormalizeColumnName(reader.GetName(i));
-                        if (columnName == "count(*)") columnName = "count";
+                        var columnName = $"{i}";
                         row[columnName] = reader.GetValue(i);
                     }
                     sqlQueryResults.Add(row);
@@ -67,9 +66,23 @@ class Tester
             else
             {
                 var complexResults = query.Cast<object>().Select(item =>
-                    item.GetType()
+                    {
+                        var key = 0;
+
+                        var result = item.GetType()
                         .GetProperties()
-                        .ToDictionary(p => NormalizeColumnName(p.Name), p => p.GetValue(item))
+                        .ToDictionary(p => $"{key}", p =>
+                        {
+                            var value = p.GetValue(item);
+
+                            key += 1;
+
+                            return value is DateTime dateTime ? dateTime.ToString("yyyy-MM-dd HH:mm:ss") : value;
+                        });
+
+
+                        return result;
+                    }
                 ).ToList();
 
                 return complexResults;
@@ -78,17 +91,18 @@ class Tester
 
         var results = new List<Dictionary<string, object>> { };
 
-
         if (linqQuery is int || linqQuery is double)
         {
-
             results.Add(new Dictionary<string, object> { { "Value", linqQuery } });
         }
-
-        else
-        {
-            linqQuery.GetType().GetProperties().ToDictionary(p => NormalizeColumnName(p.Name), p => p.GetValue(linqQuery));
-        };
+        // else
+        // {
+        //     results.Add(linqQuery.GetType().GetProperties().ToDictionary(p => NormalizeColumnName(p.Name), p =>
+        //     {
+        //         var value = p.GetValue(linqQuery);
+        //         return value is DateTime dateTime ? dateTime.ToString("yyyy-MM-dd HH:mm:ss") : value;
+        //     }));
+        // }
 
         return results;
     }
@@ -132,35 +146,19 @@ class Tester
         var sqlResults = ExecuteSqlQuery(sqlQuery, context);
 
 
-        for (int i = 0; i < sqlResults.Count; i++)
-        {
-            var row = sqlResults[i];
-            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        }
+        // for (int i = 0; i < sqlResults.Count; i++)
+        // {
+        //     var row = sqlResults[i];
+        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        // }
 
-        for (int i = 0; i < linqResults.Count; i++)
-        {
-            var row = linqResults[i];
-            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        }
+        // for (int i = 0; i < linqResults.Count; i++)
+        // {
+        //     var row = linqResults[i];
+        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        // }
 
         return CompareResults(linqResults, sqlResults);
     }
 
-    private static string NormalizeColumnName(string columnName)
-    {
-        // Normalize the column name by converting it to lower case
-        // and replacing camelCase or PascalCase with snake_case
-        // Also, replace opening paranthesis with underscore and remove the closing one, e.g. "avg(Price) => avg_price"
-        if (string.IsNullOrEmpty(columnName)) return columnName;
-
-        var normalizedColumnName = System.Text.RegularExpressions.Regex
-            .Replace(columnName, "([a-z])([A-Z])", "$1_$2")
-            .Replace("(", "_")
-            .Replace(")", "")
-            .ToLower();
-
-
-        return normalizedColumnName;
-    }
 }

@@ -244,6 +244,9 @@ impl LinqQueryBuilder {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
 
+                    println!("{:?}", table_alias);
+                    println!("{:?}", column_name);
+
                     let mapped_column_name = self
                         .schema_mapping
                         .get_column_name(&table_name, &column_name)
@@ -755,7 +758,13 @@ impl LinqQueryBuilder {
         let mut linq_query = String::new();
 
         for order_by in &query.order_by {
-            if order_by.asc.unwrap() {
+            let is_ordering_asc = if let Some(is_ordering_asc) = order_by.asc {
+                is_ordering_asc
+            } else {
+                false
+            };
+
+            if is_ordering_asc {
                 linq_query.push_str(".OrderBy(");
             } else {
                 linq_query.push_str(".OrderByDescending(");
@@ -881,6 +890,25 @@ impl LinqQueryBuilder {
                         selector, selector, table_alias, mapped_column_name
                     ));
                 }
+            } else if let Expr::CompoundIdentifier(ident) = &order_by.expr {
+                let alias = ident[0].to_string();
+                let field = ident[1].to_string();
+
+                let table_name = tables_with_aliases_map
+                    .iter()
+                    .find(|(_, v)| *v == &alias)
+                    .unwrap()
+                    .0;
+
+                let mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(table_name, &field)
+                    .unwrap();
+
+                linq_query.push_str(&format!(
+                    "{} => {}.{}.{}",
+                    selector, selector, alias, mapped_column_name
+                ));
             } else {
                 panic!("Unknown expression type");
             }
@@ -1130,6 +1158,19 @@ impl LinqQueryBuilder {
         with_semicolon: Option<bool>,
         skip_final_aggregation: Option<bool>,
     ) -> String {
+        let should_use_semicolon = if let Some(with_semicolon) = with_semicolon {
+            with_semicolon
+        } else {
+            true
+        };
+
+        let should_skip_final_aggregation =
+            if let Some(skip_final_aggregation) = skip_final_aggregation {
+                skip_final_aggregation
+            } else {
+                false
+            };
+
         if let SetExpr::SetOperation {
             op, left, right, ..
         } = &*query.body
@@ -1152,13 +1193,37 @@ impl LinqQueryBuilder {
             let left_query = self.build_result(&left_select, &HashMap::new(), false, true);
             let right_query = self.build_result(&right_select, &HashMap::new(), false, true);
 
+            let mut result: String;
             if let sqlparser::ast::SetOperator::Intersect = op {
-                return format!("{}.Intersect({}).ToList();", left_query, right_query);
+                result = format!("{}.Intersect({})", left_query, right_query);
             } else if let sqlparser::ast::SetOperator::Except = op {
-                return format!("{}.Except({}).ToList();", left_query, right_query);
+                result = format!("{}.Except({})", left_query, right_query);
             } else {
                 panic!("Unknown set operator");
             }
+
+            let should_use_semicolon = if let Some(with_semicolon) = with_semicolon {
+                with_semicolon
+            } else {
+                false
+            };
+
+            let should_skip_final_aggregation =
+                if let Some(skip_final_aggregation) = skip_final_aggregation {
+                    skip_final_aggregation
+                } else {
+                    true
+                };
+
+            if !should_skip_final_aggregation {
+                result.push_str(".ToList()");
+            }
+
+            if should_use_semicolon {
+                result.push_str(";");
+            }
+
+            return result;
         }
 
         let select = if let SetExpr::Select(select) = &*query.body {
@@ -1178,19 +1243,6 @@ impl LinqQueryBuilder {
             self.build_select(select, should_use_new_object_for_select);
         let selector = select_result.get("selector").unwrap().to_string();
         let keywords_result = self.build_keywords(query, selector, &tables_with_aliases_map);
-
-        let should_use_semicolon = if let Some(with_semicolon) = with_semicolon {
-            with_semicolon
-        } else {
-            true
-        };
-
-        let should_skip_final_aggregation =
-            if let Some(skip_final_aggregation) = skip_final_aggregation {
-                skip_final_aggregation
-            } else {
-                false
-            };
 
         return self.build_result(
             &select_result,
