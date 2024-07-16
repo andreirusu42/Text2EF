@@ -171,21 +171,25 @@ fn tests() {
         (
             r#"SELECT count(*) FROM ( SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_winner = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' UNION SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_loser = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' );"#,
             r#"context.Postseasons.Join(context.Teams, T1 => T1.TeamIdWinner, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings").Union(context.Postseasons.Join(context.Teams, T1 => T1.TeamIdLoser, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings")).Count();"#,
+        ),
+        (
+            r#"SELECT sum(T1.attendance) FROM home_game AS T1 JOIN team AS T2 ON T1.team_id = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' AND T1.year BETWEEN 2000 AND 2010;"#,
+            r#"context.HomeGames.Join(context.Teams, T1 => T1.TeamId, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings" && row.T1.Year >= 2000 && row.T1.Year <= 2010).Select(row => row.T1.Attendance).Sum();"#,
         )
     ]);
 
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
-        // if db_name != "baseball_1" {
-        //     continue
-        // }
+        if db_name != "baseball_1" {
+            continue
+        }
 
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if index != 1 {
-            //     continue;
-            // }
+            if index != 2 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
@@ -324,6 +328,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }

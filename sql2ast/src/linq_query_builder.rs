@@ -473,6 +473,31 @@ impl LinqQueryBuilder {
                     panic!("Unsupported expression type");
                 }
             }
+            Expr::Between {
+                low,
+                high,
+                expr,
+                negated,
+            } => {
+                let low_condition =
+                    self.build_where_expr(low, tables_with_aliases_map, is_having, expr);
+                let high_condition =
+                    self.build_where_expr(high, tables_with_aliases_map, is_having, expr);
+                let expr_condition =
+                    self.build_where_expr(expr, tables_with_aliases_map, is_having, expr);
+
+                if *negated {
+                    return format!(
+                        "{} < {} || {} > {}",
+                        expr_condition, high_condition, expr_condition, low_condition
+                    );
+                }
+
+                return format!(
+                    "{} >= {} && {} <= {}",
+                    expr_condition, low_condition, expr_condition, high_condition
+                );
+            }
             _ => panic!("Unsupported expression type"),
         }
     }
@@ -542,7 +567,7 @@ impl LinqQueryBuilder {
             Expr::Value(value) => {
                 let left = match &root_expr {
                     Expr::BinaryOp { left, .. } => left,
-                    _ => panic!("Unsupported expression type"),
+                    _ => return value.to_string(),
                 };
 
                 if let Expr::CompoundIdentifier(ident) = &**left {
