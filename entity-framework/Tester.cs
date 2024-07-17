@@ -23,8 +23,15 @@ class Tester
                     var row = new Dictionary<string, object>();
                     for (int i = 0; i < columnCount; i++)
                     {
+                        var value = reader.GetValue(i);
+
+                        if (value is System.DBNull)
+                        {
+                            continue;
+                        }
+
                         var columnName = $"{i}";
-                        row[columnName] = reader.GetValue(i);
+                        row[columnName] = value;
                     }
                     sqlQueryResults.Add(row);
                 }
@@ -43,6 +50,7 @@ class Tester
         if (linqQuery is System.Collections.IEnumerable query)
         {
             var enumerator = query.GetEnumerator();
+
             if (!enumerator.MoveNext())
             {
                 return new List<Dictionary<string, object>>();
@@ -55,10 +63,11 @@ class Tester
                 return new List<Dictionary<string, object>>();
             }
 
-            var isPrimitive = firstItem.GetType().IsPrimitive || firstItem is string || firstItem is int;
+            var isPrimitive = firstItem.GetType().IsPrimitive || firstItem is string || firstItem is int || firstItem is double;
 
             if (isPrimitive)
             {
+
                 var primitiveResults = query.Cast<object>().Select(item =>
                     new Dictionary<string, object> { { "Value", item } }).ToList();
                 return primitiveResults;
@@ -71,6 +80,7 @@ class Tester
 
                         var result = item.GetType()
                         .GetProperties()
+                        .Where(p => p.GetValue(item) != null)
                         .ToDictionary(p => $"{key}", p =>
                         {
                             var value = p.GetValue(item);
@@ -97,12 +107,13 @@ class Tester
         }
         // else
         // {
-        //     results.Add(linqQuery.GetType().GetProperties().ToDictionary(p => NormalizeColumnName(p.Name), p =>
+        //     results.Add(linqQuery.GetType().GetProperties().ToDictionary(p => p.Name, p =>
         //     {
         //         var value = p.GetValue(linqQuery);
         //         return value is DateTime dateTime ? dateTime.ToString("yyyy-MM-dd HH:mm:ss") : value;
         //     }));
         // }
+
 
         return results;
     }
@@ -146,12 +157,14 @@ class Tester
         var sqlResults = ExecuteSqlQuery(sqlQuery, context);
 
 
+        // Console.WriteLine("SQL Results:");
         // for (int i = 0; i < sqlResults.Count; i++)
         // {
         //     var row = sqlResults[i];
         //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
         // }
 
+        // Console.WriteLine("LINQ Results:");
         // for (int i = 0; i < linqResults.Count; i++)
         // {
         //     var row = linqResults[i];
