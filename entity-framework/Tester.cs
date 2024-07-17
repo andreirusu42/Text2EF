@@ -78,18 +78,16 @@ class Tester
                     {
                         var key = 0;
 
-                        var result = item.GetType()
-                        .GetProperties()
-                        .Where(p => p.GetValue(item) != null)
-                        .ToDictionary(p => $"{key}", p =>
+                        var result = new Dictionary<string, object>();
+                        foreach (var p in item.GetType().GetProperties())
                         {
                             var value = p.GetValue(item);
-
+                            if (value != null)
+                            {
+                                result[$"{key}"] = value is DateTime dateTime ? dateTime.ToString("yyyy-MM-dd HH:mm:ss") : value;
+                            }
                             key += 1;
-
-                            return value is DateTime dateTime ? dateTime.ToString("yyyy-MM-dd HH:mm:ss") : value;
-                        });
-
+                        }
 
                         return result;
                     }
@@ -141,10 +139,23 @@ class Tester
         var linqStrings = linqResults.Select(dict => string.Join(", ", dict.Select(kv => $"{kv.Key}={kv.Value}"))).ToList();
         var sqlStrings = sqlResults.Select(dict => string.Join(", ", dict.Select(kv => $"{kv.Key}={kv.Value}"))).ToList();
 
-        // Console.WriteLine("Linq results:");
-        // Console.WriteLine(string.Join("\n", linqStrings));
-        // Console.WriteLine("Sql results:");
-        // Console.WriteLine(string.Join("\n", sqlStrings));
+        // for (int i = 0; i < linqStrings.Count; i++)
+        // {
+        //     Console.WriteLine($"LINQ: {linqStrings[i]}");
+        //     Console.WriteLine($"SQL-: {sqlStrings[i]}");
+        // }
+
+        // Check where linqStrings[i] differs to sqlStrings[i]
+
+        // for (int i = 0; i < linqStrings.Count; i++)
+        // {
+        //     if (linqStrings[i] != sqlStrings[i])
+        //     {
+        //         Console.WriteLine($"LINQ: {linqStrings[i]}");
+        //         Console.WriteLine($"SQL-: {sqlStrings[i]}");
+        //         Console.WriteLine($"for {i}");
+        //     }
+        // }
 
         bool areEqual = linqStrings.Count == sqlStrings.Count && !linqStrings.Except(sqlStrings).Any();
 
