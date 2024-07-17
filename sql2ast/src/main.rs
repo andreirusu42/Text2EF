@@ -182,13 +182,28 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("behavior_monitoring".to_string(), vec![
+        (
+            r#"SELECT max(monthly_rental) , min(monthly_rental) FROM Student_Addresses"#,
+            r#"context.StudentAddresses.GroupBy(row => 1).Select(group => new { MaxMonthlyRental = group.Max(row => (double) row.MonthlyRental), MinMonthlyRental = group.Min(row => (double) row.MonthlyRental) }).ToList();"#
+        ),
+        (
+            r#"SELECT * FROM Student_Addresses ORDER BY monthly_rental DESC"#,
+            r#"context.StudentAddresses.OrderByDescending(row => (double) row.MonthlyRental).ToList();"#
+        ),
+        (
+            r#"SELECT T1.student_id , T2.first_name FROM Student_Addresses AS T1 JOIN Students AS T2 ON T1.student_id = T2.student_id GROUP BY T1.student_id ORDER BY AVG(monthly_rental) DESC LIMIT 1"#,
+            r#"context.StudentAddresses.Join(context.Students, T1 => T1.StudentId, T2 => T2.StudentId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.StudentId }).OrderByDescending(group => group.Average(row => (double) row.T1.MonthlyRental)).Select(group => new { group.Key.StudentId, group.First().T2.FirstName }).Take(1).ToList();"#
+        )
+    ]);
+
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "activity_1" || index != 10 {
+            // if db_name != "behavior_monitoring" || index != 2 {
             //     continue;
             // }
 
@@ -211,11 +226,12 @@ fn tests() {
 
 fn create_tests_to_file() {
     let db_names = vec![
-    "activity_1".to_string(),
-    "apartment_rentals".to_string(),
-    "allergy_1".to_string(), 
-    "assets_maintenance".to_string(),
-    "baseball_1".to_string()
+    // "activity_1".to_string(),
+    // "apartment_rentals".to_string(),
+    // "allergy_1".to_string(), 
+    // "assets_maintenance".to_string(),
+    // "baseball_1".to_string(),
+    "behavior_monitoring".to_string(),
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -291,7 +307,7 @@ fn create_tests_to_file() {
                 continue;
             }
     
-            println!("Processing query {}", index + 1);
+            println!("Processing query {} for {}", index, db_name);
             println!("{}", query);
     
             let result = linq_query_builder.build_query(query);
