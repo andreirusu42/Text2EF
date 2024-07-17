@@ -429,7 +429,7 @@ impl LinqQueryBuilder {
                         .get_column_name(&table_name, &field)
                         .unwrap();
 
-                    let value = pattern.to_string();
+                    let value = pattern.to_string().replace("'", "\"");
 
                     return format!(
                         "EF.Functions.Like({}.{}, {})",
