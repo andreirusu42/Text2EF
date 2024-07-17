@@ -188,9 +188,9 @@ impl LinqQueryBuilder {
                             .unwrap()
                             .0;
 
-                        let mapped_column_name = self
+                        let mapped_column = self
                             .schema_mapping
-                            .get_column_name(&table_name, &column_name)
+                            .get_column(&table_name, &column_name)
                             .unwrap();
 
                         let mapped_function_name = if function_name == "min" {
@@ -201,28 +201,36 @@ impl LinqQueryBuilder {
                             "Average"
                         };
 
-                        let field_name = format!("{}{}", mapped_function_name, mapped_column_name);
+                        let field_name = format!("{}{}", mapped_function_name, &mapped_column.name);
+
+                        let cast = if mapped_column.field_type == "decimal" {
+                            "(double) "
+                        } else {
+                            ""
+                        };
 
                         if table_alias.is_empty() {
                             select_fields.push(format!(
-                                "{} = {}.{}({} => {}.{})",
+                                "{} = {}.{}({} => {}{}.{})",
                                 field_name,
                                 selector,
                                 mapped_function_name,
                                 self.row_selector,
+                                cast,
                                 self.row_selector,
-                                mapped_column_name,
+                                &mapped_column.name,
                             ));
                         } else {
                             select_fields.push(format!(
-                                "{} = {}.{}({} => {}.{}.{})",
+                                "{} = {}.{}({} => {}{}.{}.{})",
                                 field_name,
                                 selector,
                                 mapped_function_name,
                                 self.row_selector,
+                                cast,
                                 self.row_selector,
                                 column_alias,
-                                mapped_column_name,
+                                &mapped_column.name,
                             ));
                         }
                     } else {
@@ -902,31 +910,39 @@ impl LinqQueryBuilder {
                                 .unwrap()
                                 .0;
 
-                            let mapped_column_name = self
+                            let mapped_column = self
                                 .schema_mapping
-                                .get_column_name(&table_name, &column_name)
+                                .get_column(&table_name, &column_name)
                                 .unwrap();
+
+                            let cast = if mapped_column.field_type == "decimal" {
+                                "(double) "
+                            } else {
+                                ""
+                            };
 
                             if table_alias.is_empty() {
                                 linq_query.push_str(&format!(
-                                    "{} => {}.{}({} => {}.{})",
+                                    "{} => {}.{}({} => {}{}.{})",
                                     selector,
                                     selector,
                                     mapped_function_name,
                                     self.row_selector,
+                                    cast,
                                     self.row_selector,
-                                    mapped_column_name
+                                    &mapped_column.name
                                 ));
                             } else {
                                 linq_query.push_str(&format!(
-                                    "{} => {}.{}({} => {}.{}.{})",
+                                    "{} => {}.{}({} => {}{}.{}.{})",
                                     selector,
                                     selector,
                                     mapped_function_name,
                                     self.row_selector,
+                                    cast,
                                     self.row_selector,
                                     table_alias,
-                                    mapped_column_name
+                                    &mapped_column.name
                                 ));
                             }
                         } else {
@@ -952,20 +968,26 @@ impl LinqQueryBuilder {
                     .unwrap()
                     .0;
 
-                let mapped_column_name = self
+                let mapped_column = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column(&table_name, &column_name)
                     .unwrap();
+
+                let cast = if mapped_column.field_type == "decimal" {
+                    "(double) "
+                } else {
+                    ""
+                };
 
                 if table_alias.is_empty() {
                     linq_query.push_str(&format!(
-                        "{} => {}.{}",
-                        selector, selector, mapped_column_name
+                        "{} => {}{}.{}",
+                        selector, cast, selector, &mapped_column.name
                     ));
                 } else {
                     linq_query.push_str(&format!(
-                        "{} => {}.{}.{}",
-                        selector, selector, table_alias, mapped_column_name
+                        "{} => {}{}.{}.{}",
+                        selector, cast, selector, table_alias, &mapped_column.name
                     ));
                 }
             } else if let Expr::CompoundIdentifier(ident) = &order_by.expr {
@@ -978,14 +1000,17 @@ impl LinqQueryBuilder {
                     .unwrap()
                     .0;
 
-                let mapped_column_name = self
-                    .schema_mapping
-                    .get_column_name(table_name, &field)
-                    .unwrap();
+                let mapped_column = self.schema_mapping.get_column(table_name, &field).unwrap();
+
+                let cast = if mapped_column.field_type == "decimal" {
+                    "(double) "
+                } else {
+                    ""
+                };
 
                 linq_query.push_str(&format!(
-                    "{} => {}.{}.{}",
-                    selector, selector, alias, mapped_column_name
+                    "{} => {}{}.{}.{}",
+                    selector, cast, selector, alias, &mapped_column.name
                 ));
             } else {
                 panic!("Unknown expression type");
