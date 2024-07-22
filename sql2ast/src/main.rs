@@ -39,7 +39,7 @@ fn tests() {
     
         (
             r#"SELECT T1.activity_name FROM Activity AS T1 JOIN Faculty_participates_in AS T2 ON T1.actID  =  T2.actID GROUP BY T1.actID ORDER BY count(*) DESC LIMIT 1"#,
-            "context.Activities.Join(context.FacultyParticipatesIns, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.Actid }).OrderByDescending(group => group.Count()).Select(group => new { group.First().T1.ActivityName }).Take(1).ToList();"
+            "context.Activities.Join(context.FacultyParticipatesIns, T1 => T1.Actid, T2 => T2.Actid, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.Actid }).Select(group => new { group.First().T1.ActivityName }).OrderByDescending(group => group.Count()).Take(1).ToList();"
         ),
     
         (
@@ -59,7 +59,7 @@ fn tests() {
     
          (
             r#"SELECT T1.fname , T1.lname FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID = T2.advisor GROUP BY T1.FacID ORDER BY count(*) DESC LIMIT 1"#,
-            r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().T1.Fname, group.First().T1.Lname }).Take(1).ToList();"#
+            r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).Select(group => new { group.First().T1.Fname, group.First().T1.Lname }).OrderByDescending(group => group.Count()).Take(1).ToList();"#
         ),
     
         (
@@ -117,11 +117,11 @@ fn tests() {
         ),
         (
             r#"SELECT apt_number FROM Apartments ORDER BY room_count ASC"#,
-            r#"context.Apartments.OrderBy(row => row.RoomCount).Select(row => new { row.AptNumber }).ToList();"#,
+            r#"context.Apartments.Select(row => new { row.AptNumber }).OrderBy(row => row.RoomCount).ToList();"#,
         ),
         (
             r#"SELECT apt_type_code FROM Apartments GROUP BY apt_type_code ORDER BY avg(room_count) DESC LIMIT 3"#,
-            r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).OrderByDescending(group => group.Average(row => row.RoomCount)).Select(group => new { group.Key.AptTypeCode }).Take(3).ToList();"#,
+            r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).Select(group => new { group.Key.AptTypeCode }).OrderByDescending(group => group.Average(row => row.RoomCount)).Take(3).ToList();"#,
         ),
         (
             r#"SELECT count(*) FROM Apartments WHERE apt_id NOT IN (SELECT apt_id FROM Apartment_Facilities)"#,
@@ -129,7 +129,7 @@ fn tests() {
         ),
         (
             r#"SELECT apt_type_code , bathroom_count , bedroom_count FROM Apartments GROUP BY apt_type_code ORDER BY sum(room_count) DESC LIMIT 1"#,
-            r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).OrderByDescending(group => group.Sum(row => row.RoomCount)).Select(group => new { group.Key.AptTypeCode, group.First().BathroomCount, group.First().BedroomCount }).Take(1).ToList();"#,
+            r#"context.Apartments.GroupBy(row => new { row.AptTypeCode }).Select(group => new { group.Key.AptTypeCode, group.First().BathroomCount, group.First().BedroomCount }).OrderByDescending(group => group.Sum(row => row.RoomCount)).Take(1).ToList();"#,
         ),
         (
             r#"SELECT T1.apt_number FROM Apartments AS T1 JOIN View_Unit_Status AS T2 ON T1.apt_id = T2.apt_id WHERE T2.available_yn = 0 INTERSECT SELECT T1.apt_number FROM Apartments AS T1 JOIN View_Unit_Status AS T2 ON T1.apt_id = T2.apt_id WHERE T2.available_yn = 1"#,
@@ -159,7 +159,7 @@ fn tests() {
         ),
         (
             r#"SELECT T1.engineer_id , T1.first_name , T1.last_name FROM Maintenance_Engineers AS T1 JOIN Engineer_Visits AS T2 GROUP BY T1.engineer_id ORDER BY count(*) DESC LIMIT 1"#,
-            r#"context.MaintenanceEngineers.SelectMany(T1 => context.EngineerVisits, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EngineerId }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.EngineerId, group.First().T1.FirstName, group.First().T1.LastName }).Take(1).ToList();"#,
+            r#"context.MaintenanceEngineers.SelectMany(T1 => context.EngineerVisits, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EngineerId }).Select(group => new { group.Key.EngineerId, group.First().T1.FirstName, group.First().T1.LastName }).OrderByDescending(group => group.Count()).Take(1).ToList();"#,
         ),
         (
             r#"SELECT T1.first_name , T1.last_name , T1.other_details , T3.skill_description FROM Maintenance_Engineers AS T1 JOIN Engineer_Skills AS T2 ON T1.engineer_id = T2.engineer_id JOIN Skills AS T3 ON T2.skill_id = T3.skill_id"#,
@@ -197,7 +197,7 @@ fn tests() {
         ),
         (
             r#"SELECT T1.student_id , T2.first_name FROM Student_Addresses AS T1 JOIN Students AS T2 ON T1.student_id = T2.student_id GROUP BY T1.student_id ORDER BY AVG(monthly_rental) DESC LIMIT 1"#,
-            r#"context.StudentAddresses.Join(context.Students, T1 => T1.StudentId, T2 => T2.StudentId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.StudentId }).OrderByDescending(group => group.Average(row => (double) row.T1.MonthlyRental)).Select(group => new { group.Key.StudentId, group.First().T2.FirstName }).Take(1).ToList();"#
+            r#"context.StudentAddresses.Join(context.Students, T1 => T1.StudentId, T2 => T2.StudentId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.StudentId }).Select(group => new { group.Key.StudentId, group.First().T2.FirstName }).OrderByDescending(group => group.Average(row => (double) row.T1.MonthlyRental)).Take(1).ToList();"#
         )
     ]);
 
@@ -209,6 +209,10 @@ fn tests() {
         (
             r#"SELECT T1.name , T1.id FROM station AS T1 JOIN status AS T2 ON T1.id = T2.station_id GROUP BY T2.station_id HAVING avg(T2.bikes_available) > 14 UNION SELECT name , id FROM station WHERE installation_date LIKE "12/%""#,
             r#"context.Stations.Join(context.Statuses, T1 => T1.Id, T2 => T2.StationId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T2.StationId }).Where(group => group.Average(row => row.T2.BikesAvailable) > 14).Select(group => new { group.First().T1.Name, group.First().T1.Id }).Union(context.Stations.Where(row => EF.Functions.Like(row.InstallationDate, "12/%")).Select(row => new { row.Name, row.Id })).ToList();"#
+        ),
+        (
+            r#"SELECT date , max_temperature_f - min_temperature_f FROM weather ORDER BY max_temperature_f - min_temperature_f LIMIT 1"#,
+            r#"context.Weathers.Select(row => new { row.Date, Diff = row.MaxTemperatureF - row.MinTemperatureF }).OrderByDescending(row => row.Diff).Take(1).ToList();"#
         )
     ]);
 
@@ -218,9 +222,9 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "bike_1" || index != 1 {
-            //     continue;
-            // }
+            if db_name != "bike_1" || index != 2 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 

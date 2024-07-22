@@ -34,9 +34,10 @@ impl LinqQueryBuilder {
         has_group_by: bool,
         group_by_fields: Vec<String>,
         use_new_object_for_select_when_single_field: bool,
-    ) -> (String, String) {
+    ) -> (String, String, HashMap<String, String>) {
         let mut select_result = String::new();
         let mut group_by_result = String::new();
+        let mut calculated_fields: HashMap<String, String> = HashMap::new();
 
         let mut selector = if has_group_by {
             &self.group_selector
@@ -235,6 +236,29 @@ impl LinqQueryBuilder {
                     } else {
                         panic!("Unknown function");
                     }
+                } else if let Expr::BinaryOp { left, op, right } = expr {
+                    let left_expr =
+                        self.build_where_expr(left, tables_with_aliases_map, false, expr);
+                    let right_expr =
+                        self.build_where_expr(right, tables_with_aliases_map, false, expr);
+                    let operator = match op {
+                        BinaryOperator::Minus => " - ",
+                        _ => panic!("Unknown comparison operator"),
+                    };
+
+                    let field_name = match op {
+                        BinaryOperator::Minus => "Diff",
+                        _ => panic!("Unknown comparison operator"),
+                    };
+
+                    calculated_fields.insert(
+                        format!("{}{}{}", left_expr, operator, right_expr),
+                        field_name.to_string(),
+                    );
+                    select_fields.push(format!(
+                        "{} = {}{}{}",
+                        field_name, left_expr, operator, right_expr
+                    ));
                 } else {
                     panic!("Unknown expression type");
                 }
@@ -250,7 +274,7 @@ impl LinqQueryBuilder {
             select_result.push_str(")");
         }
 
-        return (select_result, group_by_result);
+        return (select_result, group_by_result, calculated_fields);
     }
 
     /*
@@ -911,13 +935,14 @@ impl LinqQueryBuilder {
         query: &Box<Query>,
         selector: String,
         tables_with_aliases_map: &HashMap<String, String>,
+        calculated_fields: &HashMap<String, String>,
     ) -> HashMap<String, String> {
         let mut keywords: HashMap<String, String> = HashMap::new();
 
         if query.order_by.len() > 0 {
             keywords.insert(
                 "order_by".to_string(),
-                self.build_order_by(query, selector, tables_with_aliases_map),
+                self.build_order_by(query, selector, tables_with_aliases_map, calculated_fields),
             );
         }
 
@@ -949,6 +974,7 @@ impl LinqQueryBuilder {
         query: &Box<Query>,
         selector: String,
         tables_with_aliases_map: &HashMap<String, String>,
+        calculated_fields: &HashMap<String, String>,
     ) -> String {
         let mut linq_query = String::new();
 
@@ -968,7 +994,7 @@ impl LinqQueryBuilder {
             if let Expr::Function(func) = &order_by.expr {
                 let function_name = func.name.to_string().to_lowercase();
 
-                if ["count", "avg", "sum"].contains(&function_name.as_str()) {
+                if ["count", "avg", "sum", "max"].contains(&function_name.as_str()) {
                     let args = if let FunctionArguments::List(list) = &func.args {
                         &list.args
                     } else {
@@ -979,12 +1005,12 @@ impl LinqQueryBuilder {
                         panic!("Invalid number of arguments for count/avg function");
                     }
 
-                    let mapped_function_name = if function_name == "count" {
-                        "Count"
-                    } else if function_name == "sum" {
-                        "Sum"
-                    } else {
-                        "Average"
+                    let mapped_function_name = match function_name.as_str() {
+                        "count" => "Count",
+                        "sum" => "Sum",
+                        "avg" => "Average",
+                        "max" => "Max",
+                        _ => panic!("Unknown function"),
                     };
 
                     if let FunctionArg::Unnamed(ident) = &args[0] {
@@ -1121,6 +1147,38 @@ impl LinqQueryBuilder {
                     "{} => {}{}.{}.{}",
                     selector, cast, selector, alias, &mapped_column.name
                 ));
+            } else if let Expr::BinaryOp { left, op, right } = &order_by.expr {
+                let left_expr =
+                    self.build_where_expr(left, tables_with_aliases_map, false, &order_by.expr);
+                let right_expr =
+                    self.build_where_expr(right, tables_with_aliases_map, false, &order_by.expr);
+                let operator = match op {
+                    BinaryOperator::Eq => " == ",
+                    BinaryOperator::NotEq => " != ",
+                    BinaryOperator::Gt => " > ",
+                    BinaryOperator::GtEq => " >= ",
+                    BinaryOperator::Lt => " < ",
+                    BinaryOperator::LtEq => " <= ",
+                    BinaryOperator::Minus => " - ",
+                    _ => panic!("Unknown comparison operator"),
+                };
+
+                let calculated_field =
+                    calculated_fields.get(&format!("{}{}{}", left_expr, operator, right_expr));
+
+                if calculated_field.is_some() {
+                    linq_query.push_str(&format!(
+                        "{} => {}.{}",
+                        selector,
+                        selector,
+                        calculated_field.unwrap(),
+                    ));
+                } else {
+                    linq_query.push_str(&format!(
+                        "{} => {}{}{}",
+                        selector, left_expr, operator, right_expr
+                    ));
+                }
             } else {
                 panic!("Unknown expression type");
             }
@@ -1135,7 +1193,11 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         use_new_object_for_select: bool,
-    ) -> (HashMap<String, String>, HashMap<String, String>) {
+    ) -> (
+        HashMap<String, String>,
+        HashMap<String, String>,
+        HashMap<String, String>,
+    ) {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
         let main_table_name: String;
@@ -1224,6 +1286,7 @@ impl LinqQueryBuilder {
 
         linq_query.insert("selector".to_string(), selector.to_string());
 
+        let mut calculated_fields: HashMap<String, String> = HashMap::new();
         if select.projection.len() > 0 {
             let mut current_linq_query = String::new();
 
@@ -1299,16 +1362,13 @@ impl LinqQueryBuilder {
                                             current_linq_query.push_str(".Distinct()");
                                         }
 
-                                        let mapped_function_name = if function_name == "count" {
-                                            "Count"
-                                        } else if function_name == "avg" {
-                                            "Average"
-                                        } else if function_name == "min" {
-                                            "Min"
-                                        } else if function_name == "max" {
-                                            "Max"
-                                        } else {
-                                            "Sum"
+                                        let mapped_function_name = match function_name.as_str() {
+                                            "count" => "Count",
+                                            "sum" => "Sum",
+                                            "avg" => "Average",
+                                            "min" => "Min",
+                                            "max" => "Max",
+                                            _ => panic!("Unknown function"),
                                         };
 
                                         current_linq_query
@@ -1326,7 +1386,7 @@ impl LinqQueryBuilder {
                             panic!("Unknown function");
                         }
                     } else {
-                        let (select_result, group_by_result) = self.build_projection(
+                        let full_result = self.build_projection(
                             select,
                             &tables_with_aliases_map,
                             &main_table_name,
@@ -1335,6 +1395,8 @@ impl LinqQueryBuilder {
                             use_new_object_for_select,
                         );
 
+                        let (select_result, group_by_result, calc_fields) = full_result;
+                        calculated_fields = calc_fields;
                         current_linq_query.push_str(&select_result);
 
                         if !has_group_by {
@@ -1343,7 +1405,7 @@ impl LinqQueryBuilder {
                     }
                 }
             } else {
-                let (select_result, group_by_result) = self.build_projection(
+                let full_result = self.build_projection(
                     select,
                     &tables_with_aliases_map,
                     &main_table_name,
@@ -1352,6 +1414,8 @@ impl LinqQueryBuilder {
                     use_new_object_for_select,
                 );
 
+                let (select_result, group_by_result, calc_fields) = full_result;
+                calculated_fields = calc_fields;
                 current_linq_query.push_str(&select_result);
 
                 if !has_group_by {
@@ -1373,7 +1437,7 @@ impl LinqQueryBuilder {
             linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         }
 
-        return (linq_query, tables_with_aliases_map);
+        return (linq_query, tables_with_aliases_map, calculated_fields);
     }
 
     fn build_query_helper(
@@ -1466,10 +1530,15 @@ impl LinqQueryBuilder {
                 true
             };
 
-        let (select_result, tables_with_aliases_map) =
+        let (select_result, tables_with_aliases_map, calculated_fields) =
             self.build_select(select, should_use_new_object_for_select);
         let selector = select_result.get("selector").unwrap().to_string();
-        let keywords_result = self.build_keywords(query, selector, &tables_with_aliases_map);
+        let keywords_result = self.build_keywords(
+            query,
+            selector,
+            &tables_with_aliases_map,
+            &calculated_fields,
+        );
 
         return self.build_result(
             &select_result,
@@ -1504,12 +1573,12 @@ impl LinqQueryBuilder {
             linq_query.push_str(having_where_clause);
         }
 
-        if let Some(order_by) = keywords_result.get("order_by") {
-            linq_query.push_str(order_by);
-        }
-
         if let Some(projection) = select_result.get("projection") {
             linq_query.push_str(projection);
+        }
+
+        if let Some(order_by) = keywords_result.get("order_by") {
+            linq_query.push_str(order_by);
         }
 
         if let Some(distinct) = select_result.get("distinct") {
