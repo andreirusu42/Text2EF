@@ -171,6 +171,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         }
 
         let model_property_occurrences = model_property_regex.captures_iter(&model_content);
+
         for occurrence in model_property_occurrences {
             let field_type_with_qm = &occurrence[1];
             let field_type = field_type_with_qm.trim_end_matches('?');
@@ -220,7 +221,8 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             table: tables[&entity_name.to_lowercase()].clone(),
             columns,
         };
-        schema_map_tables.insert(original_table_name, schema_map_table);
+
+        schema_map_tables.insert(original_table_name.to_string(), schema_map_table);
     }
 
     SchemaMapping {

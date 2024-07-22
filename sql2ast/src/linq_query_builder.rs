@@ -256,7 +256,12 @@ impl LinqQueryBuilder {
     /*
        In Entity Framework, the behavior is stricter and more akin to standard SQL rules which require you to include all non-aggregated columns in the GROUP BY clause.
     */
-    fn build_group_by(&self, select: &Box<Select>, table_name: &str) -> (String, Vec<String>) {
+    fn build_group_by(
+        &self,
+        select: &Box<Select>,
+        table_name: &str,
+        tables_with_aliases_map: &HashMap<String, String>,
+    ) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
         let mut raw_group_by_fields: Vec<String> = Vec::new();
 
@@ -280,6 +285,12 @@ impl LinqQueryBuilder {
                 } else if let Expr::CompoundIdentifier(identifiers) = expr {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
+
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == &table_alias)
+                        .unwrap()
+                        .0;
 
                     let mapped_column_name = self
                         .schema_mapping
@@ -1200,7 +1211,8 @@ impl LinqQueryBuilder {
             false
         };
 
-        let (group_by_query, group_by_fields) = self.build_group_by(select, &main_table_name);
+        let (group_by_query, group_by_fields) =
+            self.build_group_by(select, &main_table_name, &tables_with_aliases_map);
 
         linq_query.insert("group_by".to_string(), group_by_query);
 
