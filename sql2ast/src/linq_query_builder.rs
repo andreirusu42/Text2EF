@@ -148,7 +148,7 @@ impl LinqQueryBuilder {
                     // TODO: this only works now because we haven't had Count(something), only Count(*)
                     if function_name == "count" {
                         select_fields.push(format!("Count = {}.Count()", selector));
-                    } else if ["min", "max", "avg"].contains(&function_name.as_str()) {
+                    } else if ["sum", "min", "max", "avg"].contains(&function_name.as_str()) {
                         let column_name: String;
                         let column_alias: String;
 
@@ -193,12 +193,11 @@ impl LinqQueryBuilder {
                             .get_column(&table_name, &column_name)
                             .unwrap();
 
-                        let mapped_function_name = if function_name == "min" {
-                            "Min"
-                        } else if function_name == "max" {
-                            "Max"
-                        } else {
-                            "Average"
+                        let mapped_function_name = match function_name.as_str() {
+                            "min" => "Min",
+                            "max" => "Max",
+                            "sum" => "Sum",
+                            _ => "Average",
                         };
 
                         let field_name = format!("{}{}", mapped_function_name, &mapped_column.name);
@@ -574,10 +573,109 @@ impl LinqQueryBuilder {
                 format!("{}.{}.{}", selector, alias, mapped_column_name)
             }
             Expr::Function(func) => {
-                if func.name.to_string().to_lowercase() == "count" {
-                    return format!("{}.Count()", selector);
+                let function_name = func.name.to_string().to_lowercase();
+
+                // TODO ;)
+                let args = if let FunctionArguments::List(list) = &func.args {
+                    &list.args
                 } else {
-                    panic!("Unknown function");
+                    panic!("Invalid function arguments");
+                };
+
+                let function_name = match function_name.as_str() {
+                    "count" => "Count",
+                    "sum" => "Sum",
+                    "avg" => "Average",
+                    "min" => "Min",
+                    "max" => "Max",
+                    _ => panic!("Unknown function"),
+                };
+
+                if args.len() != 1 {
+                    panic!("Invalid number of arguments for count/avg function");
+                }
+
+                let function_arg_expr = if let FunctionArg::Unnamed(ident) = &args[0] {
+                    ident
+                } else {
+                    panic!("Invalid function argument");
+                };
+
+                if let FunctionArgExpr::Wildcard = function_arg_expr {
+                    return format!("{}.{}()", selector, function_name);
+                }
+
+                let expr = if let FunctionArgExpr::Expr(expr) = &function_arg_expr {
+                    expr
+                } else {
+                    panic!("Invalid function argument");
+                };
+
+                if let Expr::Identifier(ident) = expr {
+                    let field = ident.to_string();
+
+                    let alias_option =
+                        self.get_table_alias_from_field_name(tables_with_aliases_map, &field);
+
+                    let alias = alias_option.unwrap();
+
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == alias)
+                        .unwrap()
+                        .0;
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&table_name, &field)
+                        .unwrap();
+
+                    if alias.is_empty() {
+                        return format!(
+                            "{}.{}({} => {}.{})",
+                            selector,
+                            function_name,
+                            self.row_selector,
+                            self.row_selector,
+                            mapped_column_name
+                        );
+                    }
+
+                    return format!(
+                        "{}.{}({} => {}.{}.{})",
+                        selector,
+                        function_name,
+                        self.row_selector,
+                        self.row_selector,
+                        alias,
+                        mapped_column_name
+                    );
+                } else if let Expr::CompoundIdentifier(ident) = expr {
+                    let alias = ident[0].to_string();
+                    let field = ident[1].to_string();
+
+                    let table_name = tables_with_aliases_map
+                        .iter()
+                        .find(|(_, v)| *v == &alias)
+                        .unwrap()
+                        .0;
+
+                    let mapped_column_name = self
+                        .schema_mapping
+                        .get_column_name(&table_name, &field)
+                        .unwrap();
+
+                    return format!(
+                        "{}.{}({} => {}.{}.{})",
+                        selector,
+                        function_name,
+                        self.row_selector,
+                        self.row_selector,
+                        alias,
+                        mapped_column_name
+                    );
+                } else {
+                    panic!("Invalid function argument");
                 }
             }
             Expr::Value(value) => {

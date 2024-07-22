@@ -160,6 +160,10 @@ fn tests() {
         (
             r#"SELECT T1.engineer_id , T1.first_name , T1.last_name FROM Maintenance_Engineers AS T1 JOIN Engineer_Visits AS T2 GROUP BY T1.engineer_id ORDER BY count(*) DESC LIMIT 1"#,
             r#"context.MaintenanceEngineers.SelectMany(T1 => context.EngineerVisits, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EngineerId }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.EngineerId, group.First().T1.FirstName, group.First().T1.LastName }).Take(1).ToList();"#,
+        ),
+        (
+            r#"SELECT T1.first_name , T1.last_name , T1.other_details , T3.skill_description FROM Maintenance_Engineers AS T1 JOIN Engineer_Skills AS T2 ON T1.engineer_id = T2.engineer_id JOIN Skills AS T3 ON T2.skill_id = T3.skill_id"#,
+            r#"context.MaintenanceEngineers.Join(context.EngineerSkills, T1 => T1.EngineerId, T2 => T2.EngineerId, (T1, T2) => new { T1, T2 }).Join(context.Skills, joined => joined.T2.SkillId, T3 => T3.SkillId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Select(row => new { row.T1.FirstName, row.T1.LastName, row.T1.OtherDetails, row.T3.SkillDescription }).ToList();"#,
         )
     ]);
 
@@ -197,15 +201,22 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("bike_1".to_string(), vec![
+        (
+            r#"SELECT id FROM station WHERE city = "San Francisco" INTERSECT SELECT station_id FROM status GROUP BY station_id HAVING avg(bikes_available) > 10"#,
+            r#"context.Stations.Where(row => row.City == "San Francisco").Select(row => row.Id).Intersect(context.Statuses.GroupBy(row => new { row.StationId }).Where(group => group.Average(row => row.BikesAvailable) > 10).Select(group => group.Key.StationId)).ToList();"#
+        )
+    ]);
+
     
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "behavior_monitoring" || index != 2 {
-            //     continue;
-            // }
+            if db_name != "bike_1" || index != 0 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 
@@ -231,7 +242,8 @@ fn create_tests_to_file() {
     // "allergy_1".to_string(), 
     // "assets_maintenance".to_string(),
     // "baseball_1".to_string(),
-    "behavior_monitoring".to_string(),
+    // "behavior_monitoring".to_string(),
+    "bike_1".to_string()
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -345,6 +357,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }
