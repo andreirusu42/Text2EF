@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr,
@@ -189,6 +189,50 @@ impl LinqQueryBuilder {
             select_result.push_str("new { ");
         }
 
+        let mut fields_with_same_name: HashSet<String> = HashSet::new();
+        let mut seen_fields: HashSet<String> = HashSet::new();
+
+        for select_item in &select.projection {
+            let expr = if let SelectItem::UnnamedExpr(expr) = select_item {
+                expr
+            } else {
+                panic!("Unknown select item type");
+            };
+
+            let mapped_column_name: &String;
+
+            if let Expr::Identifier(ident) = expr {
+                let column_name = ident.to_string();
+
+                let table_alias = self
+                    .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
+                    .unwrap();
+
+                mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(&main_table_name, &column_name)
+                    .unwrap();
+            } else if let Expr::CompoundIdentifier(identifier) = expr {
+                let table_alias = identifier[0].to_string();
+                let column_name = identifier[1].to_string();
+
+                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+
+                mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(&table_name, &column_name)
+                    .unwrap();
+            } else {
+                continue;
+            }
+
+            if seen_fields.contains(mapped_column_name) {
+                fields_with_same_name.insert(mapped_column_name.clone());
+            } else {
+                seen_fields.insert(mapped_column_name.clone());
+            }
+        }
+
         for select_item in &select.projection {
             let expr = if let SelectItem::UnnamedExpr(expr) = select_item {
                 expr
@@ -236,6 +280,8 @@ impl LinqQueryBuilder {
                     .get_column_name(&table_name, &column_name)
                     .unwrap();
 
+                let is_duplicated = fields_with_same_name.contains(mapped_column_name);
+
                 if has_group_by {
                     if group_by_fields.contains(&mapped_column_name) {
                         select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
@@ -246,10 +292,19 @@ impl LinqQueryBuilder {
                         ));
                     }
                 } else {
-                    select_fields.push(format!(
-                        "{}.{}.{}",
-                        selector, table_alias, mapped_column_name
-                    ));
+                    if is_duplicated {
+                        let field_name = format!("{}{}", table_alias, mapped_column_name);
+
+                        select_fields.push(format!(
+                            "{} = {}.{}.{}",
+                            field_name, selector, table_alias, mapped_column_name
+                        ));
+                    } else {
+                        select_fields.push(format!(
+                            "{}.{}.{}",
+                            selector, table_alias, mapped_column_name
+                        ));
+                    }
                 }
             } else if let Expr::Function(function) = expr {
                 let function_name = function.name.to_string().to_lowercase();

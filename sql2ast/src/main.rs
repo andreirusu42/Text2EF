@@ -220,6 +220,13 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("browser_web".to_string(), vec![
+        (
+            r#"SELECT T2.name , T3.name FROM accelerator_compatible_browser AS T1 JOIN browser AS T2 ON T1.browser_id = T2.id JOIN web_client_accelerator AS T3 ON T1.accelerator_id = T3.id ORDER BY T1.compatible_since_year DESC"#,
+            r#"context.AcceleratorCompatibleBrowsers.Join(context.Browsers, T1 => T1.BrowserId, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Join(context.WebClientAccelerators, joined => joined.T1.AcceleratorId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).OrderByDescending(row => row.T1.CompatibleSinceYear).Select(row => new { T2Name = row.T2.Name, T3Name = row.T3.Name }).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
@@ -229,7 +236,7 @@ fn tests() {
             //     continue;
             // }
 
-            // if db_name != "activity_1" || index != 3 {
+            // if db_name != "browser_web" || index != 0 {
             //     continue;
             // }
 
@@ -252,14 +259,16 @@ fn tests() {
 
 fn create_tests_to_file() {
     let db_names = vec![
-    "activity_1".to_string(),
-    "apartment_rentals".to_string(),
-    "allergy_1".to_string(), 
-    "assets_maintenance".to_string(),
-    "baseball_1".to_string(),
-    "behavior_monitoring".to_string(),
-    "bike_1".to_string(),
-    "body_builder".to_string()
+    // "activity_1".to_string(),
+    // "apartment_rentals".to_string(),
+    // "allergy_1".to_string(), 
+    // "assets_maintenance".to_string(),
+    // "baseball_1".to_string(),
+    // "behavior_monitoring".to_string(),
+    // "bike_1".to_string(),
+    // "body_builder".to_string(),
+    // "book_2".to_string(),
+    "browser_web".to_string()
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -373,6 +382,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }
