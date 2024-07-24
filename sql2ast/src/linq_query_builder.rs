@@ -85,23 +85,30 @@ impl LinqQueryBuilder {
 
                             let table_name = alias_to_table_map.get(&table_alias).unwrap();
 
-                            let mapped_column_name = self
+                            let mapped_column = self
                                 .schema_mapping
-                                .get_column_name(&table_name, &column_name)
+                                .get_column(&table_name, &column_name)
                                 .unwrap();
+
+                            let cast = if mapped_column.field_type == "decimal" {
+                                "(double) "
+                            } else {
+                                ""
+                            };
 
                             if table_alias.is_empty() {
                                 result.push_str(&format!(
-                                    ".Select({} => {}.{})",
-                                    self.row_selector, self.row_selector, mapped_column_name
+                                    ".Select({} => {}{}.{})",
+                                    self.row_selector, cast, self.row_selector, &mapped_column.name
                                 ));
                             } else {
                                 result.push_str(&format!(
-                                    ".Select({} => {}.{}.{})",
+                                    ".Select({} => {}{}.{}.{})",
                                     self.row_selector,
+                                    cast,
                                     self.row_selector,
                                     table_alias,
-                                    mapped_column_name
+                                    &mapped_column.name
                                 ));
                             }
                         } else {

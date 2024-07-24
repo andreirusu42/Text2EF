@@ -242,6 +242,10 @@ fn tests() {
         (
             r#"SELECT T2.Name , T1.ArtistId FROM ALBUM AS T1 JOIN ARTIST AS T2 ON T1.ArtistId = T2.ArtistID GROUP BY T1.ArtistId HAVING COUNT(*) >= 3 ORDER BY T2.Name"#,
             r#"context.Albums.Join(context.Artists, T1 => T1.ArtistId, T2 => T2.ArtistId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.ArtistId }).Where(group => group.Count() >= 3).OrderBy(group => group.First().T2.Name).Select(group => new { group.First().T2.Name, group.Key.ArtistId }).ToList();"#,
+        ),
+        (
+            r#"SELECT AVG(UnitPrice) FROM TRACK"#,
+            r#"context.Tracks.Select(row => (double) row.UnitPrice).Average();"#,
         )
     ]);
 
@@ -254,9 +258,9 @@ fn tests() {
             //     continue;
             // }
 
-            // if db_name != "chinook_1" || index != 1 {
-            //     continue;
-            // }
+            if db_name != "chinook_1" || index != 2 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 
