@@ -119,6 +119,16 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     )
     .unwrap();
 
+    let model_property_regex = regex::Regex::new(r"public (.*) (.*) \{ get; set; \}").unwrap();
+    let context_property_regex = regex::Regex::new(r"entity\s*\.\s*Property\s*\(([^;]+);").unwrap();
+    let mapped_column_name_pattern: regex::Regex = regex::Regex::new(r"e => e\.(\w+)\)").unwrap();
+    let original_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
+    let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
+    let join_table_regex =
+        regex::Regex::new(r#"(?s)entity\s*\.HasMany\(.*?\)\.WithMany\(.*?\}\);"#).unwrap();
+
+    let join_table_content_regex = regex::Regex::new(r#"\.UsingEntity<.*>\(\s*\"(.*)\"[\s\S]*?.ToTable\(\"(.*)\"[\s\S]*?.IndexerProperty<(.*)>\s*\(\"(.*)\"\)[\s\S]*?.HasColumnName\(\"(.*)\"\)[\s\S]*?.IndexerProperty<(.*)>\s*\(\"(.*)\"\)[\s\S]*?.HasColumnName\(\"(.*)\"\)"#).unwrap();
+
     for cap in table_regex.captures_iter(&context_content) {
         let original_entity_name = cap[1].to_lowercase();
         let entity_name = cap[2].to_string();
@@ -138,14 +148,6 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         let model_content =
             fs::read_to_string(model_file_path).expect("Failed to read the model file");
 
-        let model_property_regex = regex::Regex::new(r"public (.*) (.*) \{ get; set; \}").unwrap();
-        let context_property_regex =
-            regex::Regex::new(r"entity\s*\.\s*Property\s*\(([^;]+);").unwrap();
-        let mapped_column_name_pattern: regex::Regex =
-            regex::Regex::new(r"e => e\.(\w+)\)").unwrap();
-        let original_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
-        let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
-
         let original_table_name_capture = original_table_name_regex.captures(entity_content);
 
         let original_table_name = if let Some(original) = original_table_name_capture {
@@ -153,6 +155,53 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         } else {
             tables[&entity_name.to_lowercase()].to_lowercase()
         };
+
+        // This is the join table case :)
+        if let Some(join_table_content) = join_table_regex.captures(entity_content) {
+            let join_table_content = join_table_content.get(0).unwrap().as_str();
+
+            println!("Join table content: {}", join_table_content);
+
+            let join_table_capture = join_table_content_regex
+                .captures(join_table_content)
+                .expect("Failed to find the join table content");
+
+            let mapped_table_name = join_table_capture.get(1).unwrap().as_str();
+            let table_name = join_table_capture.get(2).unwrap().as_str();
+            let column_1_field_type = join_table_capture.get(3).unwrap().as_str();
+            let mapped_column_name_1 = join_table_capture.get(4).unwrap().as_str();
+            let column_name_1 = join_table_capture.get(5).unwrap().as_str();
+            let column_2_field_type = join_table_capture.get(6).unwrap().as_str();
+            let mapped_column_name_2 = join_table_capture.get(7).unwrap().as_str();
+            let column_name_2 = join_table_capture.get(8).unwrap().as_str();
+
+            let mut columns: HashMap<String, Column> = HashMap::new();
+
+            columns.insert(
+                column_name_1.to_string().to_lowercase(),
+                Column {
+                    name: mapped_column_name_1.to_string(),
+                    field_type: column_1_field_type.to_string(),
+                    is_optional: false,
+                },
+            );
+
+            columns.insert(
+                column_name_2.to_string().to_lowercase(),
+                Column {
+                    name: mapped_column_name_2.to_string(),
+                    field_type: column_2_field_type.to_string(),
+                    is_optional: false,
+                },
+            );
+
+            let schema_map_table = SchemaMapTable {
+                table: mapped_table_name.to_string(),
+                columns,
+            };
+
+            schema_map_tables.insert(table_name.to_string().to_lowercase(), schema_map_table);
+        }
 
         let context_property_occurrences: Vec<&str> = context_property_regex
             .captures_iter(entity_content)
