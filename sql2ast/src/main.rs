@@ -227,6 +227,13 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("candidate_poll".to_string(), vec![
+        (
+            r#"SELECT t1.name , t1.sex , min(oppose_rate) FROM people AS t1 JOIN candidate AS t2 ON t1.people_id = t2.people_id GROUP BY t1.sex"#,
+            r#"context.People.Join(context.Candidates, t1 => t1.PeopleId, t2 => t2.PeopleId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t1.Sex }).Select(group => new { group.First().t1.Name, group.Key.Sex, MinOpposeRate = group.Min(row => row.t2.OpposeRate) }).ToList();"#
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
@@ -236,9 +243,9 @@ fn tests() {
             //     continue;
             // }
 
-            // if db_name != "browser_web" || index != 0 {
-            //     continue;
-            // }
+            if db_name != "candidate_poll" || index != 0 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 
@@ -268,7 +275,8 @@ fn create_tests_to_file() {
     // "bike_1".to_string(),
     // "body_builder".to_string(),
     // "book_2".to_string(),
-    "browser_web".to_string()
+    // "browser_web".to_string(),
+    "candidate_poll".to_string(),
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -382,6 +390,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }

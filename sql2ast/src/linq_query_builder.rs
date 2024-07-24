@@ -407,7 +407,7 @@ impl LinqQueryBuilder {
                         self.row_selector,
                         cast,
                         self.row_selector,
-                        column_alias,
+                        table_alias,
                         &mapped_column.name,
                     ));
                 }
