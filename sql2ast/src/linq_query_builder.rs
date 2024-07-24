@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use sqlparser::ast::{
-    BinaryOperator, Expr, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr, Query,
-    Select, SelectItem, SetExpr, Statement, TableWithJoins,
+    BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr,
+    JoinConstraint, Query, Select, SelectItem, SetExpr, Statement, TableWithJoins,
 };
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -16,6 +16,13 @@ pub struct JoinOn {
     pub right_table_alias: String,
     pub right_table_field: String,
     pub operator: String,
+}
+
+#[derive(Debug)]
+pub struct ProjectionResult {
+    pub select_result: String,
+    pub group_by_result: String,
+    pub calculated_fields: HashMap<String, String>,
 }
 
 pub struct LinqQueryBuilder {
@@ -35,6 +42,101 @@ impl LinqQueryBuilder {
         }
     }
 
+    fn build_projection_single_function(
+        &self,
+        function: &Function,
+        alias_to_table_map: &HashMap<String, String>,
+    ) -> String {
+        let function_name = function.name.to_string().to_lowercase();
+        let mut result = String::new();
+
+        if ["count", "avg", "sum", "min", "max"].contains(&function_name.as_str()) {
+            if let FunctionArguments::List(list) = &function.args {
+                let is_distinct = if let Some(x) = list.duplicate_treatment {
+                    x.to_string().to_lowercase() == "distinct"
+                } else {
+                    false
+                };
+
+                if list.args.len() == 1 {
+                    if let FunctionArg::Unnamed(ident) = &list.args[0] {
+                        if let FunctionArgExpr::Wildcard = ident {
+                            // using .Distinct().[Func]() from below
+                        } else if let FunctionArgExpr::Expr(expr) = ident {
+                            let column_name: String;
+                            let table_alias: String;
+
+                            if let Expr::Identifier(ident) = expr {
+                                column_name = ident.to_string();
+                                table_alias = self
+                                    .get_table_alias_from_field_name(
+                                        &alias_to_table_map,
+                                        &column_name,
+                                    )
+                                    .unwrap()
+                                    .to_string();
+                            } else if let Expr::CompoundIdentifier(ident) = expr {
+                                table_alias = ident[0].to_string();
+                                column_name = ident[1].to_string();
+                            } else {
+                                panic!("Invalid function argument");
+                            }
+
+                            let table_name = alias_to_table_map.get(&table_alias).unwrap();
+
+                            let mapped_column_name = self
+                                .schema_mapping
+                                .get_column_name(&table_name, &column_name)
+                                .unwrap();
+
+                            if table_alias.is_empty() {
+                                result.push_str(&format!(
+                                    ".Select({} => {}.{})",
+                                    self.row_selector, self.row_selector, mapped_column_name
+                                ));
+                            } else {
+                                result.push_str(&format!(
+                                    ".Select({} => {}.{}.{})",
+                                    self.row_selector,
+                                    self.row_selector,
+                                    table_alias,
+                                    mapped_column_name
+                                ));
+                            }
+                        } else {
+                            panic!("Invalid function argument");
+                        }
+
+                        if is_distinct {
+                            result.push_str(".Distinct()");
+                        }
+
+                        let mapped_function_name = match function_name.as_str() {
+                            "count" => "Count",
+                            "sum" => "Sum",
+                            "avg" => "Average",
+                            "min" => "Min",
+                            "max" => "Max",
+                            _ => panic!("Unknown function"),
+                        };
+
+                        result.push_str(&format!(".{}()", mapped_function_name));
+                    } else {
+                        panic!("Invalid function argument");
+                    }
+                } else {
+                    panic!("Invalid number of arguments for Count function");
+                }
+            } else {
+                panic!("Invalid function arguments");
+            }
+        } else {
+            panic!("Unknown function");
+        }
+
+        return result;
+    }
+
     fn build_projection(
         &self,
         select: &Box<Select>,
@@ -43,7 +145,7 @@ impl LinqQueryBuilder {
         has_group_by: bool,
         group_by_fields: Vec<String>,
         use_new_object_for_select_when_single_field: bool,
-    ) -> (String, String, HashMap<String, String>) {
+    ) -> ProjectionResult {
         let mut select_result = String::new();
         let mut group_by_result = String::new();
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
@@ -63,11 +165,7 @@ impl LinqQueryBuilder {
 
         let mut select_fields: Vec<String> = Vec::new();
 
-        // If there is more than one function, we need to add the GroupBy(row => 1)
-
         if !has_group_by {
-            // filter by Expr::Function in select.projection
-
             let mut number_of_functions = 0;
 
             for select_item in &select.projection {
@@ -151,38 +249,61 @@ impl LinqQueryBuilder {
                 } else if let Expr::Function(function) = expr {
                     let function_name = function.name.to_string().to_lowercase();
 
-                    // TODO: this only works now because we haven't had Count(something), only Count(*)
-                    if function_name == "count" {
-                        select_fields.push(format!("Count = {}.Count()", selector));
-                    } else if ["sum", "min", "max", "avg"].contains(&function_name.as_str()) {
+                    if ["sum", "min", "max", "avg", "count"].contains(&function_name.as_str()) {
                         let column_name: String;
                         let column_alias: String;
 
-                        if let FunctionArguments::List(list) = &function.args {
-                            if list.args.len() == 1 {
-                                if let FunctionArg::Unnamed(ident) = &list.args[0] {
-                                    if let FunctionArgExpr::Expr(expr) = ident {
-                                        if let Expr::Identifier(ident) = expr {
-                                            column_name = ident.to_string();
-                                            column_alias = String::new();
-                                        } else if let Expr::CompoundIdentifier(ident) = expr {
-                                            column_alias = ident[0].to_string();
-                                            column_name = ident[1].to_string();
-                                        } else {
-                                            panic!("Invalid function argument");
-                                        }
-                                    } else {
-                                        panic!("Invalid function argument");
-                                    }
-                                } else {
-                                    panic!("Invalid function argument");
-                                }
-                            } else {
-                                panic!("Invalid number of arguments for Min/Max/Avg function");
-                            }
+                        let mapped_function_name = match function_name.as_str() {
+                            "min" => "Min",
+                            "max" => "Max",
+                            "sum" => "Sum",
+                            "count" => "Count",
+                            "avg" => "Average",
+                            _ => panic!("Unknown function"),
+                        };
+
+                        let arg_list = if let FunctionArguments::List(list) = &function.args {
+                            list
                         } else {
                             panic!("Invalid function arguments");
                         };
+
+                        if arg_list.args.len() != 1 {
+                            panic!("Invalid number of arguments for Min/Max/Avg function");
+                        }
+
+                        let ident = if let FunctionArg::Unnamed(ident) = &arg_list.args[0] {
+                            ident
+                        } else {
+                            panic!("Invalid function argument");
+                        };
+
+                        if let FunctionArgExpr::Wildcard = ident {
+                            select_fields.push(format!(
+                                "{} = {}.{}()",
+                                mapped_function_name, selector, mapped_function_name
+                            ));
+
+                            continue;
+                        }
+
+                        let expr = if let FunctionArgExpr::Expr(expr) = ident {
+                            expr
+                        } else {
+                            panic!("Invalid function argument");
+                        };
+
+                        match expr {
+                            Expr::Identifier(ident) => {
+                                column_name = ident.to_string();
+                                column_alias = String::new();
+                            }
+                            Expr::CompoundIdentifier(ident) => {
+                                column_alias = ident[0].to_string();
+                                column_name = ident[1].to_string();
+                            }
+                            _ => panic!("Invalid function argument"),
+                        }
 
                         let table_alias = self
                             .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
@@ -194,13 +315,6 @@ impl LinqQueryBuilder {
                             .schema_mapping
                             .get_column(&table_name, &column_name)
                             .unwrap();
-
-                        let mapped_function_name = match function_name.as_str() {
-                            "min" => "Min",
-                            "max" => "Max",
-                            "sum" => "Sum",
-                            _ => "Average",
-                        };
 
                         let field_name = format!("{}{}", mapped_function_name, &mapped_column.name);
 
@@ -273,7 +387,11 @@ impl LinqQueryBuilder {
             select_result.push_str(")");
         }
 
-        return (select_result, group_by_result, calculated_fields);
+        return ProjectionResult {
+            select_result,
+            group_by_result,
+            calculated_fields,
+        };
     }
 
     /*
@@ -497,29 +615,30 @@ impl LinqQueryBuilder {
                 let built_subquery =
                     self.build_query_helper(subquery, Some(false), Some(false), Some(true));
 
-                if let Expr::Identifier(ident) = &**expr {
-                    let field = ident.to_string();
+                match &**expr {
+                    Expr::Identifier(ident) => {
+                        let field = ident.to_string();
 
-                    let alias_option =
-                        self.get_table_alias_from_field_name(alias_to_table_map, &field);
+                        let alias_option =
+                            self.get_table_alias_from_field_name(alias_to_table_map, &field);
 
-                    let alias = alias_option.unwrap();
+                        let alias = alias_option.unwrap();
 
-                    let table_name = alias_to_table_map.get(alias).unwrap();
+                        let table_name = alias_to_table_map.get(alias).unwrap();
 
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&table_name, &field)
-                        .unwrap();
+                        let mapped_column_name = self
+                            .schema_mapping
+                            .get_column_name(&table_name, &field)
+                            .unwrap();
 
-                    let operator = if *negated { "!" } else { "" };
+                        let operator = if *negated { "!" } else { "" };
 
-                    return format!(
-                        "{}{}.Contains({}.{})",
-                        operator, built_subquery, self.row_selector, mapped_column_name,
-                    );
-                } else {
-                    panic!("Unsupported expression type");
+                        return format!(
+                            "{}{}.Contains({}.{})",
+                            operator, built_subquery, self.row_selector, mapped_column_name,
+                        );
+                    }
+                    _ => panic!("Unsupported expression type"),
                 }
             }
             Expr::Between {
@@ -604,7 +723,6 @@ impl LinqQueryBuilder {
             Expr::Function(func) => {
                 let function_name = func.name.to_string().to_lowercase();
 
-                // TODO ;)
                 let args = if let FunctionArguments::List(list) = &func.args {
                     &list.args
                 } else {
@@ -640,63 +758,65 @@ impl LinqQueryBuilder {
                     panic!("Invalid function argument");
                 };
 
-                if let Expr::Identifier(ident) = expr {
-                    let field = ident.to_string();
+                match expr {
+                    Expr::Identifier(ident) => {
+                        let field = ident.to_string();
 
-                    let alias_option =
-                        self.get_table_alias_from_field_name(alias_to_table_map, &field);
+                        let alias_option =
+                            self.get_table_alias_from_field_name(alias_to_table_map, &field);
 
-                    let alias = alias_option.unwrap();
+                        let alias = alias_option.unwrap();
 
-                    let table_name = alias_to_table_map.get(alias).unwrap();
+                        let table_name = alias_to_table_map.get(alias).unwrap();
 
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&table_name, &field)
-                        .unwrap();
+                        let mapped_column_name = self
+                            .schema_mapping
+                            .get_column_name(&table_name, &field)
+                            .unwrap();
 
-                    if alias.is_empty() {
+                        if alias.is_empty() {
+                            return format!(
+                                "{}.{}({} => {}.{})",
+                                selector,
+                                function_name,
+                                self.row_selector,
+                                self.row_selector,
+                                mapped_column_name
+                            );
+                        }
+
                         return format!(
-                            "{}.{}({} => {}.{})",
+                            "{}.{}({} => {}.{}.{})",
                             selector,
                             function_name,
                             self.row_selector,
                             self.row_selector,
+                            alias,
                             mapped_column_name
                         );
                     }
+                    Expr::CompoundIdentifier(ident) => {
+                        let alias = ident[0].to_string();
+                        let field = ident[1].to_string();
 
-                    return format!(
-                        "{}.{}({} => {}.{}.{})",
-                        selector,
-                        function_name,
-                        self.row_selector,
-                        self.row_selector,
-                        alias,
-                        mapped_column_name
-                    );
-                } else if let Expr::CompoundIdentifier(ident) = expr {
-                    let alias = ident[0].to_string();
-                    let field = ident[1].to_string();
+                        let table_name = alias_to_table_map.get(&alias).unwrap();
 
-                    let table_name = alias_to_table_map.get(&alias).unwrap();
+                        let mapped_column_name = self
+                            .schema_mapping
+                            .get_column_name(&table_name, &field)
+                            .unwrap();
 
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&table_name, &field)
-                        .unwrap();
-
-                    return format!(
-                        "{}.{}({} => {}.{}.{})",
-                        selector,
-                        function_name,
-                        self.row_selector,
-                        self.row_selector,
-                        alias,
-                        mapped_column_name
-                    );
-                } else {
-                    panic!("Invalid function argument");
+                        return format!(
+                            "{}.{}({} => {}.{}.{})",
+                            selector,
+                            function_name,
+                            self.row_selector,
+                            self.row_selector,
+                            alias,
+                            mapped_column_name
+                        );
+                    }
+                    _ => panic!("Unsupported expression type"),
                 }
             }
             Expr::Value(value) => {
@@ -740,34 +860,37 @@ impl LinqQueryBuilder {
     }
 
     fn build_join_on(&self, expr: &Expr, constraints: &mut Vec<JoinOn>) -> () {
-        if let sqlparser::ast::Expr::BinaryOp { left, right, op } = expr {
-            if let (Expr::CompoundIdentifier(left_ident), Expr::CompoundIdentifier(right_ident)) =
-                (&**left, &**right)
-            {
-                let left_table_alias = left_ident[0].to_string();
-                let left_table_field = left_ident[1].to_string();
+        let (left, op, right) = match expr {
+            sqlparser::ast::Expr::BinaryOp { left, op, right } => (left, op, right),
+            _ => panic!("Invalid expression type"),
+        };
 
-                let right_table_alias = right_ident[0].to_string();
-                let right_table_field = right_ident[1].to_string();
+        if let (Expr::CompoundIdentifier(left_ident), Expr::CompoundIdentifier(right_ident)) =
+            (&**left, &**right)
+        {
+            let left_table_alias = left_ident[0].to_string();
+            let left_table_field = left_ident[1].to_string();
 
-                constraints.push(JoinOn {
-                    left_table_alias,
-                    left_table_field,
-                    right_table_alias,
-                    right_table_field,
-                    operator: op.to_string(),
-                });
+            let right_table_alias = right_ident[0].to_string();
+            let right_table_field = right_ident[1].to_string();
 
-                return;
-            }
+            constraints.push(JoinOn {
+                left_table_alias,
+                left_table_field,
+                right_table_alias,
+                right_table_field,
+                operator: op.to_string(),
+            });
 
-            if let Expr::BinaryOp { .. } = &**left {
-                self.build_join_on(left, constraints);
-            }
+            return;
+        }
 
-            if let Expr::BinaryOp { .. } = &**right {
-                self.build_join_on(right, constraints);
-            }
+        if let Expr::BinaryOp { .. } = &**left {
+            self.build_join_on(left, constraints);
+        }
+
+        if let Expr::BinaryOp { .. } = &**right {
+            self.build_join_on(right, constraints);
         }
     }
 
@@ -984,10 +1107,11 @@ impl LinqQueryBuilder {
         let mut linq_query = ".Take(".to_string();
 
         if let Some(limit) = &query.limit {
-            if let Expr::Value(value) = limit {
-                linq_query.push_str(&format!("{}", value));
-            } else {
-                panic!("Unknown expression type");
+            match limit {
+                Expr::Value(value) => {
+                    linq_query.push_str(&format!("{}", value));
+                }
+                _ => panic!("Unknown expression type"),
             }
         }
 
@@ -1305,119 +1429,30 @@ impl LinqQueryBuilder {
         if select.projection.len() > 0 {
             let mut current_linq_query = String::new();
 
-            if select.projection.len() == 1 {
+            let has_only_one_select_item = select.projection.len() == 1;
+            let first_select_item_is_unnamed =
+                if let SelectItem::UnnamedExpr(_) = &select.projection[0] {
+                    true
+                } else {
+                    false
+                };
+            let first_select_item_is_function =
                 if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
-                    if let Expr::Function(function) = expr {
-                        let function_name = function.name.to_string().to_lowercase();
-
-                        if ["count", "avg", "sum", "min", "max"].contains(&function_name.as_str()) {
-                            if let FunctionArguments::List(list) = &function.args {
-                                let is_distinct = if let Some(x) = list.duplicate_treatment {
-                                    x.to_string().to_lowercase() == "distinct"
-                                } else {
-                                    false
-                                };
-
-                                if list.args.len() == 1 {
-                                    if let FunctionArg::Unnamed(ident) = &list.args[0] {
-                                        if let FunctionArgExpr::Wildcard = ident {
-                                            // using .Distinct().[Func]() from below
-                                        } else if let FunctionArgExpr::Expr(expr) = ident {
-                                            let column_name: String;
-                                            let table_alias: String;
-
-                                            if let Expr::Identifier(ident) = expr {
-                                                column_name = ident.to_string();
-                                                table_alias = self
-                                                    .get_table_alias_from_field_name(
-                                                        &alias_to_table_map,
-                                                        &column_name,
-                                                    )
-                                                    .unwrap()
-                                                    .to_string();
-                                            } else if let Expr::CompoundIdentifier(ident) = expr {
-                                                table_alias = ident[0].to_string();
-                                                column_name = ident[1].to_string();
-                                            } else {
-                                                panic!("Invalid function argument");
-                                            }
-
-                                            let table_name =
-                                                alias_to_table_map.get(&table_alias).unwrap();
-
-                                            let mapped_column_name = self
-                                                .schema_mapping
-                                                .get_column_name(&table_name, &column_name)
-                                                .unwrap();
-
-                                            if table_alias.is_empty() {
-                                                current_linq_query.push_str(&format!(
-                                                    ".Select({} => {}.{})",
-                                                    self.row_selector,
-                                                    self.row_selector,
-                                                    mapped_column_name
-                                                ));
-                                            } else {
-                                                current_linq_query.push_str(&format!(
-                                                    ".Select({} => {}.{}.{})",
-                                                    self.row_selector,
-                                                    self.row_selector,
-                                                    table_alias,
-                                                    mapped_column_name
-                                                ));
-                                            }
-                                        } else {
-                                            panic!("Invalid function argument");
-                                        }
-
-                                        if is_distinct {
-                                            current_linq_query.push_str(".Distinct()");
-                                        }
-
-                                        let mapped_function_name = match function_name.as_str() {
-                                            "count" => "Count",
-                                            "sum" => "Sum",
-                                            "avg" => "Average",
-                                            "min" => "Min",
-                                            "max" => "Max",
-                                            _ => panic!("Unknown function"),
-                                        };
-
-                                        current_linq_query
-                                            .push_str(&format!(".{}()", mapped_function_name));
-                                    } else {
-                                        panic!("Invalid function argument");
-                                    }
-                                } else {
-                                    panic!("Invalid number of arguments for Count function");
-                                }
-                            } else {
-                                panic!("Invalid function arguments");
-                            }
-                        } else {
-                            panic!("Unknown function");
-                        }
+                    if let Expr::Function(_) = expr {
+                        true
                     } else {
-                        let full_result = self.build_projection(
-                            select,
-                            &alias_to_table_map,
-                            &main_table_name,
-                            has_group_by,
-                            group_by_fields,
-                            use_new_object_for_select,
-                        );
-
-                        let (select_result, group_by_result, calc_fields) = full_result;
-                        calculated_fields = calc_fields;
-                        current_linq_query.push_str(&select_result);
-
-                        if !has_group_by {
-                            linq_query.insert("group_by".to_string(), group_by_result);
-                        }
+                        false
                     }
-                }
-            } else {
-                let full_result = self.build_projection(
+                } else {
+                    false
+                };
+
+            if !has_only_one_select_item
+                || has_only_one_select_item
+                    && first_select_item_is_unnamed
+                    && !first_select_item_is_function
+            {
+                let projection_result = self.build_projection(
                     select,
                     &alias_to_table_map,
                     &main_table_name,
@@ -1426,12 +1461,24 @@ impl LinqQueryBuilder {
                     use_new_object_for_select,
                 );
 
-                let (select_result, group_by_result, calc_fields) = full_result;
-                calculated_fields = calc_fields;
-                current_linq_query.push_str(&select_result);
+                calculated_fields = projection_result.calculated_fields;
+                current_linq_query.push_str(&projection_result.select_result);
 
                 if !has_group_by {
-                    linq_query.insert("group_by".to_string(), group_by_result);
+                    linq_query.insert("group_by".to_string(), projection_result.group_by_result);
+                }
+            } else {
+                if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
+                    let function = if let Expr::Function(function) = expr {
+                        function
+                    } else {
+                        panic!("Unknown expression type");
+                    };
+
+                    let function_projection_result =
+                        self.build_projection_single_function(function, &alias_to_table_map);
+
+                    current_linq_query.push_str(&function_projection_result);
                 }
             }
 
@@ -1444,7 +1491,6 @@ impl LinqQueryBuilder {
         }
 
         if is_only_function {
-            // linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         } else {
             linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         }

@@ -212,7 +212,7 @@ fn tests() {
         ),
         (
             r#"SELECT date , max_temperature_f - min_temperature_f FROM weather ORDER BY max_temperature_f - min_temperature_f LIMIT 1"#,
-            r#"context.Weathers.Select(row => new { row.Date, Diff = row.MaxTemperatureF - row.MinTemperatureF }).OrderByDescending(row => row.Diff).Take(1).ToList();"#
+            r#"context.Weathers.Select(row => new { row.Date, Diff = row.MaxTemperatureF - row.MinTemperatureF }).OrderBy(row => row.Diff).Take(1).ToList();"#
         ),
         (
             r#"SELECT count(*) FROM station AS T1 JOIN trip AS T2 JOIN station AS T3 JOIN trip AS T4 ON T1.id = T2.start_station_id AND T2.id = T4.id AND T3.id = T4.end_station_id WHERE T1.city = "Mountain View" AND T3.city = "Palo Alto""#,
@@ -229,7 +229,7 @@ fn tests() {
             //     continue;
             // }
 
-            // if db_name != "bike_1" || index != 3 {
+            // if db_name != "activity_1" || index != 3 {
             //     continue;
             // }
 
@@ -258,7 +258,8 @@ fn create_tests_to_file() {
     "assets_maintenance".to_string(),
     "baseball_1".to_string(),
     "behavior_monitoring".to_string(),
-    "bike_1".to_string()
+    "bike_1".to_string(),
+    "body_builder".to_string()
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
