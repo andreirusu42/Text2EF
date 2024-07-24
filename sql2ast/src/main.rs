@@ -170,7 +170,7 @@ fn tests() {
     all_queries_and_results.insert("baseball_1".to_string(), vec![
         (
             r#"SELECT T1.name , T1.team_id , max(T2.salary) FROM team AS T1 JOIN salary AS T2 ON T1.team_id = T2.team_id GROUP BY T1.team_id;"#,
-            r#"context.Teams.Join(context.Salaries, T1 => T1.TeamId, T2 => T2.TeamId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeamId }).Select(group => new { group.First().T1.Name, group.Key.TeamId, MaxSalary1 = group.Max(row => row.T2.Salary1) }).ToList();"#,
+            r#"context.Teams.Join(context.Salaries, T1 => T1.TeamId, T2 => T2.TeamId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeamId }).Select(group => new { group.OrderByDescending(row => row.T2.Salary1).First().T1.Name, group.Key.TeamId, MaxSalary1 = group.Max(row => row.T2.Salary1) }).ToList();"#,
         ),
         (
             r#"SELECT count(*) FROM ( SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_winner = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' UNION SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_loser = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' );"#,
@@ -234,6 +234,17 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("chinook_1".to_string(), vec![
+        (
+            r#"SELECT distinct(BillingCountry) FROM INVOICE"#,
+            r#"context.Invoices.Select(row => new { row.BillingCountry }).Distinct().ToList();"#,
+        ),
+        (
+            r#"SELECT T2.Name , T1.ArtistId FROM ALBUM AS T1 JOIN ARTIST AS T2 ON T1.ArtistId = T2.ArtistID GROUP BY T1.ArtistId HAVING COUNT(*) >= 3 ORDER BY T2.Name"#,
+            r#"context.Albums.Join(context.Artists, T1 => T1.ArtistId, T2 => T2.ArtistId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.ArtistId }).Where(group => group.Count() >= 3).OrderBy(group => group.First().T2.Name).Select(group => new { group.First().T2.Name, group.Key.ArtistId }).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
@@ -243,9 +254,9 @@ fn tests() {
             //     continue;
             // }
 
-            if db_name != "candidate_poll" || index != 0 {
-                continue;
-            }
+            // if db_name != "chinook_1" || index != 1 {
+            //     continue;
+            // }
 
             println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 
@@ -276,7 +287,8 @@ fn create_tests_to_file() {
     // "body_builder".to_string(),
     // "book_2".to_string(),
     // "browser_web".to_string(),
-    "candidate_poll".to_string(),
+    // "candidate_poll".to_string(),
+    "chinook_1".to_string()
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -390,6 +402,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }

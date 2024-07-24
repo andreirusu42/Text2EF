@@ -144,7 +144,7 @@ impl LinqQueryBuilder {
         alias_to_table_map: &HashMap<String, String>,
         main_table_name: &str,
         has_group_by: bool,
-        group_by_fields: Vec<String>,
+        group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
     ) -> ProjectionResult {
         let mut select_result = String::new();
@@ -246,6 +246,8 @@ impl LinqQueryBuilder {
             }
         }
 
+        let mut expressions: Vec<&Expr> = Vec::new();
+
         for select_item in &select.projection {
             let expr = if let SelectItem::UnnamedExpr(expr) = select_item {
                 expr
@@ -253,6 +255,14 @@ impl LinqQueryBuilder {
                 panic!("Unknown select item type");
             };
 
+            if let Expr::Nested(nested_expr) = expr {
+                expressions.push(nested_expr);
+            } else {
+                expressions.push(expr);
+            }
+        }
+
+        for expr in expressions {
             if let Expr::Identifier(identifier) = expr {
                 let column_name = identifier.to_string();
 
@@ -1247,6 +1257,7 @@ impl LinqQueryBuilder {
         query: &Box<Query>,
         selector: String,
         alias_to_table_map: &HashMap<String, String>,
+        group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
     ) -> HashMap<String, String> {
         let mut keywords: HashMap<String, String> = HashMap::new();
@@ -1254,7 +1265,13 @@ impl LinqQueryBuilder {
         if query.order_by.len() > 0 {
             keywords.insert(
                 "order_by".to_string(),
-                self.build_order_by(query, selector, alias_to_table_map, calculated_fields),
+                self.build_order_by(
+                    query,
+                    selector,
+                    alias_to_table_map,
+                    group_by_fields,
+                    calculated_fields,
+                ),
             );
         }
 
@@ -1287,6 +1304,7 @@ impl LinqQueryBuilder {
         query: &Box<Query>,
         selector: String,
         alias_to_table_map: &HashMap<String, String>,
+        group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
     ) -> String {
         let mut linq_query = String::new();
@@ -1443,10 +1461,17 @@ impl LinqQueryBuilder {
                     ""
                 };
 
-                linq_query.push_str(&format!(
-                    "{} => {}{}.{}.{}",
-                    selector, cast, selector, alias, &mapped_column.name
-                ));
+                if group_by_fields.len() == 0 || group_by_fields.contains(&field) {
+                    linq_query.push_str(&format!(
+                        "{} => {}{}.{}.{}",
+                        selector, cast, selector, alias, &mapped_column.name
+                    ));
+                } else {
+                    linq_query.push_str(&format!(
+                        "{} => {}{}.First().{}.{}",
+                        selector, cast, selector, alias, &mapped_column.name
+                    ));
+                }
             } else if let Expr::BinaryOp { left, op, right } = &order_by.expr {
                 let left_expr =
                     self.build_where_expr(left, alias_to_table_map, false, &order_by.expr);
@@ -1497,6 +1522,7 @@ impl LinqQueryBuilder {
         HashMap<String, String>,
         HashMap<String, String>,
         HashMap<String, String>,
+        Vec<String>,
     ) {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
@@ -1612,7 +1638,7 @@ impl LinqQueryBuilder {
                     &alias_to_table_map,
                     &main_table_name,
                     has_group_by,
-                    group_by_fields,
+                    &group_by_fields,
                     use_new_object_for_select,
                 );
 
@@ -1649,7 +1675,12 @@ impl LinqQueryBuilder {
             linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         }
 
-        return (linq_query, alias_to_table_map, calculated_fields);
+        return (
+            linq_query,
+            alias_to_table_map,
+            calculated_fields,
+            group_by_fields,
+        );
     }
 
     fn build_query_helper(
@@ -1742,11 +1773,17 @@ impl LinqQueryBuilder {
                 true
             };
 
-        let (select_result, alias_to_table_map, calculated_fields) =
+        let (select_result, alias_to_table_map, calculated_fields, group_by_fields) =
             self.build_select(select, should_use_new_object_for_select);
+
         let selector = select_result.get("selector").unwrap().to_string();
-        let keywords_result =
-            self.build_keywords(query, selector, &alias_to_table_map, &calculated_fields);
+        let keywords_result = self.build_keywords(
+            query,
+            selector,
+            &alias_to_table_map,
+            &group_by_fields,
+            &calculated_fields,
+        );
 
         let should_have_order_by_after_select = calculated_fields.len() > 0;
 
