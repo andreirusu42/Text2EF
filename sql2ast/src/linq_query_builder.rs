@@ -441,33 +441,52 @@ impl LinqQueryBuilder {
                 }
             },
             Expr::Like { expr, pattern, .. } => {
-                if let Expr::Identifier(ident) = &**expr {
-                    let field = ident.to_string();
+                match &**expr {
+                    Expr::Identifier(ident) => {
+                        let field = ident.to_string();
 
-                    let alias_option =
-                        self.get_table_alias_from_field_name(alias_to_table_map, &field);
+                        let alias_option =
+                            self.get_table_alias_from_field_name(alias_to_table_map, &field);
 
-                    if alias_option.is_none() {
-                        return field; // this happens when using double quotes on a string
+                        if alias_option.is_none() {
+                            return field; // this happens when using double quotes on a string
+                        }
+
+                        let alias = alias_option.unwrap();
+
+                        let table_name = alias_to_table_map.get(alias).unwrap();
+
+                        let mapped_column_name = self
+                            .schema_mapping
+                            .get_column_name(&table_name, &field)
+                            .unwrap();
+
+                        let value = pattern.to_string().replace("'", "\"");
+
+                        return format!(
+                            "EF.Functions.Like({}.{}, {})",
+                            self.row_selector, mapped_column_name, value
+                        );
                     }
+                    Expr::CompoundIdentifier(ident) => {
+                        let alias = ident[0].to_string();
+                        let field = ident[1].to_string();
 
-                    let alias = alias_option.unwrap();
+                        let table_name = alias_to_table_map.get(&alias).unwrap();
 
-                    let table_name = alias_to_table_map.get(alias).unwrap();
+                        let mapped_column_name = self
+                            .schema_mapping
+                            .get_column_name(&table_name, &field)
+                            .unwrap();
 
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&table_name, &field)
-                        .unwrap();
+                        let value = pattern.to_string().replace("'", "\"");
 
-                    let value = pattern.to_string().replace("'", "\"");
-
-                    return format!(
-                        "EF.Functions.Like({}.{}, {})",
-                        self.row_selector, mapped_column_name, value
-                    );
-                } else {
-                    panic!("Unsupported expression type");
+                        return format!(
+                            "EF.Functions.Like({}.{}.{}, {})",
+                            self.row_selector, alias, mapped_column_name, value
+                        );
+                    }
+                    _ => panic!("Unsupported expression type"),
                 }
             }
             Expr::InSubquery {
