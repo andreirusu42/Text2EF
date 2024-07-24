@@ -166,7 +166,6 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         alias_to_table_map: &HashMap<String, String>,
-        main_table_name: &str,
         has_group_by: bool,
         group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
@@ -242,6 +241,51 @@ impl LinqQueryBuilder {
             } else if let Expr::CompoundIdentifier(identifier) = expr {
                 let table_alias = identifier[0].to_string();
                 let column_name = identifier[1].to_string();
+
+                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+
+                mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(&table_name, &column_name)
+                    .unwrap();
+            } else if let Expr::Function(function) = expr {
+                let arg_list = if let FunctionArguments::List(list) = &function.args {
+                    &list.args
+                } else {
+                    panic!("Invalid function arguments");
+                };
+
+                let arg = if let FunctionArg::Unnamed(ident) = &arg_list[0] {
+                    ident
+                } else {
+                    panic!("Invalid function argument");
+                };
+
+                let table_alias: String;
+
+                let column_name = if let FunctionArgExpr::Expr(expr) = arg {
+                    match expr {
+                        Expr::Identifier(ident) => {
+                            let column_name = ident.to_string();
+
+                            table_alias = self
+                                .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
+                                .unwrap()
+                                .to_string();
+
+                            column_name
+                        }
+                        Expr::CompoundIdentifier(ident) => {
+                            table_alias = ident[0].to_string();
+                            ident[1].to_string()
+                        }
+                        _ => panic!("Invalid function argument"),
+                    }
+                } else if let FunctionArgExpr::Wildcard = arg {
+                    continue;
+                } else {
+                    panic!("Invalid function argument");
+                };
 
                 let table_name = alias_to_table_map.get(&table_alias).unwrap();
 
@@ -465,7 +509,7 @@ impl LinqQueryBuilder {
                 }
 
                 let column_name: String;
-                let column_alias: String;
+                let table_alias: String;
 
                 let mapped_function_name = match function_name.as_str() {
                     "min" => "Min",
@@ -516,27 +560,37 @@ impl LinqQueryBuilder {
                 match expr {
                     Expr::Identifier(ident) => {
                         column_name = ident.to_string();
-                        column_alias = String::new();
+                        table_alias = self
+                            .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
+                            .unwrap()
+                            .to_string();
                     }
                     Expr::CompoundIdentifier(ident) => {
-                        column_alias = ident[0].to_string();
+                        table_alias = ident[0].to_string();
                         column_name = ident[1].to_string();
                     }
                     _ => panic!("Invalid function argument"),
                 }
 
-                let table_alias = self
-                    .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
-                    .unwrap();
-
-                let table_name = alias_to_table_map.get(table_alias).unwrap();
+                let table_name = alias_to_table_map.get(&table_alias).unwrap();
 
                 let mapped_column = self
                     .schema_mapping
                     .get_column(&table_name, &column_name)
                     .unwrap();
 
-                let field_name = format!("{}{}", mapped_function_name, &mapped_column.name);
+                let distinct_name = if is_distinct { "Distinct" } else { "" };
+
+                let suffix = if fields_with_same_name.contains(&mapped_column.name) {
+                    table_alias.to_string()
+                } else {
+                    "".to_string()
+                };
+
+                let field_name = format!(
+                    "{}{}{}{}",
+                    mapped_function_name, distinct_name, &mapped_column.name, suffix
+                );
 
                 let cast = if mapped_column.field_type == "decimal" {
                     "(double) "
@@ -881,31 +935,38 @@ impl LinqQueryBuilder {
                 let built_subquery =
                     self.build_query_helper(subquery, Some(false), Some(false), Some(true));
 
+                let column_name: String;
+                let table_alias: String;
+
                 match &**expr {
                     Expr::Identifier(ident) => {
-                        let field = ident.to_string();
-
-                        let alias_option =
-                            self.get_table_alias_from_field_name(alias_to_table_map, &field);
-
-                        let alias = alias_option.unwrap();
-
-                        let table_name = alias_to_table_map.get(alias).unwrap();
-
-                        let mapped_column_name = self
-                            .schema_mapping
-                            .get_column_name(&table_name, &field)
-                            .unwrap();
-
-                        let operator = if *negated { "!" } else { "" };
-
-                        return format!(
-                            "{}{}.Contains({}.{})",
-                            operator, built_subquery, self.row_selector, mapped_column_name,
-                        );
+                        column_name = ident.to_string();
+                        table_alias = self
+                            .get_table_alias_from_field_name(alias_to_table_map, &column_name)
+                            .unwrap()
+                            .to_string();
+                    }
+                    Expr::CompoundIdentifier(ident) => {
+                        table_alias = ident[0].to_string();
+                        column_name = ident[1].to_string();
                     }
                     _ => panic!("Unsupported expression type"),
                 }
+
+                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(&table_name, &column_name)
+                    .unwrap();
+
+                let operator = if *negated { "!" } else { "" };
+
+                println!("Built subquery: {}", built_subquery);
+
+                return format!(
+                    "{}{}.Contains({}.{})",
+                    operator, built_subquery, self.row_selector, mapped_column_name,
+                );
             }
             Expr::Between {
                 low,
@@ -1753,7 +1814,6 @@ impl LinqQueryBuilder {
                 let projection_result = self.build_projection(
                     select,
                     &alias_to_table_map,
-                    &main_table_name,
                     has_group_by,
                     &group_by_fields,
                     use_new_object_for_select,
