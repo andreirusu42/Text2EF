@@ -961,11 +961,19 @@ impl LinqQueryBuilder {
 
                 let operator = if *negated { "!" } else { "" };
 
-                println!("Built subquery: {}", built_subquery);
+                let table_alias_string = if table_alias.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("{}.", table_alias)
+                };
 
                 return format!(
-                    "{}{}.Contains({}.{})",
-                    operator, built_subquery, self.row_selector, mapped_column_name,
+                    "{}{}.Contains({}.{}{})",
+                    operator,
+                    built_subquery,
+                    self.row_selector,
+                    table_alias_string,
+                    mapped_column_name,
                 );
             }
             Expr::Between {
@@ -1320,7 +1328,7 @@ impl LinqQueryBuilder {
                     outer_key_selector = left_table_alias.to_string();
                     joined_aliases.push(left_table_alias.clone());
                 } else {
-                    outer_key_selector = "joined".to_string();
+                    outer_key_selector = "joined".to_string()
                 }
 
                 let mapped_table_name = self

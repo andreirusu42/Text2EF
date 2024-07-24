@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead, Write};
 use std::path::Path;
 
@@ -252,11 +252,11 @@ fn tests() {
     all_queries_and_results.insert("college_1".to_string(), vec![
         (
             r#"SELECT count(DISTINCT dept_address) , school_code FROM department GROUP BY school_code"#,
-            r#"context.Departments.GroupBy(row => new { row.SchoolCode }).Select(group => new { CountDeptAddress = group.Select(row => row.DeptAddress).Distinct().Count(), group.Key.SchoolCode }).ToList();"#,
+            r#"context.Departments.GroupBy(row => new { row.SchoolCode }).Select(group => new { CountDistinctDeptAddress = group.Select(row => row.DeptAddress).Distinct().Count(), group.Key.SchoolCode }).ToList();"#,
         ),
         (
             r#"SELECT count(DISTINCT dept_name) , school_code FROM department GROUP BY school_code HAVING count(DISTINCT dept_name) < 5"#,
-            r#"context.Departments.GroupBy(row => new { row.SchoolCode }).Select(group => new { CountDeptName = group.Select(row => row.DeptName).Distinct().Count(), group.Key.SchoolCode }).Where(group => group.CountDeptName < 5).ToList();"#,
+            r#"context.Departments.GroupBy(row => new { row.SchoolCode }).Select(group => new { CountDistinctDeptName = group.Select(row => row.DeptName).Distinct().Count(), group.Key.SchoolCode }).Where(group => group.CountDistinctDeptName < 5).ToList();"#,
         ),
         (
             r#"SELECT count(*) , dept_code FROM CLASS AS T1 JOIN course AS T2 ON T1.crs_code = T2.crs_code GROUP BY dept_code"#,
@@ -264,24 +264,29 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("cre_Theme_park".to_string(), vec![
+        (
+            r#"SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id = T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID = T3.Feature_ID WHERE T3.feature_Details = 'park' UNION SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id = T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID = T3.Feature_ID WHERE T3.feature_Details = 'shopping'"#,
+            r#"context.TouristAttractions.Join(context.TouristAttractionFeature, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).Join(context.Features, joined => joined.T2.FeatureId, T3 => T3.FeatureId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.FeatureDetails == "park").Select(row => row.T1.Name).Union(context.TouristAttractions.Join(context.TouristAttractionFeature, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).Join(context.Features, joined => joined.T2.FeatureId, T3 => T3.FeatureId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.FeatureDetails == "shopping").Select(row => row.T1.Name)).ToList();"#,
+        )
+    ]);
+
+    all_queries_and_results.insert("college_2".to_string(), vec![
+        (
+            r#"SELECT count(DISTINCT T2.id) , count(DISTINCT T3.id) , T3.dept_name FROM department AS T1 JOIN student AS T2 ON T1.dept_name = T2.dept_name JOIN instructor AS T3 ON T1.dept_name = T3.dept_name GROUP BY T3.dept_name"#,
+            r#"context.Departments.Join(context.Students, T1 => T1.DeptName, T2 => T2.DeptName, (T1, T2) => new { T1, T2 }).Join(context.Instructors, joined => joined.T1.DeptName, T3 => T3.DeptName, (joined, T3) => new { joined.T1, joined.T2, T3 }).GroupBy(row => new { row.T3.DeptName }).Select(group => new { CountDistinctIdT2 = group.Select(row => row.T2.Id).Distinct().Count(), CountDistinctIdT3 = group.Select(row => row.T3.Id).Distinct().Count(), group.Key.DeptName }).ToList();"#,
+        ),
+        (
+            r#"SELECT T1.name FROM student AS T1 JOIN takes AS T2 ON T1.id = T2.id WHERE T2.course_id IN (SELECT T4.prereq_id FROM course AS T3 JOIN prereq AS T4 ON T3.course_id = T4.course_id WHERE T3.title = 'International Finance')"#,
+            r#"context.Students.Join(context.Takes, T1 => T1.Id, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Where(row => context.Courses.Join(context.Prereq, T3 => T3.CourseId, T4 => T4.CourseId, (T3, T4) => new { T3, T4 }).Where(row => row.T3.Title == "International Finance").Select(row => row.T4.PrereqId).Contains(row.T2.CourseId)).Select(row => new { row.T1.Name }).ToList();"#,
+        )
+    ]);
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name == "bike_1" && index == 3 {
-            //     continue;
-            // }
-
-            // if db_name != "college_1" || index != 1 {
-            //     continue;
-            // }
-
-            // if db_name != "chinook_1" || index != 0 {
-            //     continue;
-            // }
-
-            // if db_name != "college_1" || index != 2 {
+            // if db_name != "college_2" || index != 1 {
             //     continue;
             // }
             
@@ -302,27 +307,51 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    let db_names = vec![
-    // "activity_1".to_string(),
-    // "apartment_rentals".to_string(),
-    // "allergy_1".to_string(), 
-    // "assets_maintenance".to_string(),
-    // "baseball_1".to_string(),
-    // "behavior_monitoring".to_string(),
-    // "bike_1".to_string(),
-    // "body_builder".to_string(),
-    // "book_2".to_string(),
-    // "browser_web".to_string(),
-    // "candidate_poll".to_string(),
-    // "chinook_1".to_string(),
-    // "cinema".to_string(),
-    // "climbing".to_string(),
-    // "club_1".to_string(),
-    // "coffee_shop".to_string(),
-    "college_1".to_string(),
-    // "college_2".to_string(),
-    // "college_3".to_string(),
-    ];
+    // let db_names = vec![
+    // // "activity_1".to_string(),
+    // // "apartment_rentals".to_string(),
+    // // "allergy_1".to_string(), 
+    // // "assets_maintenance".to_string(),
+    // // "baseball_1".to_string(),
+    // // "behavior_monitoring".to_string(),
+    // // "bike_1".to_string(),
+    // // "body_builder".to_string(),
+    // // "book_2".to_string(),
+    // // "browser_web".to_string(),
+    // // "candidate_poll".to_string(),
+    // // "chinook_1".to_string(),
+    // // "cinema".to_string(),
+    // // "climbing".to_string(),
+    // // "club_1".to_string(),
+    // // "coffee_shop".to_string(),
+    // // "college_1".to_string(),
+    // // "college_2".to_string(),
+    // // "college_3".to_string(),
+    // "company_1".to_string()
+    // ];
+
+    let mut db_names: Vec<String> = Vec::new();
+
+    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+        let entry = entry.unwrap();
+
+        let path = entry.path();
+
+        if path.is_dir() {
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+
+            // check if there are files inside the dir
+
+            let mut files = fs::read_dir(path).unwrap();
+
+            if files.next().is_some() {
+                db_names.push(file_name);
+            }
+
+        }
+
+    }
+
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
         let mut c_sharp_code = String::new();
@@ -365,8 +394,13 @@ fn create_tests_to_file() {
         }
     }
 
+
     for db_name in &db_names {
-        let queries = queries.get(db_name.as_str()).unwrap();
+        let queries = if let Some(queries) = queries.get(db_name.as_str()) {
+            queries
+        } else {
+            continue;
+        };
 
         let linq_query_builder =
             LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
@@ -440,6 +474,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }
