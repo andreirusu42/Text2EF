@@ -160,11 +160,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         if let Some(join_table_content) = join_table_regex.captures(entity_content) {
             let join_table_content = join_table_content.get(0).unwrap().as_str();
 
-            println!("Join table content: {}", join_table_content);
-
             let join_table_capture = join_table_content_regex
                 .captures(join_table_content)
-                .expect("Failed to find the join table content");
+                .unwrap();
 
             let mapped_table_name = join_table_capture.get(1).unwrap().as_str();
             let table_name = join_table_capture.get(2).unwrap().as_str();
