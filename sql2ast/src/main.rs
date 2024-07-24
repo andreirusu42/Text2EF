@@ -240,12 +240,27 @@ fn tests() {
             r#"context.Invoices.Select(row => new { row.BillingCountry }).Distinct().ToList();"#,
         ),
         (
-            r#"SELECT T2.Name , T1.ArtistId FROM ALBUM AS T1 JOIN ARTIST AS T2 ON T1.ArtistId = T2.ArtistID GROUP BY T1.ArtistId HAVING COUNT(*) >= 3 ORDER BY T2.Name"#,
-            r#"context.Albums.Join(context.Artists, T1 => T1.ArtistId, T2 => T2.ArtistId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.ArtistId }).Where(group => group.Count() >= 3).OrderBy(group => group.First().T2.Name).Select(group => new { group.First().T2.Name, group.Key.ArtistId }).ToList();"#,
+            r#"SELECT T2.Name , T1.ArtistId FROM ALBUM AS T1 JOIN ARTIST AS T2 ON T1.ArtistId = T2.ArtistID WHERE T2.Name != "Hello" GROUP BY T1.ArtistId HAVING COUNT(*) >= 3 ORDER BY T2.Name"#,
+            r#"context.Albums.Join(context.Artists, T1 => T1.ArtistId, T2 => T2.ArtistId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name != "Hello").GroupBy(row => new { row.T1.ArtistId }).Where(group => group.Count() >= 3).OrderBy(group => group.First().T2.Name).Select(group => new { group.First().T2.Name, group.Key.ArtistId }).ToList();"#,
         ),
         (
             r#"SELECT AVG(UnitPrice) FROM TRACK"#,
             r#"context.Tracks.Select(row => (double) row.UnitPrice).Average();"#,
+        )
+    ]);
+
+    all_queries_and_results.insert("college_1".to_string(), vec![
+        (
+            r#"SELECT count(DISTINCT dept_address) , school_code FROM department GROUP BY school_code"#,
+            r#"context.Departments.GroupBy(row => new { row.SchoolCode }).Select(group => new { CountDeptAddress = group.Select(row => row.DeptAddress).Distinct().Count(), group.Key.SchoolCode }).ToList();"#,
+        ),
+        (
+            r#"SELECT count(DISTINCT dept_name) , school_code FROM department GROUP BY school_code HAVING count(DISTINCT dept_name) < 5"#,
+            r#"context.Departments.GroupBy(row => new { row.SchoolCode }).Select(group => new { CountDeptName = group.Select(row => row.DeptName).Distinct().Count(), group.Key.SchoolCode }).Where(group => group.CountDeptName < 5).ToList();"#,
+        ),
+        (
+            r#"SELECT count(*) , dept_code FROM CLASS AS T1 JOIN course AS T2 ON T1.crs_code = T2.crs_code GROUP BY dept_code"#,
+            r#"context.Classes.Join(context.Courses, T1 => T1.CrsCode, T2 => T2.CrsCode, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T2.DeptCode }).Select(group => new { Count = group.Count(), group.Key.DeptCode }).ToList();"#,
         )
     ]);
 
@@ -258,10 +273,18 @@ fn tests() {
             //     continue;
             // }
 
-            if db_name != "chinook_1" || index != 2 {
-                continue;
-            }
+            // if db_name != "college_1" || index != 1 {
+            //     continue;
+            // }
 
+            // if db_name != "chinook_1" || index != 0 {
+            //     continue;
+            // }
+
+            // if db_name != "college_1" || index != 2 {
+            //     continue;
+            // }
+            
             println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
 
             let result = linq_query_builder.build_query(sql);
@@ -270,7 +293,6 @@ fn tests() {
                 println!("Test {} passed", index + 1);
             } else {
                 println!("Test {} failed", index + 1);
-                println!("SQL: {}", sql);
                 println!("Expected | Got");
                 println!("{}\n{}", expected_result, result);
                 return;
@@ -292,7 +314,14 @@ fn create_tests_to_file() {
     // "book_2".to_string(),
     // "browser_web".to_string(),
     // "candidate_poll".to_string(),
-    "chinook_1".to_string()
+    // "chinook_1".to_string(),
+    // "cinema".to_string(),
+    // "climbing".to_string(),
+    // "club_1".to_string(),
+    // "coffee_shop".to_string(),
+    "college_1".to_string(),
+    // "college_2".to_string(),
+    // "college_3".to_string(),
     ];
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -342,7 +371,7 @@ fn create_tests_to_file() {
         let linq_query_builder =
             LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
-            // TODO: not from here pls
+        // TODO: not from here pls
         let context_name = &linq_query_builder.schema_mapping.context;
     
         let mut sql_and_results: Vec<(String, String)> = Vec::new();
@@ -367,6 +396,11 @@ fn create_tests_to_file() {
             if query.to_lowercase().contains("ref_company_types") {
                 continue;
             }
+
+            // wrong in the dataset, college_2
+            // if query.to_lowercase().contains("join prereq") {
+            //     continue;
+            // }
     
             println!("Processing query {} for {}", index, db_name);
             println!("{}", query);
@@ -406,6 +440,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }

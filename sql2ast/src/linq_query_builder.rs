@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr,
@@ -24,12 +25,28 @@ pub struct ProjectionResult {
     pub select_result: String,
     pub group_by_result: String,
     pub calculated_fields: HashMap<String, String>,
+    pub aggregated_fields: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct SelectResult {
+    pub linq_query: HashMap<String, String>,
+    pub alias_to_table_map: HashMap<String, String>,
+    pub calculated_fields: HashMap<String, String>,
+    pub group_by_fields: Vec<String>,
+    pub aggregated_fields: HashMap<String, String>,
 }
 
 pub struct LinqQueryBuilder {
     pub schema_mapping: SchemaMapping,
     row_selector: String,
     group_selector: String,
+}
+
+fn append_if_some(linq_query: &mut String, map: &HashMap<String, String>, key: &str) {
+    if let Some(value) = map.get(key) {
+        linq_query.push_str(value);
+    }
 }
 
 impl LinqQueryBuilder {
@@ -157,6 +174,7 @@ impl LinqQueryBuilder {
         let mut select_result = String::new();
         let mut group_by_result = String::new();
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
+        let mut aggregated_fields: HashMap<String, String> = HashMap::new();
 
         let mut selector = if has_group_by {
             &self.group_selector
@@ -215,9 +233,11 @@ impl LinqQueryBuilder {
                     .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
                     .unwrap();
 
+                let table_name = alias_to_table_map.get(table_alias).unwrap();
+
                 mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&main_table_name, &column_name)
+                    .get_column_name(&table_name, &column_name)
                     .unwrap();
             } else if let Expr::CompoundIdentifier(identifier) = expr {
                 let table_alias = identifier[0].to_string();
@@ -277,9 +297,11 @@ impl LinqQueryBuilder {
                     .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
                     .unwrap();
 
+                let table_name = alias_to_table_map.get(table_alias).unwrap();
+
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&main_table_name, &column_name)
+                    .get_column_name(&table_name, &column_name)
                     .unwrap();
 
                 if table_alias.is_empty() {
@@ -294,10 +316,21 @@ impl LinqQueryBuilder {
                         select_fields.push(format!("{}.{}", selector, mapped_column_name));
                     }
                 } else {
-                    select_fields.push(format!(
-                        "{}.{}.{}",
-                        selector, table_alias, mapped_column_name
-                    ));
+                    if has_group_by {
+                        if group_by_fields.contains(&mapped_column_name) {
+                            select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                        } else {
+                            select_fields.push(format!(
+                                "{}.First().{}.{}",
+                                selector, table_alias, mapped_column_name
+                            ));
+                        }
+                    } else {
+                        select_fields.push(format!(
+                            "{}.{}.{}",
+                            selector, table_alias, mapped_column_name
+                        ));
+                    }
                 }
             } else if let Expr::CompoundIdentifier(identifier) = expr {
                 let table_alias = identifier[0].to_string();
@@ -319,15 +352,11 @@ impl LinqQueryBuilder {
                    At the moment I simply do .OrderBy() on that field too.
                    I think it'd be a good idea to have a double select
                 */
+
                 if has_group_by {
                     if group_by_fields.contains(&mapped_column_name) {
                         select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
                     } else {
-                        println!(
-                            "Selector: {}, table_alias: {}, mapped_column_name: {}",
-                            selector, table_alias, mapped_column_name
-                        );
-
                         if let Some(last_aggregate_function) = last_aggregate_function {
                             let aggregation_type = last_aggregate_function.name.to_string();
 
@@ -453,8 +482,14 @@ impl LinqQueryBuilder {
                     panic!("Invalid function arguments");
                 };
 
+                let is_distinct = if let Some(treatment) = arg_list.duplicate_treatment {
+                    treatment.to_string().to_lowercase() == "distinct"
+                } else {
+                    false
+                };
+
                 if arg_list.args.len() != 1 {
-                    panic!("Invalid number of arguments for Min/Max/Avg function");
+                    panic!("Invalid number of arguments for function");
                 }
 
                 let ident = if let FunctionArg::Unnamed(ident) = &arg_list.args[0] {
@@ -509,33 +544,48 @@ impl LinqQueryBuilder {
                     ""
                 };
 
-                if table_alias.is_empty() {
-                    select_fields.push(format!(
-                        "{} = {}.{}({} => {}{}.{})",
-                        field_name,
-                        selector,
-                        mapped_function_name,
-                        self.row_selector,
-                        cast,
-                        self.row_selector,
-                        &mapped_column.name,
-                    ));
+                let select_expression = if table_alias.is_empty() {
+                    format!("{}.{}", self.row_selector, &mapped_column.name)
                 } else {
-                    select_fields.push(format!(
-                        "{} = {}.{}({} => {}{}.{}.{})",
-                        field_name,
-                        selector,
-                        mapped_function_name,
-                        self.row_selector,
-                        cast,
-                        self.row_selector,
-                        table_alias,
-                        &mapped_column.name,
-                    ));
-                }
+                    format!(
+                        "{}.{}.{}",
+                        self.row_selector, table_alias, &mapped_column.name
+                    )
+                };
+
+                let function_call = if is_distinct {
+                    format!(
+                        "{}.Select({} => {}).Distinct().{}()",
+                        selector, self.row_selector, select_expression, mapped_function_name
+                    )
+                } else {
+                    format!(
+                        "{}.{}({} => {}{})",
+                        selector, mapped_function_name, self.row_selector, cast, select_expression
+                    )
+                };
+
+                let result = format!("{} = {}", field_name, function_call);
+
+                select_fields.push(result.to_string());
+
+                // TODO: I guess that if you were to have an alias for this, then you should insert the alias. Just saying
+                aggregated_fields.insert(function.to_string().to_lowercase(), field_name);
             } else if let Expr::BinaryOp { left, op, right } = expr {
-                let left_expr = self.build_where_expr(left, alias_to_table_map, false, expr);
-                let right_expr = self.build_where_expr(right, alias_to_table_map, false, expr);
+                let left_expr = self.build_where_expr(
+                    left,
+                    alias_to_table_map,
+                    false,
+                    expr,
+                    &aggregated_fields,
+                );
+                let right_expr = self.build_where_expr(
+                    right,
+                    alias_to_table_map,
+                    false,
+                    expr,
+                    &aggregated_fields,
+                );
                 let operator = match op {
                     BinaryOperator::Minus => " - ",
                     _ => panic!("Unknown comparison operator"),
@@ -570,6 +620,7 @@ impl LinqQueryBuilder {
             select_result,
             group_by_result,
             calculated_fields,
+            aggregated_fields,
         };
     }
 
@@ -595,12 +646,33 @@ impl LinqQueryBuilder {
             for expr in expressions {
                 if let Expr::Identifier(ident) = expr {
                     let column_name = ident.to_string();
+
+                    let table_alias =
+                        self.get_table_alias_from_field_name(alias_to_table_map, &column_name);
+
+                    if table_alias.is_none() {
+                        panic!("Unknown field name");
+                    }
+
+                    let table_alias = table_alias.unwrap();
+
+                    let table_name = alias_to_table_map.get(table_alias).unwrap();
+
                     let mapped_column_name = self
                         .schema_mapping
                         .get_column_name(&table_name, &column_name)
                         .unwrap();
 
-                    group_by_fields.push(format!("{}.{}", self.row_selector, mapped_column_name));
+                    if table_alias.is_empty() {
+                        group_by_fields
+                            .push(format!("{}.{}", self.row_selector, mapped_column_name));
+                    } else {
+                        group_by_fields.push(format!(
+                            "{}.{}.{}",
+                            self.row_selector, table_alias, mapped_column_name
+                        ));
+                    }
+
                     raw_group_by_fields.push(mapped_column_name.to_string());
                 } else if let Expr::CompoundIdentifier(identifiers) = expr {
                     let table_alias = identifiers[0].to_string();
@@ -658,17 +730,25 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         alias_to_table_map: &HashMap<String, String>,
+        aggregated_fields: &HashMap<String, String>,
     ) -> (String, String) {
         let mut selection_query = String::new();
         let mut having_query = String::new();
 
         if let Some(selection) = &select.selection {
-            let where_clause = self.build_where_helper(selection, alias_to_table_map, None, false);
+            let where_clause = self.build_where_helper(
+                selection,
+                alias_to_table_map,
+                None,
+                false,
+                &aggregated_fields,
+            );
             selection_query = format!(".Where({} => {})", self.row_selector, where_clause);
         }
 
         if let Some(having) = &select.having {
-            let having_clause = self.build_where_helper(having, alias_to_table_map, None, true);
+            let having_clause =
+                self.build_where_helper(having, alias_to_table_map, None, true, &aggregated_fields);
             having_query = format!(".Where({} => {})", self.group_selector, having_clause);
         }
 
@@ -681,6 +761,7 @@ impl LinqQueryBuilder {
         alias_to_table_map: &HashMap<String, String>,
         parent_precedence: Option<i32>,
         is_having: bool,
+        aggregated_fields: &HashMap<String, String>,
     ) -> String {
         match expr {
             Expr::BinaryOp { left, op, right } => match op {
@@ -696,12 +777,14 @@ impl LinqQueryBuilder {
                         alias_to_table_map,
                         Some(precedence),
                         is_having,
+                        aggregated_fields,
                     );
                     let right_condition = self.build_where_helper(
                         right,
                         alias_to_table_map,
                         Some(precedence),
                         is_having,
+                        aggregated_fields,
                     );
                     let operator = match op {
                         BinaryOperator::And => " && ",
@@ -720,10 +803,20 @@ impl LinqQueryBuilder {
                     return condition;
                 }
                 _ => {
-                    let left_condition =
-                        self.build_where_expr(left, alias_to_table_map, is_having, expr);
-                    let right_condition =
-                        self.build_where_expr(right, alias_to_table_map, is_having, expr);
+                    let left_condition = self.build_where_expr(
+                        left,
+                        alias_to_table_map,
+                        is_having,
+                        expr,
+                        &aggregated_fields,
+                    );
+                    let right_condition = self.build_where_expr(
+                        right,
+                        alias_to_table_map,
+                        is_having,
+                        expr,
+                        &aggregated_fields,
+                    );
                     let operator = match op {
                         BinaryOperator::Eq => " == ",
                         BinaryOperator::NotEq => " != ",
@@ -820,11 +913,27 @@ impl LinqQueryBuilder {
                 expr,
                 negated,
             } => {
-                let low_condition = self.build_where_expr(low, alias_to_table_map, is_having, expr);
-                let high_condition =
-                    self.build_where_expr(high, alias_to_table_map, is_having, expr);
-                let expr_condition =
-                    self.build_where_expr(expr, alias_to_table_map, is_having, expr);
+                let low_condition = self.build_where_expr(
+                    low,
+                    alias_to_table_map,
+                    is_having,
+                    expr,
+                    &HashMap::new(),
+                );
+                let high_condition = self.build_where_expr(
+                    high,
+                    alias_to_table_map,
+                    is_having,
+                    expr,
+                    &HashMap::new(),
+                );
+                let expr_condition = self.build_where_expr(
+                    expr,
+                    alias_to_table_map,
+                    is_having,
+                    expr,
+                    &HashMap::new(),
+                );
 
                 if *negated {
                     return format!(
@@ -848,6 +957,7 @@ impl LinqQueryBuilder {
         alias_to_table_map: &HashMap<String, String>,
         is_having: bool,
         root_expr: &Expr,
+        aggregated_fields: &HashMap<String, String>,
     ) -> String {
         let selector = if is_having {
             &self.group_selector
@@ -894,6 +1004,13 @@ impl LinqQueryBuilder {
             }
             Expr::Function(func) => {
                 let function_name = func.name.to_string().to_lowercase();
+
+                let aggregated_field_option =
+                    aggregated_fields.get(&func.to_string().to_lowercase());
+
+                if let Some(aggregated_field) = aggregated_field_option {
+                    return format!("{}.{}", selector, aggregated_field);
+                }
 
                 let args = if let FunctionArguments::List(list) = &func.args {
                     &list.args
@@ -1124,7 +1241,6 @@ impl LinqQueryBuilder {
                 }
 
                 let left_table_name = alias_to_table_map.get(left_table_alias).unwrap();
-
                 let right_table_name = alias_to_table_map.get(right_table_alias).unwrap();
 
                 let mapped_left_field = self
@@ -1480,10 +1596,20 @@ impl LinqQueryBuilder {
                     ));
                 }
             } else if let Expr::BinaryOp { left, op, right } = &order_by.expr {
-                let left_expr =
-                    self.build_where_expr(left, alias_to_table_map, false, &order_by.expr);
-                let right_expr =
-                    self.build_where_expr(right, alias_to_table_map, false, &order_by.expr);
+                let left_expr = self.build_where_expr(
+                    left,
+                    alias_to_table_map,
+                    false,
+                    &order_by.expr,
+                    &HashMap::new(),
+                );
+                let right_expr = self.build_where_expr(
+                    right,
+                    alias_to_table_map,
+                    false,
+                    &order_by.expr,
+                    &HashMap::new(),
+                );
                 let operator = match op {
                     BinaryOperator::Eq => " == ",
                     BinaryOperator::NotEq => " != ",
@@ -1521,16 +1647,7 @@ impl LinqQueryBuilder {
         return linq_query;
     }
 
-    fn build_select(
-        &self,
-        select: &Box<Select>,
-        use_new_object_for_select: bool,
-    ) -> (
-        HashMap<String, String>,
-        HashMap<String, String>,
-        HashMap<String, String>,
-        Vec<String>,
-    ) {
+    fn build_select(&self, select: &Box<Select>, use_new_object_for_select: bool) -> SelectResult {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
         let main_table_name: String;
@@ -1579,14 +1696,6 @@ impl LinqQueryBuilder {
             );
         }
 
-        if select.selection.is_some() || select.having.is_some() {
-            let (select_where, having_where) = self.build_where(select, &alias_to_table_map);
-
-            linq_query.insert("select_where".to_string(), select_where);
-
-            linq_query.insert("having_where".to_string(), having_where);
-        }
-
         let is_only_function = select.projection.len() == 1
             && if let Some(SelectItem::UnnamedExpr(Expr::Function(_))) = select.projection.get(0) {
                 true
@@ -1614,6 +1723,7 @@ impl LinqQueryBuilder {
         linq_query.insert("selector".to_string(), selector.to_string());
 
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
+        let mut aggregated_fields: HashMap<String, String> = HashMap::new();
         if select.projection.len() > 0 {
             let mut current_linq_query = String::new();
 
@@ -1650,6 +1760,7 @@ impl LinqQueryBuilder {
                 );
 
                 calculated_fields = projection_result.calculated_fields;
+                aggregated_fields = projection_result.aggregated_fields;
                 current_linq_query.push_str(&projection_result.select_result);
 
                 if !has_group_by {
@@ -1673,6 +1784,15 @@ impl LinqQueryBuilder {
             linq_query.insert("projection".to_string(), current_linq_query);
         }
 
+        if select.selection.is_some() || select.having.is_some() {
+            let (select_where, having_where) =
+                self.build_where(select, &alias_to_table_map, &aggregated_fields);
+
+            linq_query.insert("select_where".to_string(), select_where);
+
+            linq_query.insert("having_where".to_string(), having_where);
+        }
+
         if select.distinct.is_some() {
             linq_query.insert("distinct".to_string(), ".Distinct()".to_string());
         }
@@ -1682,12 +1802,13 @@ impl LinqQueryBuilder {
             linq_query.insert("final_aggregation".to_string(), ".ToList()".to_string());
         }
 
-        return (
+        return SelectResult {
             linq_query,
             alias_to_table_map,
             calculated_fields,
             group_by_fields,
-        );
+            aggregated_fields,
+        };
     }
 
     fn build_query_helper(
@@ -1718,19 +1839,21 @@ impl LinqQueryBuilder {
             let right_select: HashMap<String, String>;
 
             if let SetExpr::Select(select) = &**left {
-                left_select = self.build_select(select, false).0;
+                left_select = self.build_select(select, false).linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
 
             if let SetExpr::Select(select) = &**right {
-                right_select = self.build_select(select, false).0;
+                right_select = self.build_select(select, false).linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
 
-            let left_query = self.build_result(&left_select, &HashMap::new(), false, true, false);
-            let right_query = self.build_result(&right_select, &HashMap::new(), false, true, false);
+            let left_query =
+                self.build_result(&left_select, &HashMap::new(), false, true, false, false);
+            let right_query =
+                self.build_result(&right_select, &HashMap::new(), false, true, false, false);
 
             let mut result: String;
             if let sqlparser::ast::SetOperator::Intersect = op {
@@ -1780,10 +1903,17 @@ impl LinqQueryBuilder {
                 true
             };
 
-        let (select_result, alias_to_table_map, calculated_fields, group_by_fields) =
-            self.build_select(select, should_use_new_object_for_select);
+        let select_result = self.build_select(select, should_use_new_object_for_select);
 
-        let selector = select_result.get("selector").unwrap().to_string();
+        let SelectResult {
+            linq_query,
+            alias_to_table_map,
+            group_by_fields,
+            calculated_fields,
+            aggregated_fields,
+        } = select_result;
+
+        let selector = linq_query.get("selector").unwrap().to_string();
         let keywords_result = self.build_keywords(
             query,
             selector,
@@ -1793,13 +1923,15 @@ impl LinqQueryBuilder {
         );
 
         let should_have_order_by_after_select = calculated_fields.len() > 0;
+        let should_have_having_after_select = aggregated_fields.len() > 0;
 
         return self.build_result(
-            &select_result,
+            &linq_query,
             &keywords_result,
             should_use_semicolon,
             should_skip_final_aggregation,
             should_have_order_by_after_select,
+            should_have_having_after_select,
         );
     }
 
@@ -1810,55 +1942,35 @@ impl LinqQueryBuilder {
         with_semicolon: bool,
         skip_final_aggregation: bool,
         should_have_order_by_after_select: bool,
+        should_have_having_after_select: bool,
     ) -> String {
         let mut linq_query = select_result.get("context").unwrap().to_string();
 
-        if let Some(from) = select_result.get("joins") {
-            linq_query.push_str(from);
-        }
+        append_if_some(&mut linq_query, select_result, "joins");
+        append_if_some(&mut linq_query, select_result, "select_where");
+        append_if_some(&mut linq_query, select_result, "group_by");
 
-        if let Some(select_where_clause) = select_result.get("select_where") {
-            linq_query.push_str(select_where_clause);
-        }
-
-        if let Some(group_by) = select_result.get("group_by") {
-            linq_query.push_str(group_by);
-        }
-
-        if let Some(having_where_clause) = select_result.get("having_where") {
-            linq_query.push_str(having_where_clause);
+        if !should_have_having_after_select {
+            append_if_some(&mut linq_query, select_result, "having_where");
         }
 
         if should_have_order_by_after_select {
-            if let Some(projection) = select_result.get("projection") {
-                linq_query.push_str(projection);
-            }
-
-            if let Some(order_by) = keywords_result.get("order_by") {
-                linq_query.push_str(order_by);
-            }
+            append_if_some(&mut linq_query, select_result, "projection");
+            append_if_some(&mut linq_query, keywords_result, "order_by");
         } else {
-            if let Some(order_by) = keywords_result.get("order_by") {
-                linq_query.push_str(order_by);
-            }
-
-            if let Some(projection) = select_result.get("projection") {
-                linq_query.push_str(projection);
-            }
+            append_if_some(&mut linq_query, keywords_result, "order_by");
+            append_if_some(&mut linq_query, select_result, "projection");
         }
 
-        if let Some(distinct) = select_result.get("distinct") {
-            linq_query.push_str(distinct);
+        if should_have_having_after_select {
+            append_if_some(&mut linq_query, select_result, "having_where");
         }
 
-        if let Some(limit) = keywords_result.get("limit") {
-            linq_query.push_str(limit);
-        }
+        append_if_some(&mut linq_query, select_result, "distinct");
+        append_if_some(&mut linq_query, keywords_result, "limit");
 
         if !skip_final_aggregation {
-            if let Some(final_aggregation) = select_result.get("final_aggregation") {
-                linq_query.push_str(final_aggregation);
-            }
+            append_if_some(&mut linq_query, select_result, "final_aggregation");
         }
 
         if with_semicolon {
