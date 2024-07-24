@@ -230,7 +230,7 @@ fn tests() {
     all_queries_and_results.insert("candidate_poll".to_string(), vec![
         (
             r#"SELECT t1.name , t1.sex , min(oppose_rate) FROM people AS t1 JOIN candidate AS t2 ON t1.people_id = t2.people_id GROUP BY t1.sex"#,
-            r#"context.People.Join(context.Candidates, t1 => t1.PeopleId, t2 => t2.PeopleId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t1.Sex }).Select(group => new { group.First().t1.Name, group.Key.Sex, MinOpposeRate = group.Min(row => row.t2.OpposeRate) }).ToList();"#
+            r#"context.People.Join(context.Candidates, t1 => t1.PeopleId, t2 => t2.PeopleId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t1.Sex }).Select(group => new { group.OrderBy(row => row.t2.OpposeRate).First().t1.Name, group.Key.Sex, MinOpposeRate = group.Min(row => row.t2.OpposeRate) }).ToList();"#
         )
     ]);
 

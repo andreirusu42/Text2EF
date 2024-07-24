@@ -233,6 +233,19 @@ impl LinqQueryBuilder {
             }
         }
 
+        let mut last_aggregate_function: Option<&Function> = None;
+        for select_item in &select.projection {
+            if let SelectItem::UnnamedExpr(expr) = select_item {
+                if let Expr::Function(function) = expr {
+                    let function_name = function.name.to_string().to_lowercase();
+
+                    if ["min", "max"].contains(&function_name.as_str()) {
+                        last_aggregate_function = Some(function);
+                    }
+                }
+            }
+        }
+
         for select_item in &select.projection {
             let expr = if let SelectItem::UnnamedExpr(expr) = select_item {
                 expr
@@ -282,14 +295,106 @@ impl LinqQueryBuilder {
 
                 let is_duplicated = fields_with_same_name.contains(mapped_column_name);
 
+                /*
+                   There's an amazing case. If you aggregate data by min/max, SQL will automatically sort the fields by that field too.
+                   Hence you can't simply take .First() on the fields. You also need to sort them based on the last aggregate.
+
+                   At the moment I simply do .OrderBy() on that field too.
+                   I think it'd be a good idea to have a double select
+                */
                 if has_group_by {
                     if group_by_fields.contains(&mapped_column_name) {
                         select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
                     } else {
-                        select_fields.push(format!(
-                            "{}.First().{}.{}",
+                        println!(
+                            "Selector: {}, table_alias: {}, mapped_column_name: {}",
                             selector, table_alias, mapped_column_name
-                        ));
+                        );
+
+                        if let Some(last_aggregate_function) = last_aggregate_function {
+                            let aggregation_type = last_aggregate_function.name.to_string();
+
+                            let args = if let FunctionArguments::List(list) =
+                                &last_aggregate_function.args
+                            {
+                                &list.args
+                            } else {
+                                panic!("Invalid function arguments");
+                            };
+
+                            let arg = if let FunctionArg::Unnamed(ident) = &args[0] {
+                                ident
+                            } else {
+                                panic!("Invalid function argument");
+                            };
+
+                            let expr = if let FunctionArgExpr::Expr(expr) = arg {
+                                expr
+                            } else {
+                                panic!("Invalid function argument");
+                            };
+
+                            let order_by_type = if aggregation_type == "min" {
+                                "OrderBy"
+                            } else if aggregation_type == "max" {
+                                "OrderByDescending"
+                            } else {
+                                panic!("Invalid function argument");
+                            };
+
+                            let order_by_table_alias: String;
+                            let order_by_mapped_column_name: &String;
+
+                            if let Expr::Identifier(ident) = expr {
+                                let column_name = ident.to_string();
+
+                                order_by_table_alias = self
+                                    .get_table_alias_from_field_name(
+                                        &alias_to_table_map,
+                                        &column_name,
+                                    )
+                                    .unwrap()
+                                    .to_string();
+
+                                let order_by_table_name =
+                                    alias_to_table_map.get(&order_by_table_alias).unwrap();
+
+                                order_by_mapped_column_name = self
+                                    .schema_mapping
+                                    .get_column_name(&order_by_table_name, &column_name)
+                                    .unwrap();
+                            } else if let Expr::CompoundIdentifier(ident) = expr {
+                                order_by_table_alias = ident[0].to_string();
+                                let column_name = ident[1].to_string();
+
+                                let order_by_table_name =
+                                    alias_to_table_map.get(&order_by_table_alias).unwrap();
+
+                                order_by_mapped_column_name = self
+                                    .schema_mapping
+                                    .get_column_name(&order_by_table_name, &column_name)
+                                    .unwrap();
+                            } else {
+                                panic!("Invalid function argument");
+                            }
+
+                            select_fields.push(format!(
+                                "{}.{}({} => {}.{}.{}).First().{}.{}",
+                                selector,
+                                order_by_type,
+                                self.row_selector,
+                                self.row_selector,
+                                order_by_table_alias,
+                                order_by_mapped_column_name,
+                                table_alias,
+                                mapped_column_name
+                            ));
+                        } else {
+                            select_fields.push(format!(
+                                "{}.First().{}.{}",
+                                selector, table_alias, mapped_column_name
+                            ));
+                        }
                     }
                 } else {
                     if is_duplicated {
