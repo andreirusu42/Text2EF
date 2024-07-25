@@ -5,6 +5,7 @@ use std::path::Path;
 
 mod linq_query_builder;
 mod schema_mapping;
+mod case_insensitive_hashmap;
 
 use linq_query_builder::LinqQueryBuilder;
 
@@ -31,7 +32,7 @@ fn tests() {
             r#"SELECT COUNT(*), rank FROM Faculty GROUP BY rank"#,
             r#"context.Faculties.GroupBy(row => new { row.Rank }).Select(group => new { Count = group.Count(), group.Key.Rank }).ToList();"#,
         ),
-    
+
         (
             r#"SELECT T1.FacID FROM Faculty AS T1 JOIN Student AS T2 ON T1.FacID  =  T2.advisor GROUP BY T1.FacID"#,
             r#"context.Faculties.Join(context.Students, T1 => T1.FacId, T2 => T2.Advisor, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.FacId }).Select(group => new { group.Key.FacId }).ToList();"#,
@@ -101,7 +102,7 @@ fn tests() {
         ),
         (
             r#"SELECT min(bathroom_count) , max(bathroom_count) FROM Apartments"#,
-            r#"context.Apartments.GroupBy(row => 1).Select(group => new { MinBathroomCount = group.Min(row => row.BathroomCount), MaxBathroomCount = group.Max(row => row.BathroomCount) }).ToList();"#,
+            r#"context.Apartments.GroupBy(row => 1).Select(group => new { MinBathroomCount = group.Select(row => row.BathroomCount).Min(), MaxBathroomCount = group.Select(row => row.BathroomCount).Max() }).ToList();"#,
         ),
         (
             r#"SELECT avg(bedroom_count) FROM Apartments"#,
@@ -170,7 +171,7 @@ fn tests() {
     all_queries_and_results.insert("baseball_1".to_string(), vec![
         (
             r#"SELECT T1.name , T1.team_id , max(T2.salary) FROM team AS T1 JOIN salary AS T2 ON T1.team_id = T2.team_id GROUP BY T1.team_id;"#,
-            r#"context.Teams.Join(context.Salaries, T1 => T1.TeamId, T2 => T2.TeamId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeamId }).Select(group => new { group.OrderByDescending(row => row.T2.Salary1).First().T1.Name, group.Key.TeamId, MaxSalary1 = group.Max(row => row.T2.Salary1) }).ToList();"#,
+            r#"context.Teams.Join(context.Salaries, T1 => T1.TeamId, T2 => T2.TeamId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeamId }).Select(group => new { group.OrderByDescending(row => row.T2.Salary1).First().T1.Name, group.Key.TeamId, MaxSalary1 = group.Select(row => row.T2.Salary1).Max() }).ToList();"#,
         ),
         (
             r#"SELECT count(*) FROM ( SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_winner = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' UNION SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_loser = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' );"#,
@@ -189,7 +190,7 @@ fn tests() {
     all_queries_and_results.insert("behavior_monitoring".to_string(), vec![
         (
             r#"SELECT max(monthly_rental) , min(monthly_rental) FROM Student_Addresses"#,
-            r#"context.StudentAddresses.GroupBy(row => 1).Select(group => new { MaxMonthlyRental = group.Max(row => (double) row.MonthlyRental), MinMonthlyRental = group.Min(row => (double) row.MonthlyRental) }).ToList();"#
+            r#"context.StudentAddresses.GroupBy(row => 1).Select(group => new { MaxMonthlyRental = group.Select(row => (double) row.MonthlyRental).Max(), MinMonthlyRental = group.Select(row => (double) row.MonthlyRental).Min() }).ToList();"#
         ),
         (
             r#"SELECT * FROM Student_Addresses ORDER BY monthly_rental DESC"#,
@@ -230,7 +231,7 @@ fn tests() {
     all_queries_and_results.insert("candidate_poll".to_string(), vec![
         (
             r#"SELECT t1.name , t1.sex , min(oppose_rate) FROM people AS t1 JOIN candidate AS t2 ON t1.people_id = t2.people_id GROUP BY t1.sex"#,
-            r#"context.People.Join(context.Candidates, t1 => t1.PeopleId, t2 => t2.PeopleId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t1.Sex }).Select(group => new { group.OrderBy(row => row.t2.OpposeRate).First().t1.Name, group.Key.Sex, MinOpposeRate = group.Min(row => row.t2.OpposeRate) }).ToList();"#
+            r#"context.People.Join(context.Candidates, t1 => t1.PeopleId, t2 => t2.PeopleId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t1.Sex }).Select(group => new { group.OrderBy(row => row.t2.OpposeRate).First().t1.Name, group.Key.Sex, MinOpposeRate = group.Select(row => row.t2.OpposeRate).Min() }).ToList();"#
         )
     ]);
 
@@ -281,12 +282,32 @@ fn tests() {
             r#"context.Students.Join(context.Takes, T1 => T1.Id, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Where(row => context.Courses.Join(context.Prereq, T3 => T3.CourseId, T4 => T4.CourseId, (T3, T4) => new { T3, T4 }).Where(row => row.T3.Title == "International Finance").Select(row => row.T4.PrereqId).Contains(row.T2.CourseId)).Select(row => new { row.T1.Name }).ToList();"#,
         )
     ]);
+
+    all_queries_and_results.insert("cre_Doc_Control_Systems".to_string(), vec![
+        (
+            r#"SELECT Roles.role_description , count(Employees.employee_id) FROM ROLES JOIN Employees ON Employees.role_code = Roles.role_code GROUP BY Employees.role_code HAVING count(Employees.employee_id) > 1;"#,
+            r#"context.Roles.Join(context.Employees, Roles => Roles.RoleCode, Employees => Employees.RoleCode, (Roles, Employees) => new { Roles, Employees }).GroupBy(row => new { row.Employees.RoleCode }).Select(group => new { group.First().Roles.RoleDescription, CountEmployeeId = group.Select(row => row.Employees.EmployeeId).Count() }).Where(group => group.CountEmployeeId > 1).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "college_2" || index != 1 {
+            // if db_name != "cre_Doc_Control_Systems" || index != 0 {
+            //     continue;
+            // }
+
+            //    if db_name == "cre_Doc_Control_Systems" && index == 0 {
+            //         continue;
+            //     }
+
+            // if db_name != "college_2" || index != 0 {
+            //     continue;
+            // }
+
+            // if db_name != "behavior_monitoring" || index != 0 {
             //     continue;
             // }
             
@@ -307,50 +328,49 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    // let db_names = vec![
-    // // "activity_1".to_string(),
-    // // "apartment_rentals".to_string(),
-    // // "allergy_1".to_string(), 
-    // // "assets_maintenance".to_string(),
-    // // "baseball_1".to_string(),
-    // // "behavior_monitoring".to_string(),
-    // // "bike_1".to_string(),
-    // // "body_builder".to_string(),
-    // // "book_2".to_string(),
-    // // "browser_web".to_string(),
-    // // "candidate_poll".to_string(),
-    // // "chinook_1".to_string(),
-    // // "cinema".to_string(),
-    // // "climbing".to_string(),
-    // // "club_1".to_string(),
-    // // "coffee_shop".to_string(),
-    // // "college_1".to_string(),
-    // // "college_2".to_string(),
-    // // "college_3".to_string(),
-    // "company_1".to_string()
-    // ];
+    let db_names = vec![
+    "activity_1".to_string(),
+    "apartment_rentals".to_string(),
+    "allergy_1".to_string(), 
+    "assets_maintenance".to_string(),
+    "baseball_1".to_string(),
+    "behavior_monitoring".to_string(),
+    "bike_1".to_string(),
+    "body_builder".to_string(),
+    "book_2".to_string(),
+    "browser_web".to_string(),
+    "candidate_poll".to_string(),
+    "chinook_1".to_string(),
+    "cinema".to_string(),
+    "climbing".to_string(),
+    "club_1".to_string(),
+    "coffee_shop".to_string(),
+    "college_1".to_string(),
+    // "college_2".to_string(),
+    // "college_3".to_string(),
+    "company_1".to_string()
+    ];
 
-    let mut db_names: Vec<String> = Vec::new();
+    // let mut db_names: Vec<String> = Vec::new();
+    // for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+    //     let entry = entry.unwrap();
 
-    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
-        let entry = entry.unwrap();
+    //     let path = entry.path();
 
-        let path = entry.path();
+    //     if path.is_dir() {
+    //         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
 
-        if path.is_dir() {
-            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+    //         // check if there are files inside the dir
 
-            // check if there are files inside the dir
+    //         let mut files = fs::read_dir(path).unwrap();
 
-            let mut files = fs::read_dir(path).unwrap();
+    //         if files.next().is_some() {
+    //             db_names.push(file_name);
+    //         }
 
-            if files.next().is_some() {
-                db_names.push(file_name);
-            }
+    //     }
 
-        }
-
-    }
+    // }
 
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -394,6 +414,7 @@ fn create_tests_to_file() {
         }
     }
 
+    let mut successfully_executed_queries = 0;
 
     for db_name in &db_names {
         let queries = if let Some(queries) = queries.get(db_name.as_str()) {
@@ -436,12 +457,14 @@ fn create_tests_to_file() {
             //     continue;
             // }
     
-            println!("Processing query {} for {}", index, db_name);
+            println!("Processing query {} for {} | SUCCESS SO FAR: {}", index, db_name, successfully_executed_queries);
             println!("{}", query);
     
             let result = linq_query_builder.build_query(query);
     
             sql_and_results.push((query.to_string(), result.to_string()));
+
+            successfully_executed_queries += 1;   
         }
 
         c_sharp_code.push_str(&format!("\nstatic void Test{}() {{ var context = new {}(); \n var tests = new (object, string)[] {{", context_name, context_name));
@@ -474,6 +497,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }

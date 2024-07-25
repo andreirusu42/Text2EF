@@ -9,6 +9,7 @@ use sqlparser::ast::{
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
+use super::case_insensitive_hashmap::CaseInsensitiveHashMap;
 use super::schema_mapping::{create_schema_map, SchemaMapping};
 
 #[derive(Debug)]
@@ -31,7 +32,7 @@ pub struct ProjectionResult {
 #[derive(Debug)]
 pub struct SelectResult {
     pub linq_query: HashMap<String, String>,
-    pub alias_to_table_map: HashMap<String, String>,
+    pub alias_to_table_map: CaseInsensitiveHashMap<String>,
     pub calculated_fields: HashMap<String, String>,
     pub group_by_fields: Vec<String>,
     pub aggregated_fields: HashMap<String, String>,
@@ -63,7 +64,7 @@ impl LinqQueryBuilder {
     fn build_projection_single_function(
         &self,
         function: &Function,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
     ) -> String {
         let function_name = function.name.to_string().to_lowercase();
         let mut result = String::new();
@@ -165,7 +166,7 @@ impl LinqQueryBuilder {
     fn build_projection(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
         has_group_by: bool,
         group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
@@ -614,10 +615,12 @@ impl LinqQueryBuilder {
                     )
                 } else {
                     format!(
-                        "{}.{}({} => {}{})",
-                        selector, mapped_function_name, self.row_selector, cast, select_expression
+                        "{}.Select({} => {}{}).{}()",
+                        selector, self.row_selector, cast, select_expression, mapped_function_name
                     )
                 };
+
+                println!("Function call: {}", function_call);
 
                 let result = format!("{} = {}", field_name, function_call);
 
@@ -685,7 +688,7 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         table_name: &str,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
     ) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
         let mut raw_group_by_fields: Vec<String> = Vec::new();
@@ -760,7 +763,7 @@ impl LinqQueryBuilder {
 
     fn get_table_alias_from_field_name<'a>(
         &'a self,
-        alias_to_table_map: &'a HashMap<String, String>,
+        alias_to_table_map: &'a CaseInsensitiveHashMap<String>,
         field_name: &str,
     ) -> Option<&String> {
         let mut result: Option<&String> = None;
@@ -783,7 +786,7 @@ impl LinqQueryBuilder {
     fn build_where(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
         aggregated_fields: &HashMap<String, String>,
     ) -> (String, String) {
         let mut selection_query = String::new();
@@ -812,7 +815,7 @@ impl LinqQueryBuilder {
     fn build_where_helper(
         &self,
         expr: &Expr,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
         parent_precedence: Option<i32>,
         is_having: bool,
         aggregated_fields: &HashMap<String, String>,
@@ -1023,7 +1026,7 @@ impl LinqQueryBuilder {
     fn build_where_expr(
         &self,
         expr: &Box<Expr>,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
         is_having: bool,
         root_expr: &Expr,
         aggregated_fields: &HashMap<String, String>,
@@ -1255,7 +1258,7 @@ impl LinqQueryBuilder {
         &self,
         table: &TableWithJoins,
         main_table_alias: &str,
-        alias_to_table_map: &mut HashMap<String, String>,
+        alias_to_table_map: &mut CaseInsensitiveHashMap<String>,
     ) -> String {
         let mut linq_query = String::new();
         let mut joined_aliases: Vec<String> = Vec::new();
@@ -1265,7 +1268,7 @@ impl LinqQueryBuilder {
             let table_alias: String;
             let table_name: String;
 
-            if let sqlparser::ast::TableFactor::Table {
+            if let TableFactor::Table {
                 name,
                 alias: Some(alias),
                 ..
@@ -1273,6 +1276,15 @@ impl LinqQueryBuilder {
             {
                 table_name = name.to_string();
                 table_alias = alias.to_string();
+
+                alias_to_table_map.insert(table_alias.to_string(), table_name.to_string());
+            } else if let TableFactor::Table { name, .. } = &join.relation {
+                table_name = name.to_string();
+                table_alias = self
+                    .schema_mapping
+                    .get_table_name(&table_name)
+                    .unwrap()
+                    .to_string();
 
                 alias_to_table_map.insert(table_alias.to_string(), table_name.to_string());
             } else {
@@ -1448,7 +1460,7 @@ impl LinqQueryBuilder {
         &self,
         query: &Box<Query>,
         selector: String,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
     ) -> HashMap<String, String> {
@@ -1495,7 +1507,7 @@ impl LinqQueryBuilder {
         &self,
         query: &Box<Query>,
         selector: String,
-        alias_to_table_map: &HashMap<String, String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<String>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
     ) -> String {
@@ -1722,7 +1734,7 @@ impl LinqQueryBuilder {
         let main_table_name: String;
         let main_table_alias: String;
 
-        let mut alias_to_table_map: HashMap<String, String> = HashMap::new();
+        let mut alias_to_table_map: CaseInsensitiveHashMap<String> = CaseInsensitiveHashMap::new();
 
         let table = &select.from[0];
 
@@ -1730,7 +1742,15 @@ impl LinqQueryBuilder {
             if let Some(alias) = alias {
                 main_table_alias = alias.to_string();
             } else {
-                main_table_alias = String::new();
+                if table.joins.len() > 0 {
+                    main_table_alias = self
+                        .schema_mapping
+                        .get_table_name(&name.to_string())
+                        .unwrap()
+                        .to_string();
+                } else {
+                    main_table_alias = "".to_string();
+                }
             }
 
             main_table_name = name.to_string();
