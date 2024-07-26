@@ -302,24 +302,19 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("csu_1".to_string(), vec![
+        (
+            r#"SELECT degrees FROM campuses AS T1 JOIN degrees AS T2 ON t1.id = t2.campus WHERE t1.campus = "San Jose State University" AND t2.year = 2000"#,
+            r#"context.Campuses.Join(context.Degrees, T1 => T1.Id, T2 => T2.Campus, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Campus1 == "San Jose State University" && row.T2.Year == 2000).Select(row => new { row.T2.Degrees }).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name == "cre_Doc_Control_Systems" && index == 3 {
-            //     continue;
-            // }
-
-            //    if db_name == "cre_Doc_Control_Systems" && index == 0 {
-            //         continue;
-            //     }
-
-            // if db_name != "college_2" || index != 1 {
-            //     continue;
-            // }
-
-            // if db_name != "behavior_monitoring" || index != 0 {
+            // if db_name != "csu_1" || index != 0 {
             //     continue;
             // }
             

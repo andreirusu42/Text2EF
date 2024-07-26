@@ -224,7 +224,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
             let field_name = &occurrence[2];
 
-            // TODO: we'll sometime have to do something with the virtual fields (which are relations basically)
+            if field_type.contains("virtual") {
+                continue;
+            }
 
             if !model_file_properties.contains_key(&field_name.to_lowercase()) {
                 model_file_properties.insert(
