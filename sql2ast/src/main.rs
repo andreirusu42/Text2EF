@@ -280,7 +280,7 @@ fn tests() {
         (
             r#"SELECT T1.name FROM student AS T1 JOIN takes AS T2 ON T1.id = T2.id WHERE T2.course_id IN (SELECT T4.prereq_id FROM course AS T3 JOIN prereq AS T4 ON T3.course_id = T4.course_id WHERE T3.title = 'International Finance')"#,
             r#"context.Students.Join(context.Takes, T1 => T1.Id, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Where(row => context.Courses.Join(context.Prereq, T3 => T3.CourseId, T4 => T4.CourseId, (T3, T4) => new { T3, T4 }).Where(row => row.T3.Title == "International Finance").Select(row => row.T4.PrereqId).Contains(row.T2.CourseId)).Select(row => new { row.T1.Name }).ToList();"#,
-        )
+        ),
     ]);
 
     all_queries_and_results.insert("cre_Doc_Control_Systems".to_string(), vec![
@@ -295,6 +295,10 @@ fn tests() {
         (
             r#"SELECT Addresses.address_details FROM Addresses JOIN Documents_Mailed ON Documents_Mailed.mailed_to_address_id = Addresses.address_id WHERE document_id = 4;"#,
             r#"context.Addresses.Join(context.DocumentsMaileds, Addresses => Addresses.AddressId, DocumentsMaileds => DocumentsMaileds.MailedToAddressId, (Addresses, DocumentsMaileds) => new { Addresses, DocumentsMaileds }).Where(row => row.DocumentsMaileds.DocumentId == 4).Select(row => new { row.Addresses.AddressDetails }).ToList();"#,
+        ),
+        (
+            r#"SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"#,
+            r#"context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList();"#,
         )
     ]);
 
@@ -303,7 +307,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "cre_Doc_Control_Systems" || index != 2 {
+            // if db_name == "cre_Doc_Control_Systems" && index == 3 {
             //     continue;
             // }
 
@@ -311,7 +315,7 @@ fn tests() {
             //         continue;
             //     }
 
-            // if db_name != "college_2" || index != 0 {
+            // if db_name != "college_2" || index != 1 {
             //     continue;
             // }
 

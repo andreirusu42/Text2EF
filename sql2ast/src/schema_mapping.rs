@@ -127,7 +127,12 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let join_table_regex =
         regex::Regex::new(r#"(?s)entity\s*\.HasMany\(.*?\)\.WithMany\(.*?\}\);"#).unwrap();
 
-    let join_table_content_regex = regex::Regex::new(r#"\.UsingEntity<.*>\(\s*\"(.*)\"[\s\S]*?.ToTable\(\"(.*)\"[\s\S]*?.IndexerProperty<(.*)>\s*\(\"(.*)\"\)[\s\S]*?.HasColumnName\(\"(.*)\"\)[\s\S]*?.IndexerProperty<(.*)>\s*\(\"(.*)\"\)[\s\S]*?.HasColumnName\(\"(.*)\"\)"#).unwrap();
+    let join_table_table_and_alias_regex =
+        regex::Regex::new(r#"\.UsingEntity<.*>\(\s*\"(.*)\"[\s\S]*?.ToTable\(\"(.*)\""#).unwrap();
+    let join_table_fields_regex = regex::Regex::new(
+        r#"\.IndexerProperty<([^>]*)>\s*\("([^"]*)"\)\s*(?:\.HasColumnType\("([^"]*)"\)\s*)?\.HasColumnName\("([^"]*)"\);"#,
+    )
+    .unwrap();
 
     for cap in table_regex.captures_iter(&context_content) {
         let original_entity_name = cap[1].to_lowercase();
@@ -160,38 +165,31 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         if let Some(join_table_content) = join_table_regex.captures(entity_content) {
             let join_table_content = join_table_content.get(0).unwrap().as_str();
 
-            let join_table_capture = join_table_content_regex
+            let join_table_table_and_alias = join_table_table_and_alias_regex
                 .captures(join_table_content)
                 .unwrap();
 
-            let mapped_table_name = join_table_capture.get(1).unwrap().as_str();
-            let table_name = join_table_capture.get(2).unwrap().as_str();
-            let column_1_field_type = join_table_capture.get(3).unwrap().as_str();
-            let mapped_column_name_1 = join_table_capture.get(4).unwrap().as_str();
-            let column_name_1 = join_table_capture.get(5).unwrap().as_str();
-            let column_2_field_type = join_table_capture.get(6).unwrap().as_str();
-            let mapped_column_name_2 = join_table_capture.get(7).unwrap().as_str();
-            let column_name_2 = join_table_capture.get(8).unwrap().as_str();
+            let mapped_table_name = join_table_table_and_alias.get(1).unwrap().as_str();
+            let table_name = join_table_table_and_alias.get(2).unwrap().as_str();
 
             let mut columns: HashMap<String, Column> = HashMap::new();
 
-            columns.insert(
-                column_name_1.to_string().to_lowercase(),
-                Column {
-                    name: mapped_column_name_1.to_string(),
-                    field_type: column_1_field_type.to_string(),
-                    is_optional: false,
-                },
-            );
+            let join_table_fields = join_table_fields_regex.captures_iter(join_table_content);
 
-            columns.insert(
-                column_name_2.to_string().to_lowercase(),
-                Column {
-                    name: mapped_column_name_2.to_string(),
-                    field_type: column_2_field_type.to_string(),
-                    is_optional: false,
-                },
-            );
+            for field in join_table_fields {
+                let field_type = field.get(1).unwrap().as_str();
+                let field_name = field.get(2).unwrap().as_str();
+                let column_name = field.get(4).unwrap().as_str();
+
+                columns.insert(
+                    column_name.to_lowercase(),
+                    Column {
+                        name: field_name.to_string(),
+                        field_type: field_type.to_string(),
+                        is_optional: false,
+                    },
+                );
+            }
 
             let schema_map_table = SchemaMapTable {
                 table: mapped_table_name.to_string(),
