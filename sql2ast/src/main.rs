@@ -281,6 +281,10 @@ fn tests() {
             r#"SELECT T1.name FROM student AS T1 JOIN takes AS T2 ON T1.id = T2.id WHERE T2.course_id IN (SELECT T4.prereq_id FROM course AS T3 JOIN prereq AS T4 ON T3.course_id = T4.course_id WHERE T3.title = 'International Finance')"#,
             r#"context.Students.Join(context.Takes, T1 => T1.Id, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Where(row => context.Courses.Join(context.Prereq, T3 => T3.CourseId, T4 => T4.CourseId, (T3, T4) => new { T3, T4 }).Where(row => row.T3.Title == "International Finance").Select(row => row.T4.PrereqId).Contains(row.T2.CourseId)).Select(row => new { row.T1.Name }).ToList();"#,
         ),
+        (
+            r#"SELECT min(salary) , dept_name FROM instructor GROUP BY dept_name HAVING avg(salary) > (SELECT avg(salary) FROM instructor)"#,
+            r#"context.Instructors.GroupBy(row => new { row.DeptName }).Where(group => group.Average(row => row.Salary) > context.Instructors.Select(row => row.Salary).Average()).Select(group => new { MinSalary = group.Select(row => row.Salary).Min(), group.Key.DeptName }).ToList();"#,
+        )
     ]);
 
     all_queries_and_results.insert("cre_Doc_Control_Systems".to_string(), vec![
@@ -314,7 +318,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "csu_1" || index != 0 {
+            // if db_name != "college_2" || index != 2 {
             //     continue;
             // }
             
@@ -424,6 +428,10 @@ fn create_tests_to_file() {
     let mut successfully_executed_queries = 0;
 
     for db_name in &db_names {
+        if db_name == "customers_and_addresses" {
+            break;
+        }
+
         let queries = if let Some(queries) = queries.get(db_name.as_str()) {
             queries
         } else {

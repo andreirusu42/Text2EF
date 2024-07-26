@@ -1915,6 +1915,16 @@ impl LinqQueryBuilder {
 
             linq_query.insert("select_where".to_string(), select_where);
 
+            // TODO: this could be done at the level of build_where
+            for value in aggregated_fields.values() {
+                if having_where.contains(&format!(".{} ", value)) {
+                    linq_query.insert(
+                        "having_where_is_using_aggregated_fields".to_string(),
+                        "true".to_string(),
+                    );
+                }
+            }
+
             linq_query.insert("having_where".to_string(), having_where);
         }
 
@@ -2048,7 +2058,8 @@ impl LinqQueryBuilder {
         );
 
         let should_have_order_by_after_select = calculated_fields.len() > 0;
-        let should_have_having_after_select = aggregated_fields.len() > 0;
+        let should_have_having_after_select =
+            linq_query.contains_key("having_where_is_using_aggregated_fields");
 
         return self.build_result(
             &linq_query,
