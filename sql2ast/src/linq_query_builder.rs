@@ -3,8 +3,8 @@ use std::hash::Hash;
 
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr,
-    JoinConstraint, JoinOperator, Query, Select, SelectItem, SetExpr, Statement, TableFactor,
-    TableWithJoins,
+    JoinConstraint, JoinOperator, Query, Select, SelectItem, SetExpr, Statement, Table, TableAlias,
+    TableFactor, TableWithJoins,
 };
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
@@ -32,10 +32,16 @@ pub struct ProjectionResult {
 #[derive(Debug)]
 pub struct SelectResult {
     pub linq_query: HashMap<String, String>,
-    pub alias_to_table_map: CaseInsensitiveHashMap<String>,
+    pub alias_to_table_map: CaseInsensitiveHashMap<TableAliasAndName>,
     pub calculated_fields: HashMap<String, String>,
     pub group_by_fields: Vec<String>,
     pub aggregated_fields: HashMap<String, String>,
+}
+
+#[derive(Debug)]
+pub struct TableAliasAndName {
+    pub mapped_alias: String,
+    pub name: String,
 }
 
 pub struct LinqQueryBuilder {
@@ -64,7 +70,7 @@ impl LinqQueryBuilder {
     fn build_projection_single_function(
         &self,
         function: &Function,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
     ) -> String {
         let function_name = function.name.to_string().to_lowercase();
         let mut result = String::new();
@@ -101,11 +107,11 @@ impl LinqQueryBuilder {
                                 panic!("Invalid function argument");
                             }
 
-                            let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                            let table = alias_to_table_map.get(&table_alias).unwrap();
 
                             let mapped_column = self
                                 .schema_mapping
-                                .get_column(&table_name, &column_name)
+                                .get_column(&table.name, &column_name)
                                 .unwrap();
 
                             let cast = if mapped_column.field_type == "decimal" {
@@ -166,7 +172,7 @@ impl LinqQueryBuilder {
     fn build_projection(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         has_group_by: bool,
         group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
@@ -233,21 +239,21 @@ impl LinqQueryBuilder {
                     .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
                     .unwrap();
 
-                let table_name = alias_to_table_map.get(table_alias).unwrap();
+                let table = alias_to_table_map.get(table_alias).unwrap();
 
                 mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column_name(&table.name, &column_name)
                     .unwrap();
             } else if let Expr::CompoundIdentifier(identifier) = expr {
                 let table_alias = identifier[0].to_string();
                 let column_name = identifier[1].to_string();
 
-                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let table = alias_to_table_map.get(&table_alias).unwrap();
 
                 mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column_name(&table.name, &column_name)
                     .unwrap();
             } else if let Expr::Function(function) = expr {
                 let arg_list = if let FunctionArguments::List(list) = &function.args {
@@ -288,11 +294,11 @@ impl LinqQueryBuilder {
                     panic!("Invalid function argument");
                 };
 
-                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let table = alias_to_table_map.get(&table_alias).unwrap();
 
                 mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column_name(&table.name, &column_name)
                     .unwrap();
             } else {
                 continue;
@@ -342,11 +348,11 @@ impl LinqQueryBuilder {
                     .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
                     .unwrap();
 
-                let table_name = alias_to_table_map.get(table_alias).unwrap();
+                let table = alias_to_table_map.get(table_alias).unwrap();
 
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column_name(&table.name, &column_name)
                     .unwrap();
 
                 if table_alias.is_empty() {
@@ -367,13 +373,13 @@ impl LinqQueryBuilder {
                         } else {
                             select_fields.push(format!(
                                 "{}.First().{}.{}",
-                                selector, table_alias, mapped_column_name
+                                selector, table.mapped_alias, mapped_column_name
                             ));
                         }
                     } else {
                         select_fields.push(format!(
                             "{}.{}.{}",
-                            selector, table_alias, mapped_column_name
+                            selector, table.mapped_alias, mapped_column_name
                         ));
                     }
                 }
@@ -381,11 +387,11 @@ impl LinqQueryBuilder {
                 let table_alias = identifier[0].to_string();
                 let column_name = identifier[1].to_string();
 
-                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let table = alias_to_table_map.get(&table_alias).unwrap();
 
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column_name(&table.name, &column_name)
                     .unwrap();
 
                 let is_duplicated = fields_with_same_name.contains(mapped_column_name);
@@ -447,27 +453,30 @@ impl LinqQueryBuilder {
                                     .unwrap()
                                     .to_string();
 
-                                let order_by_table_name =
+                                let order_by_table =
                                     alias_to_table_map.get(&order_by_table_alias).unwrap();
 
                                 order_by_mapped_column_name = self
                                     .schema_mapping
-                                    .get_column_name(&order_by_table_name, &column_name)
+                                    .get_column_name(&order_by_table.name, &column_name)
                                     .unwrap();
                             } else if let Expr::CompoundIdentifier(ident) = expr {
                                 order_by_table_alias = ident[0].to_string();
                                 let column_name = ident[1].to_string();
 
-                                let order_by_table_name =
+                                let order_by_table =
                                     alias_to_table_map.get(&order_by_table_alias).unwrap();
 
                                 order_by_mapped_column_name = self
                                     .schema_mapping
-                                    .get_column_name(&order_by_table_name, &column_name)
+                                    .get_column_name(&order_by_table.name, &column_name)
                                     .unwrap();
                             } else {
                                 panic!("Invalid function argument");
                             }
+
+                            let order_by_table =
+                                alias_to_table_map.get(&order_by_table_alias).unwrap();
 
                             select_fields.push(format!(
                                 "{}.{}({} => {}.{}.{}).First().{}.{}",
@@ -475,30 +484,30 @@ impl LinqQueryBuilder {
                                 order_by_type,
                                 self.row_selector,
                                 self.row_selector,
-                                order_by_table_alias,
+                                order_by_table.mapped_alias,
                                 order_by_mapped_column_name,
-                                table_alias,
+                                table.mapped_alias,
                                 mapped_column_name
                             ));
                         } else {
                             select_fields.push(format!(
                                 "{}.First().{}.{}",
-                                selector, table_alias, mapped_column_name
+                                selector, table.mapped_alias, mapped_column_name
                             ));
                         }
                     }
                 } else {
                     if is_duplicated {
-                        let field_name = format!("{}{}", table_alias, mapped_column_name);
+                        let field_name = format!("{}{}", table.mapped_alias, mapped_column_name);
 
                         select_fields.push(format!(
                             "{} = {}.{}.{}",
-                            field_name, selector, table_alias, mapped_column_name
+                            field_name, selector, table.mapped_alias, mapped_column_name
                         ));
                     } else {
                         select_fields.push(format!(
                             "{}.{}.{}",
-                            selector, table_alias, mapped_column_name
+                            selector, table.mapped_alias, mapped_column_name
                         ));
                     }
                 }
@@ -573,17 +582,17 @@ impl LinqQueryBuilder {
                     _ => panic!("Invalid function argument"),
                 }
 
-                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let table = alias_to_table_map.get(&table_alias).unwrap();
 
                 let mapped_column = self
                     .schema_mapping
-                    .get_column(&table_name, &column_name)
+                    .get_column(&table.name, &column_name)
                     .unwrap();
 
                 let distinct_name = if is_distinct { "Distinct" } else { "" };
 
                 let suffix = if fields_with_same_name.contains(&mapped_column.name) {
-                    table_alias.to_string()
+                    table.mapped_alias.to_string()
                 } else {
                     "".to_string()
                 };
@@ -604,7 +613,7 @@ impl LinqQueryBuilder {
                 } else {
                     format!(
                         "{}.{}.{}",
-                        self.row_selector, table_alias, &mapped_column.name
+                        self.row_selector, table.mapped_alias, &mapped_column.name
                     )
                 };
 
@@ -619,8 +628,6 @@ impl LinqQueryBuilder {
                         selector, self.row_selector, cast, select_expression, mapped_function_name
                     )
                 };
-
-                println!("Function call: {}", function_call);
 
                 let result = format!("{} = {}", field_name, function_call);
 
@@ -688,7 +695,7 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         table_name: &str,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
     ) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
         let mut raw_group_by_fields: Vec<String> = Vec::new();
@@ -713,11 +720,11 @@ impl LinqQueryBuilder {
 
                     let table_alias = table_alias.unwrap();
 
-                    let table_name = alias_to_table_map.get(table_alias).unwrap();
+                    let table = alias_to_table_map.get(table_alias).unwrap();
 
                     let mapped_column_name = self
                         .schema_mapping
-                        .get_column_name(&table_name, &column_name)
+                        .get_column_name(&table.name, &column_name)
                         .unwrap();
 
                     if table_alias.is_empty() {
@@ -735,11 +742,11 @@ impl LinqQueryBuilder {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
 
-                    let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                    let table = alias_to_table_map.get(&table_alias).unwrap();
 
                     let mapped_column_name = self
                         .schema_mapping
-                        .get_column_name(&table_name, &column_name)
+                        .get_column_name(&table.name, &column_name)
                         .unwrap();
 
                     group_by_fields.push(format!(
@@ -763,20 +770,20 @@ impl LinqQueryBuilder {
 
     fn get_table_alias_from_field_name<'a>(
         &'a self,
-        alias_to_table_map: &'a CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &'a CaseInsensitiveHashMap<TableAliasAndName>,
         field_name: &str,
     ) -> Option<&String> {
         let mut result: Option<&String> = None;
 
-        for (table_alias, table_name) in alias_to_table_map {
-            let columns = self.schema_mapping.get_table_columns(table_name).unwrap();
+        for (table_alias, table) in alias_to_table_map {
+            let columns = self.schema_mapping.get_table_columns(&table.name).unwrap();
 
             if columns.contains_key(&field_name.to_lowercase()) {
                 if result.is_some() {
                     panic!("Ambiguous field name");
                 }
 
-                result = Some(table_alias);
+                result = Some(&table.mapped_alias);
             }
         }
 
@@ -786,7 +793,7 @@ impl LinqQueryBuilder {
     fn build_where(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         aggregated_fields: &HashMap<String, String>,
     ) -> (String, String) {
         let mut selection_query = String::new();
@@ -815,7 +822,7 @@ impl LinqQueryBuilder {
     fn build_where_helper(
         &self,
         expr: &Expr,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         parent_precedence: Option<i32>,
         is_having: bool,
         aggregated_fields: &HashMap<String, String>,
@@ -896,11 +903,11 @@ impl LinqQueryBuilder {
 
                     let alias = alias_option.unwrap();
 
-                    let table_name = alias_to_table_map.get(alias).unwrap();
+                    let table = alias_to_table_map.get(alias).unwrap();
 
                     let mapped_column_name = self
                         .schema_mapping
-                        .get_column_name(&table_name, &field)
+                        .get_column_name(&table.name, &field)
                         .unwrap();
 
                     let value = pattern.to_string().replace("'", "\"");
@@ -914,11 +921,11 @@ impl LinqQueryBuilder {
                     let alias = ident[0].to_string();
                     let field = ident[1].to_string();
 
-                    let table_name = alias_to_table_map.get(&alias).unwrap();
+                    let table = alias_to_table_map.get(&alias).unwrap();
 
                     let mapped_column_name = self
                         .schema_mapping
-                        .get_column_name(&table_name, &field)
+                        .get_column_name(&table.name, &field)
                         .unwrap();
 
                     let value = pattern.to_string().replace("'", "\"");
@@ -956,10 +963,10 @@ impl LinqQueryBuilder {
                     _ => panic!("Unsupported expression type"),
                 }
 
-                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let table = alias_to_table_map.get(&table_alias).unwrap();
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &column_name)
+                    .get_column_name(&table.name, &column_name)
                     .unwrap();
 
                 let operator = if *negated { "!" } else { "" };
@@ -1026,7 +1033,7 @@ impl LinqQueryBuilder {
     fn build_where_expr(
         &self,
         expr: &Box<Expr>,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         is_having: bool,
         root_expr: &Expr,
         aggregated_fields: &HashMap<String, String>,
@@ -1042,11 +1049,11 @@ impl LinqQueryBuilder {
                 let alias = ident[0].to_string();
                 let field = ident[1].to_string();
 
-                let table_name = alias_to_table_map.get(&alias).unwrap();
+                let table = alias_to_table_map.get(&alias).unwrap();
 
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(table_name, &field)
+                    .get_column_name(&table.name, &field)
                     .unwrap();
                 format!("{}.{}.{}", selector, alias, mapped_column_name)
             }
@@ -1061,11 +1068,11 @@ impl LinqQueryBuilder {
 
                 let alias = alias_option.unwrap();
 
-                let table_name = alias_to_table_map.get(alias).unwrap();
+                let table = alias_to_table_map.get(alias).unwrap();
 
                 let mapped_column_name = self
                     .schema_mapping
-                    .get_column_name(&table_name, &field)
+                    .get_column_name(&table.name, &field)
                     .unwrap();
 
                 if alias.is_empty() {
@@ -1128,11 +1135,11 @@ impl LinqQueryBuilder {
 
                         let alias = alias_option.unwrap();
 
-                        let table_name = alias_to_table_map.get(alias).unwrap();
+                        let table = alias_to_table_map.get(alias).unwrap();
 
                         let mapped_column_name = self
                             .schema_mapping
-                            .get_column_name(&table_name, &field)
+                            .get_column_name(&table.name, &field)
                             .unwrap();
 
                         if alias.is_empty() {
@@ -1160,11 +1167,11 @@ impl LinqQueryBuilder {
                         let alias = ident[0].to_string();
                         let field = ident[1].to_string();
 
-                        let table_name = alias_to_table_map.get(&alias).unwrap();
+                        let table = alias_to_table_map.get(&alias).unwrap();
 
                         let mapped_column_name = self
                             .schema_mapping
-                            .get_column_name(&table_name, &field)
+                            .get_column_name(&table.name, &field)
                             .unwrap();
 
                         return format!(
@@ -1190,10 +1197,10 @@ impl LinqQueryBuilder {
                     let alias = ident[0].to_string();
                     let field = ident[1].to_string();
 
-                    let table_name = alias_to_table_map.get(&alias).unwrap();
+                    let table = alias_to_table_map.get(&alias).unwrap();
 
                     let mapped_column =
-                        self.schema_mapping.get_column(&table_name, &field).unwrap();
+                        self.schema_mapping.get_column(&table.name, &field).unwrap();
 
                     if mapped_column.field_type == "bool" {
                         let number = match value {
@@ -1258,7 +1265,7 @@ impl LinqQueryBuilder {
         &self,
         table: &TableWithJoins,
         main_table_alias: &str,
-        alias_to_table_map: &mut CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &mut CaseInsensitiveHashMap<TableAliasAndName>,
     ) -> String {
         let mut linq_query = String::new();
         let mut joined_aliases: Vec<String> = Vec::new();
@@ -1267,6 +1274,7 @@ impl LinqQueryBuilder {
         for join in &table.joins {
             let table_alias: String;
             let table_name: String;
+            let mapped_table_alias: String;
 
             if let TableFactor::Table {
                 name,
@@ -1276,17 +1284,31 @@ impl LinqQueryBuilder {
             {
                 table_name = name.to_string();
                 table_alias = alias.to_string();
+                mapped_table_alias = alias.to_string();
 
-                alias_to_table_map.insert(table_alias.to_string(), table_name.to_string());
+                alias_to_table_map.insert(
+                    table_alias.to_string(),
+                    TableAliasAndName {
+                        mapped_alias: mapped_table_alias.to_string(),
+                        name: table_name.to_string(),
+                    },
+                );
             } else if let TableFactor::Table { name, .. } = &join.relation {
                 table_name = name.to_string();
-                table_alias = self
+                table_alias = name.to_string();
+                mapped_table_alias = self
                     .schema_mapping
                     .get_table_name(&table_name)
                     .unwrap()
                     .to_string();
 
-                alias_to_table_map.insert(table_alias.to_string(), table_name.to_string());
+                alias_to_table_map.insert(
+                    table_alias.to_string(),
+                    TableAliasAndName {
+                        mapped_alias: mapped_table_alias.to_string(),
+                        name: table_name.to_string(),
+                    },
+                );
             } else {
                 panic!("Unknown table factor type");
             }
@@ -1309,7 +1331,8 @@ impl LinqQueryBuilder {
                 let mut right_table_field = &constraint.right_table_field;
 
                 if joined_aliases.contains(&right_table_alias)
-                    || main_table_alias == right_table_alias
+                    || main_table_alias.to_lowercase() == right_table_alias.to_lowercase()
+                // this is the case when you join the table in reverse order, only ƒor the first constraint
                 {
                     let temp_table_alias = left_table_alias;
                     let temp_table_field = left_table_field;
@@ -1321,35 +1344,35 @@ impl LinqQueryBuilder {
                     right_table_field = temp_table_field;
                 }
 
-                let left_table_name = alias_to_table_map.get(left_table_alias).unwrap();
-                let right_table_name = alias_to_table_map.get(right_table_alias).unwrap();
+                let left_table = alias_to_table_map.get(left_table_alias).unwrap();
+                let right_table = alias_to_table_map.get(right_table_alias).unwrap();
 
                 let mapped_left_field = self
                     .schema_mapping
-                    .get_column_name(&left_table_name, &left_table_field)
+                    .get_column_name(&left_table.name, &left_table_field)
                     .unwrap();
 
                 let mapped_right_field = self
                     .schema_mapping
-                    .get_column_name(&right_table_name, &right_table_field)
+                    .get_column_name(&right_table.name, &right_table_field)
                     .unwrap();
 
                 let outer_key_selector: String;
 
                 if joined_aliases.len() == 0 {
-                    outer_key_selector = left_table_alias.to_string();
+                    outer_key_selector = left_table.mapped_alias.to_string();
                     joined_aliases.push(left_table_alias.clone());
                 } else {
                     outer_key_selector = "joined".to_string()
                 }
 
-                let mapped_table_name = self
+                let right_mapped_table_name = self
                     .schema_mapping
-                    .get_table_name(&right_table_name)
+                    .get_table_name(&right_table.name)
                     .unwrap()
                     .to_string();
 
-                linq_query.push_str(&format!(".Join(context.{}, ", mapped_table_name));
+                linq_query.push_str(&format!(".Join(context.{}, ", right_mapped_table_name));
 
                 if outer_key_selector == "joined" {
                     let mut joined_aliases_str = String::new();
@@ -1360,34 +1383,37 @@ impl LinqQueryBuilder {
 
                     linq_query.push_str(&format!(
                         "{} => {}.{}.{}, ",
-                        outer_key_selector, outer_key_selector, left_table_alias, mapped_left_field
+                        outer_key_selector,
+                        outer_key_selector,
+                        left_table.mapped_alias,
+                        mapped_left_field
                     ));
 
                     linq_query.push_str(&format!(
                         "{} => {}.{}, ",
-                        right_table_alias, right_table_alias, mapped_right_field
+                        right_table.mapped_alias, right_table.mapped_alias, mapped_right_field
                     ));
 
                     linq_query.push_str(&format!(
                         "({}, {}) => new {{ {}{} }})",
                         outer_key_selector,
-                        right_table_alias,
+                        right_table.mapped_alias,
                         joined_aliases_str,
-                        right_table_alias
+                        right_table.mapped_alias
                     ));
                 } else {
                     linq_query.push_str(&format!(
                         "{} => {}.{}, {} => {}.{}, ({}, {}) => new {{ {}, {} }})",
-                        left_table_alias,
-                        left_table_alias,
+                        left_table.mapped_alias,
+                        left_table.mapped_alias,
                         mapped_left_field,
-                        right_table_alias,
-                        right_table_alias,
+                        right_table.mapped_alias,
+                        right_table.mapped_alias,
                         mapped_right_field,
-                        left_table_alias,
-                        right_table_alias,
-                        left_table_alias,
-                        right_table_alias
+                        left_table.mapped_alias,
+                        right_table.mapped_alias,
+                        left_table.mapped_alias,
+                        right_table.mapped_alias
                     ));
                 }
 
@@ -1460,7 +1486,7 @@ impl LinqQueryBuilder {
         &self,
         query: &Box<Query>,
         selector: String,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
     ) -> HashMap<String, String> {
@@ -1507,7 +1533,7 @@ impl LinqQueryBuilder {
         &self,
         query: &Box<Query>,
         selector: String,
-        alias_to_table_map: &CaseInsensitiveHashMap<String>,
+        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
     ) -> String {
@@ -1579,11 +1605,11 @@ impl LinqQueryBuilder {
                         panic!("Invalid function argument");
                     }
 
-                    let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                    let table = alias_to_table_map.get(&table_alias).unwrap();
 
                     let mapped_column = self
                         .schema_mapping
-                        .get_column(&table_name, &column_name)
+                        .get_column(&table.name, &column_name)
                         .unwrap();
 
                     let cast = if mapped_column.field_type == "decimal" {
@@ -1623,15 +1649,15 @@ impl LinqQueryBuilder {
                 let column_name = ident.to_string();
 
                 let table_alias = self
-                    .get_table_alias_from_field_name(alias_to_table_map, &column_name)
+                    .get_table_alias_from_field_name(&alias_to_table_map, &column_name)
                     .unwrap()
                     .to_string();
 
-                let table_name = alias_to_table_map.get(&table_alias).unwrap();
+                let table = alias_to_table_map.get(&table_alias).unwrap();
 
                 let mapped_column = self
                     .schema_mapping
-                    .get_column(&table_name, &column_name)
+                    .get_column(&table.name, &column_name)
                     .unwrap();
 
                 let cast = if mapped_column.field_type == "decimal" {
@@ -1655,9 +1681,9 @@ impl LinqQueryBuilder {
                 let alias = ident[0].to_string();
                 let field = ident[1].to_string();
 
-                let table_name = alias_to_table_map.get(&alias).unwrap();
+                let table = alias_to_table_map.get(&alias).unwrap();
 
-                let mapped_column = self.schema_mapping.get_column(table_name, &field).unwrap();
+                let mapped_column = self.schema_mapping.get_column(&table.name, &field).unwrap();
 
                 let cast = if mapped_column.field_type == "decimal" {
                     "(double) "
@@ -1733,29 +1759,40 @@ impl LinqQueryBuilder {
 
         let main_table_name: String;
         let main_table_alias: String;
+        let mapped_main_table_alias: String;
 
-        let mut alias_to_table_map: CaseInsensitiveHashMap<String> = CaseInsensitiveHashMap::new();
+        let mut alias_to_table_map: CaseInsensitiveHashMap<TableAliasAndName> =
+            CaseInsensitiveHashMap::new();
 
         let table = &select.from[0];
 
         if let sqlparser::ast::TableFactor::Table { name, alias, .. } = &table.relation {
             if let Some(alias) = alias {
                 main_table_alias = alias.to_string();
+                mapped_main_table_alias = alias.to_string();
             } else {
                 if table.joins.len() > 0 {
-                    main_table_alias = self
+                    main_table_alias = name.to_string();
+                    mapped_main_table_alias = self
                         .schema_mapping
-                        .get_table_name(&name.to_string())
+                        .get_table_name(&main_table_alias)
                         .unwrap()
                         .to_string();
                 } else {
                     main_table_alias = "".to_string();
+                    mapped_main_table_alias = "".to_string();
                 }
             }
 
             main_table_name = name.to_string();
 
-            alias_to_table_map.insert(main_table_alias.to_string(), main_table_name.to_string());
+            alias_to_table_map.insert(
+                main_table_alias.to_string(),
+                TableAliasAndName {
+                    mapped_alias: mapped_main_table_alias.to_string(),
+                    name: main_table_name.to_string(),
+                },
+            );
 
             let mapped_table_name = self
                 .schema_mapping

@@ -287,6 +287,10 @@ fn tests() {
         (
             r#"SELECT Roles.role_description , count(Employees.employee_id) FROM ROLES JOIN Employees ON Employees.role_code = Roles.role_code GROUP BY Employees.role_code HAVING count(Employees.employee_id) > 1;"#,
             r#"context.Roles.Join(context.Employees, Roles => Roles.RoleCode, Employees => Employees.RoleCode, (Roles, Employees) => new { Roles, Employees }).GroupBy(row => new { row.Employees.RoleCode }).Select(group => new { group.First().Roles.RoleDescription, CountEmployeeId = group.Select(row => row.Employees.EmployeeId).Count() }).Where(group => group.CountEmployeeId > 1).ToList();"#,
+        ),
+        (
+            r#"SELECT Ref_Document_Status.document_status_description FROM Ref_Document_Status JOIN Documents ON Documents.document_status_code = Ref_Document_Status.document_status_code WHERE Documents.document_id = 1;"#,
+            r#"context.RefDocumentStatuses.Join(context.Documents, RefDocumentStatuses => RefDocumentStatuses.DocumentStatusCode, Documents => Documents.DocumentStatusCode, (RefDocumentStatuses, Documents) => new { RefDocumentStatuses, Documents }).Where(row => row.Documents.DocumentId == 1).Select(row => new { row.RefDocumentStatuses.DocumentStatusDescription }).ToList();"#,
         )
     ]);
 
@@ -295,7 +299,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "cre_Doc_Control_Systems" || index != 0 {
+            // if db_name != "cre_Doc_Control_Systems" || index != 1 {
             //     continue;
             // }
 
@@ -328,49 +332,49 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    let db_names = vec![
-    "activity_1".to_string(),
-    "apartment_rentals".to_string(),
-    "allergy_1".to_string(), 
-    "assets_maintenance".to_string(),
-    "baseball_1".to_string(),
-    "behavior_monitoring".to_string(),
-    "bike_1".to_string(),
-    "body_builder".to_string(),
-    "book_2".to_string(),
-    "browser_web".to_string(),
-    "candidate_poll".to_string(),
-    "chinook_1".to_string(),
-    "cinema".to_string(),
-    "climbing".to_string(),
-    "club_1".to_string(),
-    "coffee_shop".to_string(),
-    "college_1".to_string(),
-    // "college_2".to_string(),
-    // "college_3".to_string(),
-    "company_1".to_string()
-    ];
+    // let db_names = vec![
+    // "activity_1".to_string(),
+    // "apartment_rentals".to_string(),
+    // "allergy_1".to_string(), 
+    // "assets_maintenance".to_string(),
+    // "baseball_1".to_string(),
+    // "behavior_monitoring".to_string(),
+    // "bike_1".to_string(),
+    // "body_builder".to_string(),
+    // "book_2".to_string(),
+    // "browser_web".to_string(),
+    // "candidate_poll".to_string(),
+    // "chinook_1".to_string(),
+    // "cinema".to_string(),
+    // "climbing".to_string(),
+    // "club_1".to_string(),
+    // "coffee_shop".to_string(),
+    // "college_1".to_string(),
+    // // "college_2".to_string(),
+    // // "college_3".to_string(),
+    // "company_1".to_string()
+    // ];
 
-    // let mut db_names: Vec<String> = Vec::new();
-    // for entry in fs::read_dir("../entity-framework/Models").unwrap() {
-    //     let entry = entry.unwrap();
+    let mut db_names: Vec<String> = Vec::new();
+    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+        let entry = entry.unwrap();
 
-    //     let path = entry.path();
+        let path = entry.path();
 
-    //     if path.is_dir() {
-    //         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+        if path.is_dir() {
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
 
-    //         // check if there are files inside the dir
+            // check if there are files inside the dir
 
-    //         let mut files = fs::read_dir(path).unwrap();
+            let mut files = fs::read_dir(path).unwrap();
 
-    //         if files.next().is_some() {
-    //             db_names.push(file_name);
-    //         }
+            if files.next().is_some() {
+                db_names.push(file_name);
+            }
 
-    //     }
+        }
 
-    // }
+    }
 
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -497,6 +501,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }
