@@ -291,6 +291,10 @@ fn tests() {
         (
             r#"SELECT Ref_Document_Status.document_status_description FROM Ref_Document_Status JOIN Documents ON Documents.document_status_code = Ref_Document_Status.document_status_code WHERE Documents.document_id = 1;"#,
             r#"context.RefDocumentStatuses.Join(context.Documents, RefDocumentStatuses => RefDocumentStatuses.DocumentStatusCode, Documents => Documents.DocumentStatusCode, (RefDocumentStatuses, Documents) => new { RefDocumentStatuses, Documents }).Where(row => row.Documents.DocumentId == 1).Select(row => new { row.RefDocumentStatuses.DocumentStatusDescription }).ToList();"#,
+        ),
+        (
+            r#"SELECT Addresses.address_details FROM Addresses JOIN Documents_Mailed ON Documents_Mailed.mailed_to_address_id = Addresses.address_id WHERE document_id = 4;"#,
+            r#"context.Addresses.Join(context.DocumentsMaileds, Addresses => Addresses.AddressId, DocumentsMaileds => DocumentsMaileds.MailedToAddressId, (Addresses, DocumentsMaileds) => new { Addresses, DocumentsMaileds }).Where(row => row.DocumentsMaileds.DocumentId == 4).Select(row => new { row.Addresses.AddressDetails }).ToList();"#,
         )
     ]);
 
@@ -299,7 +303,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "cre_Doc_Control_Systems" || index != 1 {
+            // if db_name != "cre_Doc_Control_Systems" || index != 2 {
             //     continue;
             // }
 

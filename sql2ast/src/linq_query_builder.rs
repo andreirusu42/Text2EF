@@ -783,7 +783,7 @@ impl LinqQueryBuilder {
                     panic!("Ambiguous field name");
                 }
 
-                result = Some(&table.mapped_alias);
+                result = Some(table_alias);
             }
         }
 
@@ -1055,7 +1055,7 @@ impl LinqQueryBuilder {
                     .schema_mapping
                     .get_column_name(&table.name, &field)
                     .unwrap();
-                format!("{}.{}.{}", selector, alias, mapped_column_name)
+                format!("{}.{}.{}", selector, table.mapped_alias, mapped_column_name)
             }
             Expr::Identifier(ident) => {
                 let field = ident.to_string();
@@ -1079,7 +1079,7 @@ impl LinqQueryBuilder {
                     return format!("{}.{}", selector, mapped_column_name);
                 }
 
-                format!("{}.{}.{}", selector, alias, mapped_column_name)
+                format!("{}.{}.{}", selector, table.mapped_alias, mapped_column_name)
             }
             Expr::Function(func) => {
                 let function_name = func.name.to_string().to_lowercase();
