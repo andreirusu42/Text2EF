@@ -1219,7 +1219,32 @@ impl LinqQueryBuilder {
                 return value.to_string().replace("'", "\"");
             }
             Expr::Subquery(subquery) => {
-                return self.build_query_helper(subquery, Some(false), Some(false), Some(true))
+                let subquery =
+                    self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+
+                // TODO: This is a bit hacky
+
+                // if the subquery ends with .Min(), .Max(), .Count(), then return the subquery
+
+                let aggregation_functions = ["Min", "Max", "Count", "Average"];
+
+                for function in aggregation_functions.iter() {
+                    if subquery.ends_with(&format!(".{}()", function)) {
+                        return subquery;
+                    }
+                }
+
+                if let Expr::BinaryOp { left, .. } = &root_expr {
+                    if let Expr::Identifier(_) = &**left {
+                        return format!("{}.First()", subquery);
+                    }
+
+                    if let Expr::CompoundIdentifier(_) = &**left {
+                        return format!("{}.First()", subquery);
+                    }
+                }
+
+                return subquery;
             }
 
             _ => panic!("Unsupported expression type"),
@@ -1489,6 +1514,7 @@ impl LinqQueryBuilder {
         alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
+        aggregated_fields: &HashMap<String, String>,
     ) -> HashMap<String, String> {
         let mut keywords: HashMap<String, String> = HashMap::new();
 
@@ -1501,6 +1527,7 @@ impl LinqQueryBuilder {
                     alias_to_table_map,
                     group_by_fields,
                     calculated_fields,
+                    aggregated_fields,
                 ),
             );
         }
@@ -1536,6 +1563,7 @@ impl LinqQueryBuilder {
         alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
+        aggregated_fields: &HashMap<String, String>,
     ) -> String {
         let mut linq_query = String::new();
 
@@ -1618,29 +1646,45 @@ impl LinqQueryBuilder {
                         ""
                     };
 
-                    if table_alias.is_empty() {
+                    let aggregated_field_expr = if table_alias.is_empty() {
+                        format!("{}({})", mapped_function_name, column_name).to_lowercase()
+                    } else {
+                        format!("{}({}.{})", mapped_function_name, table_alias, column_name)
+                            .to_lowercase()
+                    };
+
+                    let aggregated_field = aggregated_fields.get(&aggregated_field_expr);
+
+                    if let Some(aggregated_field) = aggregated_field {
                         linq_query.push_str(&format!(
-                            "{} => {}.{}({} => {}{}.{})",
-                            selector,
-                            selector,
-                            mapped_function_name,
-                            self.row_selector,
-                            cast,
-                            self.row_selector,
-                            &mapped_column.name
+                            "{} => {}.{}",
+                            selector, selector, aggregated_field
                         ));
                     } else {
-                        linq_query.push_str(&format!(
-                            "{} => {}.{}({} => {}{}.{}.{})",
-                            selector,
-                            selector,
-                            mapped_function_name,
-                            self.row_selector,
-                            cast,
-                            self.row_selector,
-                            table_alias,
-                            &mapped_column.name
-                        ));
+                        if table_alias.is_empty() {
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}({} => {}{}.{})",
+                                selector,
+                                selector,
+                                mapped_function_name,
+                                self.row_selector,
+                                cast,
+                                self.row_selector,
+                                &mapped_column.name
+                            ));
+                        } else {
+                            linq_query.push_str(&format!(
+                                "{} => {}.{}({} => {}{}.{}.{})",
+                                selector,
+                                selector,
+                                mapped_function_name,
+                                self.row_selector,
+                                cast,
+                                self.row_selector,
+                                table_alias,
+                                &mapped_column.name
+                            ));
+                        }
                     }
                 } else {
                     panic!("Invalid function argument");
@@ -1728,8 +1772,9 @@ impl LinqQueryBuilder {
                     _ => panic!("Unknown comparison operator"),
                 };
 
-                let calculated_field =
-                    calculated_fields.get(&format!("{}{}{}", left_expr, operator, right_expr));
+                let expr = format!("{}{}{}", left_expr, operator, right_expr);
+
+                let calculated_field = calculated_fields.get(&expr);
 
                 if calculated_field.is_some() {
                     linq_query.push_str(&format!(
@@ -2055,9 +2100,11 @@ impl LinqQueryBuilder {
             &alias_to_table_map,
             &group_by_fields,
             &calculated_fields,
+            &aggregated_fields,
         );
 
-        let should_have_order_by_after_select = calculated_fields.len() > 0;
+        let should_have_order_by_after_select =
+            calculated_fields.len() > 0 || aggregated_fields.len() > 0;
         let should_have_having_after_select =
             linq_query.contains_key("having_where_is_using_aggregated_fields");
 
