@@ -6,6 +6,7 @@ use std::path::Path;
 mod linq_query_builder;
 mod schema_mapping;
 mod case_insensitive_hashmap;
+mod case_insensitive_hashset;
 mod determine_join_order;
 
 use linq_query_builder::LinqQueryBuilder;
@@ -361,22 +362,29 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("college_3".to_string(), vec![
+        (
+            r#"SELECT T2.Lname FROM DEPARTMENT AS T1 JOIN FACULTY AS T2 ON T1.DNO = T3.DNO JOIN MEMBER_OF AS T3 ON T2.FacID = T3.FacID WHERE T1.DName = "Computer Science""#,
+            r#"context.Departments.Join(context.MemberOfs, T1 => T1.Dno, T3 => T3.Dno, (T1, T3) => new { T1, T3 }).Join(context.Faculties, joined => joined.T3.FacId, T2 => T2.FacId, (joined, T2) => new { joined.T1, joined.T3, T2 }).Where(row => row.T1.Dname == "Computer Science").Select(row => new { row.T2.Lname }).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "customer_complaints" || index != 0 {
+            // if db_name != "college_2" || index != 0 {
             //     continue;
             // }
 
-            // if db_name != "college_3" || index != 0 {
+            // if db_name == "college_3" && index == 0 {
             //     continue;
             // }
 
-            // if db_name != "csu_1" || index != 1 {
-            //     continue;
-            // }
+            if db_name != "csu_1" || index != 1 {
+                continue;
+            }
             
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 

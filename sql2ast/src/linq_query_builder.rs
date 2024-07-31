@@ -11,6 +11,7 @@ use sqlparser::ast::{
 use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
+use crate::case_insensitive_hashset::CaseInsensitiveHashSet;
 use crate::determine_join_order;
 use crate::schema_mapping::{Column, ColumnType, FieldType};
 
@@ -1327,9 +1328,9 @@ impl LinqQueryBuilder {
             let right_table_field = right_ident[1].to_string();
 
             let join_condition = JoinOn {
-                left_table_alias: left_table_alias.clone(),
+                left_table_alias: left_table_alias.to_lowercase(),
                 left_table_field: left_table_field.clone(),
-                right_table_alias: right_table_alias.clone(),
+                right_table_alias: right_table_alias.to_lowercase(),
                 right_table_field: right_table_field.clone(),
                 operator: op.to_string(),
             };
@@ -1355,26 +1356,21 @@ impl LinqQueryBuilder {
             return;
         }
 
-        if joins[..number_of_joins - 1]
-            .iter()
-            .all(|join| !join.constraints.is_empty())
-        {
-            return;
+        let mut all_join_constraints: Vec<JoinOn> = Vec::new();
+        for join in joins.iter() {
+            all_join_constraints.append(&mut join.constraints.clone());
         }
 
-        let all_constraints: Vec<(&str, &str)> = if let Some(last_join) = joins.last() {
-            last_join
-                .constraints
-                .iter()
-                .map(|c| (c.left_table_alias.as_str(), c.right_table_alias.as_str()))
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let all_constraints: Vec<(&str, &str)> = all_join_constraints
+            .iter()
+            .map(|c| (c.left_table_alias.as_str(), c.right_table_alias.as_str()))
+            .collect();
 
         let mut aliases_in_correct_order_to_join =
-            determine_join_order(all_constraints, main_table_alias);
-        let mut aliases_known_so_far: HashSet<String> = HashSet::new();
+            determine_join_order(all_constraints, &main_table_alias.to_lowercase());
+
+        let mut aliases_known_so_far: CaseInsensitiveHashSet<String> =
+            CaseInsensitiveHashSet::new();
         aliases_known_so_far.insert(
             aliases_in_correct_order_to_join
                 .first()
@@ -1382,12 +1378,6 @@ impl LinqQueryBuilder {
                 .to_string(),
         );
         aliases_in_correct_order_to_join.remove(0);
-
-        let mut all_last_join_constraints = if let Some(last_join) = joins.last() {
-            last_join.constraints.clone()
-        } else {
-            Vec::new()
-        };
 
         let mut new_joins: Vec<JoinOnWithTable> = Vec::new();
 
@@ -1397,11 +1387,11 @@ impl LinqQueryBuilder {
 
             let join: JoinOnWithTable = joins
                 .iter()
-                .find(|j| j.table_alias == alias)
+                .find(|join| join.table_alias == alias.to_lowercase())
                 .unwrap()
                 .clone();
 
-            for constraint in &all_last_join_constraints {
+            for constraint in &all_join_constraints {
                 if aliases_known_so_far.contains(&constraint.left_table_alias)
                     && aliases_known_so_far.contains(&constraint.right_table_alias)
                 {
@@ -1410,7 +1400,7 @@ impl LinqQueryBuilder {
                 }
             }
 
-            all_last_join_constraints.retain(|c| !new_constraints.contains(c));
+            all_join_constraints.retain(|c| !new_constraints.contains(c));
 
             new_joins.push(JoinOnWithTable {
                 table_name: join.table_name,
@@ -1487,7 +1477,7 @@ impl LinqQueryBuilder {
 
             joins.push(JoinOnWithTable {
                 table_name,
-                table_alias,
+                table_alias: table_alias.to_lowercase(),
                 constraints: current_joins,
             });
         }
@@ -1512,7 +1502,8 @@ impl LinqQueryBuilder {
                     let mut left_table_field = &constraint.left_table_field;
                     let mut right_table_field = &constraint.right_table_field;
 
-                    if joined_aliases.contains(&right_table_alias)
+                    let right_table = alias_to_table_map.get(right_table_alias).unwrap();
+                    if joined_aliases.contains(&right_table.mapped_alias)
                         || main_table_alias.to_lowercase() == right_table_alias.to_lowercase()
                     // this is the case when you join the table in reverse order, only ƒor the first constraint
                     {
@@ -1543,7 +1534,7 @@ impl LinqQueryBuilder {
 
                     if joined_aliases.len() == 0 {
                         outer_key_selector = left_table.mapped_alias.to_string();
-                        joined_aliases.push(left_table_alias.clone());
+                        joined_aliases.push(left_table.mapped_alias.clone());
                     } else {
                         outer_key_selector = "joined".to_string()
                     }
