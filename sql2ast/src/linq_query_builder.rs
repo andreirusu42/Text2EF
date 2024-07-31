@@ -1789,6 +1789,7 @@ impl LinqQueryBuilder {
         aggregated_fields: &HashMap<String, String>,
     ) -> String {
         let mut linq_query = String::new();
+        let mut has_ordered_one_so_far = false;
 
         for order_by in &query.order_by {
             let is_ordering_asc = if let Some(is_ordering_asc) = order_by.asc {
@@ -1798,10 +1799,24 @@ impl LinqQueryBuilder {
             };
 
             if is_ordering_asc {
-                linq_query.push_str(".OrderBy(");
+                let val = if has_ordered_one_so_far {
+                    ".ThenBy("
+                } else {
+                    ".OrderBy("
+                };
+
+                linq_query.push_str(val);
             } else {
-                linq_query.push_str(".OrderByDescending(");
+                let val = if has_ordered_one_so_far {
+                    ".ThenByDescending("
+                } else {
+                    ".OrderByDescending("
+                };
+
+                linq_query.push_str(val);
             }
+
+            has_ordered_one_so_far = true;
 
             if let Expr::Function(func) = &order_by.expr {
                 let function_name = func.name.to_string().to_lowercase();
@@ -2015,9 +2030,9 @@ impl LinqQueryBuilder {
             } else {
                 panic!("Unknown expression type");
             }
-        }
 
-        linq_query.push_str(")");
+            linq_query.push_str(")");
+        }
 
         return linq_query;
     }

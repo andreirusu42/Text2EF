@@ -354,11 +354,22 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("customer_complaints".to_string(), vec![
+        (
+            r#"SELECT email_address , phone_number FROM customers ORDER BY email_address , phone_number"#,
+            r#"context.Customers.OrderBy(row => row.EmailAddress).ThenBy(row => row.PhoneNumber).Select(row => new { row.EmailAddress, row.PhoneNumber }).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
+            // if db_name != "customer_complaints" || index != 0 {
+            //     continue;
+            // }
+
             // if db_name != "college_3" || index != 0 {
             //     continue;
             // }
@@ -415,8 +426,6 @@ fn create_tests_to_file() {
 
         if path.is_dir() {
             let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-
-            // check if there are files inside the dir
 
             let mut files = fs::read_dir(path).unwrap();
 
