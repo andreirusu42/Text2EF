@@ -906,49 +906,41 @@ impl LinqQueryBuilder {
                     format!("{}{}{}", left_condition, operator, right_condition)
                 }
             },
-            Expr::Like { expr, pattern, .. } => match &**expr {
-                Expr::Identifier(ident) => {
-                    let field = ident.to_string();
+            Expr::Like { expr, pattern, .. } => {
+                let (alias, field) = match &**expr {
+                    Expr::Identifier(ident) => {
+                        let field = ident.to_string();
+                        let alias = self
+                            .get_table_alias_from_field_name(alias_to_table_map, &field)
+                            .unwrap();
+                        (alias.to_string(), field)
+                    }
+                    Expr::CompoundIdentifier(ident) => {
+                        let alias = ident[0].to_string();
+                        let field = ident[1].to_string();
+                        (alias, field)
+                    }
+                    _ => panic!("Unexpected expression type"),
+                };
 
-                    let alias_option =
-                        self.get_table_alias_from_field_name(alias_to_table_map, &field);
+                let table = alias_to_table_map.get(&alias).unwrap();
+                let mapped_column_name = self
+                    .schema_mapping
+                    .get_column_name(&table.name, &field)
+                    .unwrap();
+                let value = pattern.to_string().replace("'", "\"");
 
-                    let alias = alias_option.unwrap();
+                let alias_string = if table.mapped_alias.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("{}.", table.mapped_alias)
+                };
 
-                    let table = alias_to_table_map.get(alias).unwrap();
-
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&table.name, &field)
-                        .unwrap();
-
-                    let value = pattern.to_string().replace("'", "\"");
-
-                    return format!(
-                        "EF.Functions.Like({}.{}, {})",
-                        self.row_selector, mapped_column_name, value
-                    );
-                }
-                Expr::CompoundIdentifier(ident) => {
-                    let alias = ident[0].to_string();
-                    let field = ident[1].to_string();
-
-                    let table = alias_to_table_map.get(&alias).unwrap();
-
-                    let mapped_column_name = self
-                        .schema_mapping
-                        .get_column_name(&table.name, &field)
-                        .unwrap();
-
-                    let value = pattern.to_string().replace("'", "\"");
-
-                    return format!(
-                        "EF.Functions.Like({}.{}.{}, {})",
-                        self.row_selector, alias, mapped_column_name, value
-                    );
-                }
-                _ => panic!("Unsupported expression type"),
-            },
+                return format!(
+                    "EF.Functions.Like({}.{}{}, {})",
+                    self.row_selector, alias_string, mapped_column_name, value
+                );
+            }
             Expr::InSubquery {
                 subquery,
                 expr,
