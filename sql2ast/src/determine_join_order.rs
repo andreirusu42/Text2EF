@@ -1,75 +1,38 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 pub fn determine_join_order(
-    join_constraints: Vec<Vec<(&str, &str)>>,
+    join_constraints: &mut Vec<Vec<(&str, &str)>>,
     main_table_alias: &str,
 ) -> Vec<String> {
-    let mut order = Vec::new();
-    let mut visited: HashSet<&str> = HashSet::new();
-    let mut full_graph: HashMap<&str, Vec<&str>> = HashMap::new();
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut order: Vec<String> = Vec::new();
 
-    for constraints in &join_constraints {
-        let mut graph: HashMap<&str, Vec<&str>> = HashMap::new();
-        let mut in_degree: HashMap<&str, i32> = HashMap::new();
+    seen.insert(main_table_alias);
+    order.push(main_table_alias.to_string());
 
-        for &(src, dest) in constraints {
-            graph.entry(src).or_default().push(dest);
-            full_graph.entry(src).or_default().push(dest);
+    for i in 0..join_constraints.len() {
+        let constraints = &mut join_constraints[i];
 
-            *in_degree.entry(dest).or_default() += 1;
-            in_degree.entry(src).or_insert(0);
-        }
+        while constraints.len() > 0 {
+            let mut constraints_to_remove: Vec<(&str, &str)> = Vec::new();
 
-        let mut queue: VecDeque<&str> = VecDeque::new();
-
-        queue.push_back(main_table_alias);
-
-        while let Some(current) = queue.pop_front() {
-            if !visited.contains(current) {
-                order.push(current.to_string());
-            }
-
-            visited.insert(current);
-
-            if let Some(neighbors) = graph.get(current) {
-                for &neighbor in neighbors {
-                    if let Some(in_deg) = in_degree.get_mut(neighbor) {
-                        *in_deg -= 1;
-                        if *in_deg == 0 {
-                            queue.push_back(neighbor);
-                        }
+            for constrain in constraints.iter() {
+                if seen.contains(&constrain.0) || seen.contains(&constrain.1) {
+                    if seen.insert(constrain.0) {
+                        order.push(constrain.0.to_string());
                     }
+
+                    if seen.insert(constrain.1) {
+                        order.push(constrain.1.to_string());
+                    }
+
+                    constraints_to_remove.push(constrain.clone());
                 }
             }
-        }
-    }
 
-    let tables: HashSet<&str> = join_constraints
-        .iter()
-        .flat_map(|level| level.iter().flat_map(|&(src, dest)| vec![src, dest]))
-        .collect();
-
-    let remaining_tables: Vec<&str> = tables.difference(&visited).cloned().collect();
-    let mut remaining_tables = remaining_tables;
-
-    while !remaining_tables.is_empty() {
-        let mut found = false;
-        for i in 0..remaining_tables.len() {
-            let table = remaining_tables[i];
-            if full_graph
-                .get(table)
-                .unwrap_or(&vec![])
-                .iter()
-                .all(|&dep| order.contains(&dep.to_string()))
-            {
-                order.push(table.to_string());
-                remaining_tables.remove(i);
-                found = true;
-                break;
+            for constraint in constraints_to_remove {
+                constraints.retain(|c| *c != constraint);
             }
-        }
-        if !found {
-            break;
         }
     }
 

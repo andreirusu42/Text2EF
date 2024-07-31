@@ -227,7 +227,15 @@ fn tests() {
         (
             r#"SELECT T2.name , T3.name FROM accelerator_compatible_browser AS T1 JOIN browser AS T2 ON T1.browser_id = T2.id JOIN web_client_accelerator AS T3 ON T1.accelerator_id = T3.id ORDER BY T1.compatible_since_year DESC"#,
             r#"context.AcceleratorCompatibleBrowsers.Join(context.Browsers, T1 => T1.BrowserId, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Join(context.WebClientAccelerators, joined => joined.T1.AcceleratorId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).OrderByDescending(row => row.T1.CompatibleSinceYear).Select(row => new { T2Name = row.T2.Name, T3Name = row.T3.Name }).ToList();"#,
+        ),
+        (
+            r#"SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'CACHEbox'"#,
+            r#"context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "CACHEbox").Select(row => new { row.T3.Name }).ToList();"#,
         )
+        // (
+        //     r#"SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'CACHEbox' INTERSECT SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'Fasterfox'"#,
+        //     r#"context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "CACHEbox").Select(row => row.T3.Name).Intersect(context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "Fasterfox").Select(row => row.T3.Name)).ToList();"#,
+        // )
     ]);
 
     all_queries_and_results.insert("candidate_poll".to_string(), vec![
@@ -369,20 +377,17 @@ fn tests() {
         )
     ]);
 
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "college_2" || index != 0 {
+            // if db_name != "browser_web" || index != 1 {
             //     continue;
             // }
 
-            // if db_name == "college_3" && index == 0 {
-            //     continue;
-            // }
-
-            // if db_name != "csu_1" || index != 1 {
+            //  if db_name != "bike_1" || index != 3 {
             //     continue;
             // }
             

@@ -1370,8 +1370,7 @@ impl LinqQueryBuilder {
         }
 
         let mut aliases_in_correct_order_to_join =
-            determine_join_order(all_constraints, &main_table_alias.to_lowercase());
-
+            determine_join_order(&mut all_constraints, &main_table_alias.to_lowercase());
         let mut aliases_known_so_far: CaseInsensitiveHashSet<String> =
             CaseInsensitiveHashSet::new();
         aliases_known_so_far.insert(
@@ -1488,6 +1487,7 @@ impl LinqQueryBuilder {
 
         if number_of_constraints > 0 {
             self.rearrange_joins(&mut joins, main_table_alias);
+
             for join in joins {
                 let mapped_table_name = self
                     .schema_mapping
