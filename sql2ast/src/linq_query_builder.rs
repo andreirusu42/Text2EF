@@ -1557,7 +1557,8 @@ impl LinqQueryBuilder {
                         let mut left_table_field = &constraint.left_table_field;
                         let mut right_table_field = &constraint.right_table_field;
 
-                        if joined_aliases.contains(&right_table_alias)
+                        let mapped_right_table = alias_to_table_map.get(right_table_alias).unwrap();
+                        if joined_aliases.contains(&mapped_right_table.mapped_alias)
                         // this is the case when you join the table in reverse order
                         {
                             let temp_table_alias = left_table_alias;
@@ -1596,7 +1597,7 @@ impl LinqQueryBuilder {
                             mapped_right_field
                         ));
 
-                        last_table_alias = right_table_alias.clone();
+                        last_table_alias = right_table.mapped_alias.clone();
                     }
 
                     let mut joined_aliases_str = String::new();
@@ -1855,7 +1856,7 @@ impl LinqQueryBuilder {
                                 self.row_selector,
                                 cast,
                                 self.row_selector,
-                                table_alias,
+                                table.mapped_alias,
                                 &mapped_column.name
                             ));
                         }
@@ -1892,7 +1893,7 @@ impl LinqQueryBuilder {
                 } else {
                     linq_query.push_str(&format!(
                         "{} => {}{}.{}.{}",
-                        selector, cast, selector, table_alias, &mapped_column.name
+                        selector, cast, selector, table.mapped_alias, &mapped_column.name
                     ));
                 }
             } else if let Expr::CompoundIdentifier(ident) = &order_by.expr {
@@ -1912,12 +1913,12 @@ impl LinqQueryBuilder {
                 if group_by_fields.len() == 0 || group_by_fields.contains(&field) {
                     linq_query.push_str(&format!(
                         "{} => {}{}.{}.{}",
-                        selector, cast, selector, alias, &mapped_column.name
+                        selector, cast, selector, table.mapped_alias, &mapped_column.name
                     ));
                 } else {
                     linq_query.push_str(&format!(
                         "{} => {}{}.First().{}.{}",
-                        selector, cast, selector, alias, &mapped_column.name
+                        selector, cast, selector, table.mapped_alias, &mapped_column.name
                     ));
                 }
             } else if let Expr::BinaryOp { left, op, right } = &order_by.expr {

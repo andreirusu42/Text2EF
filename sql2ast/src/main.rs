@@ -212,7 +212,7 @@ fn tests() {
             r#"SELECT T1.name , T1.id FROM station AS T1 JOIN status AS T2 ON T1.id = T2.station_id GROUP BY T2.station_id HAVING avg(T2.bikes_available) > 14 UNION SELECT name , id FROM station WHERE installation_date LIKE "12/%""#,
             r#"context.Stations.Join(context.Statuses, T1 => T1.Id, T2 => T2.StationId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T2.StationId }).Where(group => group.Average(row => row.T2.BikesAvailable) > 14).Select(group => new { group.First().T1.Name, group.First().T1.Id }).Union(context.Stations.Where(row => EF.Functions.Like(row.InstallationDate, "12/%")).Select(row => new { row.Name, row.Id })).ToList();"#
         ),
-        (
+        ( 
             r#"SELECT date , max_temperature_f - min_temperature_f FROM weather ORDER BY max_temperature_f - min_temperature_f LIMIT 1"#,
             r#"context.Weathers.Select(row => new { row.Date, Diff = row.MaxTemperatureF - row.MinTemperatureF }).OrderBy(row => row.Diff).Take(1).ToList();"#
         ),
@@ -320,9 +320,8 @@ fn tests() {
             r#"SELECT degrees FROM campuses AS T1 JOIN degrees AS T2 ON t1.id = t2.campus WHERE t1.campus = "San Jose State University" AND t2.year = 2000"#,
             r#"context.Campuses.Join(context.Degrees, T1 => T1.Id, T2 => T2.Campus, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Campus1 == "San Jose State University" && row.T2.Year == 2000).Select(row => new { row.T2.Degrees }).ToList();"#,
         ),
-        // make it work with aliases with different cases, it's the next missing step
         (
-            r#"SELECT T2.faculty FROM campuses AS T1 JOIN faculty AS T2 ON T1.id = t2.campus JOIN degrees AS T3 ON T1.id = T3.campus AND T3.year = T2.year WHERE T2.year = 2002 ORDER BY T3.degrees DESC LIMIT 1"#,
+            r#"SELECT T2.faculty FROM campuses AS T1 JOIN faculty AS T2 ON T1.id = t2.campus JOIN degrees AS T3 ON t1.id = t3.campus AND t3.year = t2.year WHERE t2.year = 2002 ORDER BY t3.degrees DESC LIMIT 1"#,
             r#"context.Campuses.Join(context.Faculties, T1 => T1.Id, T2 => T2.Campus, (T1, T2) => new { T1, T2 }).Join(context.Degrees, joined => new { Pair1 = joined.T1.Id, Pair2 = joined.T2.Year }, T3 => new { Pair1 = T3.Campus, Pair2 = T3.Year }, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T2.Year == 2002).OrderByDescending(row => row.T3.Degrees).Select(row => new { row.T2.Faculty1 }).Take(1).ToList();"#,
         )
     ]);
@@ -334,12 +333,19 @@ fn tests() {
         )
     ]);
 
+    // all_queries_and_results.insert("cre_docs_and_epenses".to_string(), vec![
+    //     (
+    //         r#"SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE \"%5%\""#,
+    //         r#"context.Accounts.Select(row => (double) row.AccountDetails).Max().ToString(); context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails, "%5%")).Select(row => new { row.AccountDetails }).ToList();"#,
+    //     )
+    // ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "bike_1" || index != 3 {
+            // if db_name != "cre_docs_and_epenses" || index != 0 {
             //     continue;
             // }
 
