@@ -333,12 +333,12 @@ fn tests() {
         )
     ]);
 
-    // all_queries_and_results.insert("cre_docs_and_epenses".to_string(), vec![
-    //     (
-    //         r#"SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE \"%5%\""#,
-    //         r#"context.Accounts.Select(row => (double) row.AccountDetails).Max().ToString(); context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails, "%5%")).Select(row => new { row.AccountDetails }).ToList();"#,
-    //     )
-    // ]);
+    all_queries_and_results.insert("cre_docs_and_epenses".to_string(), vec![
+        (
+            r#"SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE "%5%""#,
+            r#"new List<string> { context.Accounts.Select(row => row.AccountDetails.ToString()).Max() }.Union(context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails.ToString(), "%5%")).Select(row => row.AccountDetails.ToString())).ToList();"#
+        )
+    ]);
 
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        

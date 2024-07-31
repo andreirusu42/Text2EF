@@ -12,6 +12,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use crate::determine_join_order;
+use crate::schema_mapping::Column;
 
 use super::case_insensitive_hashmap::CaseInsensitiveHashMap;
 use super::determine_join_order::determine_join_order;
@@ -39,6 +40,7 @@ pub struct ProjectionResult {
     pub group_by_result: String,
     pub calculated_fields: HashMap<String, String>,
     pub aggregated_fields: HashMap<String, String>,
+    pub single_result_column: Option<Column>,
 }
 
 #[derive(Debug)]
@@ -126,25 +128,40 @@ impl LinqQueryBuilder {
                                 .get_column(&table.name, &column_name)
                                 .unwrap();
 
-                            let cast = if mapped_column.field_type == "decimal" {
+                            let cast = if mapped_column.field_type == "decimal"
+                                && mapped_column.column_type.contains("decimal")
+                            {
                                 "(double) "
+                            } else {
+                                ""
+                            };
+
+                            let stringify = if !mapped_column.field_type.contains("str")
+                                && mapped_column.column_type.contains("varchar")
+                            {
+                                ".ToString()"
                             } else {
                                 ""
                             };
 
                             if table_alias.is_empty() {
                                 result.push_str(&format!(
-                                    ".Select({} => {}{}.{})",
-                                    self.row_selector, cast, self.row_selector, &mapped_column.name
+                                    ".Select({} => {}{}.{}{})",
+                                    self.row_selector,
+                                    cast,
+                                    self.row_selector,
+                                    &mapped_column.name,
+                                    stringify
                                 ));
                             } else {
                                 result.push_str(&format!(
-                                    ".Select({} => {}{}.{}.{})",
+                                    ".Select({} => {}{}.{}.{}{})",
                                     self.row_selector,
                                     cast,
                                     self.row_selector,
                                     table_alias,
-                                    &mapped_column.name
+                                    &mapped_column.name,
+                                    stringify
                                 ));
                             }
                         } else {
@@ -193,6 +210,7 @@ impl LinqQueryBuilder {
         let mut group_by_result = String::new();
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
         let mut aggregated_fields: HashMap<String, String> = HashMap::new();
+        let mut single_result_column: Option<Column> = None;
 
         let mut selector = if has_group_by {
             &self.group_selector
@@ -352,7 +370,7 @@ impl LinqQueryBuilder {
             }
         }
 
-        for expr in expressions {
+        for expr in &expressions {
             if let Expr::Identifier(identifier) = expr {
                 let column_name = identifier.to_string();
 
@@ -362,36 +380,47 @@ impl LinqQueryBuilder {
 
                 let table = alias_to_table_map.get(table_alias).unwrap();
 
-                let mapped_column_name = self
+                let mapped_column = self
                     .schema_mapping
-                    .get_column_name(&table.name, &column_name)
+                    .get_column(&table.name, &column_name)
                     .unwrap();
+
+                let stringify = if !mapped_column.field_type.contains("str")
+                    && mapped_column.column_type.contains("varchar")
+                {
+                    ".ToString()"
+                } else {
+                    ""
+                };
+
+                single_result_column = Some(mapped_column.clone());
 
                 if table_alias.is_empty() {
                     if has_group_by {
-                        if group_by_fields.contains(&mapped_column_name) {
-                            select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                        if group_by_fields.contains(&mapped_column.name) {
+                            select_fields.push(format!("{}.Key.{}", selector, mapped_column.name));
                         } else {
                             select_fields
-                                .push(format!("{}.First().{}", selector, mapped_column_name));
+                                .push(format!("{}.First().{}", selector, mapped_column.name));
                         }
                     } else {
-                        select_fields.push(format!("{}.{}", selector, mapped_column_name));
+                        select_fields
+                            .push(format!("{}.{}{}", selector, mapped_column.name, stringify));
                     }
                 } else {
                     if has_group_by {
-                        if group_by_fields.contains(&mapped_column_name) {
-                            select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                        if group_by_fields.contains(&mapped_column.name) {
+                            select_fields.push(format!("{}.Key.{}", selector, mapped_column.name));
                         } else {
                             select_fields.push(format!(
                                 "{}.First().{}.{}",
-                                selector, table.mapped_alias, mapped_column_name
+                                selector, table.mapped_alias, mapped_column.name
                             ));
                         }
                     } else {
                         select_fields.push(format!(
                             "{}.{}.{}",
-                            selector, table.mapped_alias, mapped_column_name
+                            selector, table.mapped_alias, mapped_column.name
                         ));
                     }
                 }
@@ -684,6 +713,11 @@ impl LinqQueryBuilder {
                 panic!("Unknown expression type");
             }
         }
+
+        if expressions.len() != 1 {
+            single_result_column = None;
+        }
+
         select_result.push_str(&select_fields.join(", "));
 
         if should_use_new {
@@ -697,6 +731,7 @@ impl LinqQueryBuilder {
             group_by_result,
             calculated_fields,
             aggregated_fields,
+            single_result_column,
         };
     }
 
@@ -924,10 +959,7 @@ impl LinqQueryBuilder {
                 };
 
                 let table = alias_to_table_map.get(&alias).unwrap();
-                let mapped_column_name = self
-                    .schema_mapping
-                    .get_column_name(&table.name, &field)
-                    .unwrap();
+                let mapped_column = self.schema_mapping.get_column(&table.name, &field).unwrap();
                 let value = pattern.to_string().replace("'", "\"");
 
                 let alias_string = if table.mapped_alias.is_empty() {
@@ -936,9 +968,17 @@ impl LinqQueryBuilder {
                     format!("{}.", table.mapped_alias)
                 };
 
+                let stringify = if !mapped_column.field_type.contains("str")
+                    && mapped_column.column_type.contains("varchar")
+                {
+                    ".ToString()"
+                } else {
+                    ""
+                };
+
                 return format!(
-                    "EF.Functions.Like({}.{}{}, {})",
-                    self.row_selector, alias_string, mapped_column_name, value
+                    "EF.Functions.Like({}.{}{}{}, {})",
+                    self.row_selector, alias_string, mapped_column.name, stringify, value
                 );
             }
             Expr::InSubquery {
@@ -2096,6 +2136,19 @@ impl LinqQueryBuilder {
                     use_new_object_for_select,
                 );
 
+                if let Some(single_result_column) = projection_result.single_result_column {
+                    let column_type = single_result_column.column_type;
+                    let field_type: &str;
+
+                    if !column_type.contains("str") && column_type.contains("varchar") {
+                        field_type = "string";
+                    } else {
+                        field_type = ""; // TODO
+                    }
+
+                    linq_query.insert("single_result_type".to_string(), field_type.to_string());
+                }
+
                 calculated_fields = projection_result.calculated_fields;
                 aggregated_fields = projection_result.aggregated_fields;
                 current_linq_query.push_str(&projection_result.select_result);
@@ -2208,7 +2261,14 @@ impl LinqQueryBuilder {
             } else if let sqlparser::ast::SetOperator::Except = op {
                 result = format!("{}.Except({})", left_query, right_query);
             } else if let sqlparser::ast::SetOperator::Union = op {
-                result = format!("{}.Union({})", left_query, right_query);
+                if let Some(single_result_type) = right_select.get("single_result_type") {
+                    result = format!(
+                        "new List<{}> {{ {} }}.Union({})",
+                        single_result_type, left_query, right_query
+                    );
+                } else {
+                    result = format!("{}.Union({})", left_query, right_query);
+                }
             } else {
                 panic!("Unknown set operator");
             }

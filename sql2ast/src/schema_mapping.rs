@@ -1,11 +1,18 @@
 use std::collections::HashMap;
 use std::fs;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Column {
     pub name: String,
     pub field_type: String,
     pub is_optional: bool,
+    pub column_type: String,
+}
+
+#[derive(Debug)]
+pub struct ContextFileColumn {
+    pub name: String,
+    pub column_type: String,
 }
 
 #[derive(Debug)]
@@ -124,6 +131,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let mapped_column_name_pattern: regex::Regex = regex::Regex::new(r"e => e\.(\w+)\)").unwrap();
     let original_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
     let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
+    let has_column_type_regex = regex::Regex::new(r#"HasColumnType\(\"(.+?)\""#).unwrap();
     let join_table_regex =
         regex::Regex::new(r#"(?s)entity\s*\.HasMany\(.*?\)\.WithMany\(.*?\}\);"#).unwrap();
 
@@ -143,7 +151,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
     for cap in entity_regex.captures_iter(&context_content) {
         let mut model_file_properties: HashMap<String, Column> = HashMap::new();
-        let mut context_file_mapping: HashMap<String, String> = HashMap::new();
+        let mut context_file_mapping: HashMap<String, ContextFileColumn> = HashMap::new();
         let mut columns: HashMap<String, Column> = HashMap::new();
 
         let entity_name = &cap[1];
@@ -187,6 +195,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                         name: field_name.to_string(),
                         field_type: field_type.to_string(),
                         is_optional: false,
+                        column_type: "".to_string(), // TODO
                     },
                 );
             }
@@ -212,7 +221,18 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                 .map(|original_column_match| original_column_match[1].to_lowercase())
                 .unwrap_or_else(|| mapped_column_name.to_lowercase());
 
-            context_file_mapping.insert(original_column_name, mapped_column_name.to_lowercase());
+            let column_type = has_column_type_regex
+                .captures(occurrence)
+                .map(|column_type_match| column_type_match[1].to_string())
+                .unwrap_or_else(|| "".to_string()); // TODO: find out why
+
+            context_file_mapping.insert(
+                original_column_name,
+                ContextFileColumn {
+                    name: mapped_column_name.to_lowercase(),
+                    column_type: column_type.to_lowercase(),
+                },
+            );
         }
 
         let model_property_occurrences = model_property_regex.captures_iter(&model_content);
@@ -235,22 +255,24 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                         name: field_name.to_string(),
                         field_type: field_type.to_string(),
                         is_optional,
+                        column_type: "".to_string(), // TODO
                     },
                 );
             }
         }
 
-        for (original_column_name, mapped_column_name) in context_file_mapping {
-            if let Some(property) = model_file_properties.get(&mapped_column_name) {
+        for (original_column_name, mapped_column) in context_file_mapping {
+            if let Some(property) = model_file_properties.get(&mapped_column.name) {
                 columns.insert(
                     original_column_name,
                     Column {
                         name: property.name.clone(),
                         field_type: property.field_type.clone(),
                         is_optional: property.is_optional,
+                        column_type: mapped_column.column_type,
                     },
                 );
-                model_file_properties.remove(&mapped_column_name);
+                model_file_properties.remove(&mapped_column.name);
             }
         }
         for (column_name, property) in model_file_properties {
@@ -260,6 +282,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                     name: property.name,
                     field_type: property.field_type,
                     is_optional: property.is_optional,
+                    column_type: property.column_type,
                 },
             );
         }
