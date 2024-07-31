@@ -1357,14 +1357,17 @@ impl LinqQueryBuilder {
         }
 
         let mut all_join_constraints: Vec<JoinOn> = Vec::new();
+        let mut all_constraints: Vec<Vec<(&str, &str)>> = Vec::new();
+
         for join in joins.iter() {
             all_join_constraints.append(&mut join.constraints.clone());
+            all_constraints.push(
+                join.constraints
+                    .iter()
+                    .map(|c| (c.left_table_alias.as_str(), c.right_table_alias.as_str()))
+                    .collect(),
+            );
         }
-
-        let all_constraints: Vec<(&str, &str)> = all_join_constraints
-            .iter()
-            .map(|c| (c.left_table_alias.as_str(), c.right_table_alias.as_str()))
-            .collect();
 
         let mut aliases_in_correct_order_to_join =
             determine_join_order(all_constraints, &main_table_alias.to_lowercase());
@@ -1396,7 +1399,6 @@ impl LinqQueryBuilder {
                     && aliases_known_so_far.contains(&constraint.right_table_alias)
                 {
                     new_constraints.push(constraint.clone());
-                    break;
                 }
             }
 

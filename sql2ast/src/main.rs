@@ -382,9 +382,9 @@ fn tests() {
             //     continue;
             // }
 
-            if db_name != "csu_1" || index != 1 {
-                continue;
-            }
+            // if db_name != "csu_1" || index != 1 {
+            //     continue;
+            // }
             
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
