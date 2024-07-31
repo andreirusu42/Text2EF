@@ -1,18 +1,39 @@
 use std::collections::HashMap;
 use std::fs;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum FieldType {
+    Int,
+    String,
+    Bool,
+    Double,
+    Decimal,
+    Date,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ColumnType {
+    Varchar,
+    Int,
+    Bool,
+    Double,
+    Decimal,
+    None,
+    Datetime,
+}
+
 #[derive(Debug, Clone)]
 pub struct Column {
     pub name: String,
-    pub field_type: String,
+    pub field_type: FieldType,
     pub is_optional: bool,
-    pub column_type: String,
+    pub column_type: ColumnType,
 }
 
 #[derive(Debug)]
 pub struct ContextFileColumn {
     pub name: String,
-    pub column_type: String,
+    pub column_type: ColumnType,
 }
 
 #[derive(Debug)]
@@ -25,6 +46,61 @@ pub struct SchemaMapTable {
 pub struct SchemaMapping {
     pub context: String,
     pub tables: HashMap<String, SchemaMapTable>,
+}
+
+fn field_type_to_enum(field_type: &str) -> FieldType {
+    match field_type {
+        "string" => FieldType::String,
+        "int" => FieldType::Int,
+        "bool" => FieldType::Bool,
+        "double" => FieldType::Double,
+        "DateTime" => FieldType::Date,
+        "DateOnly" => FieldType::Date,
+        "decimal" => FieldType::Decimal,
+
+        _ => panic!("Unknown field type: {}", field_type),
+    }
+}
+
+fn column_type_to_enum(column_type: &str) -> ColumnType {
+    if column_type.is_empty() {
+        return ColumnType::None;
+    }
+
+    let result = match column_type {
+        "datetime" => ColumnType::Datetime,
+        "int" => ColumnType::Int,
+        "integer" => ColumnType::Int,
+        "bit" => ColumnType::Bool,
+        "numeric" => ColumnType::Decimal,
+        _ => ColumnType::None,
+    };
+
+    if result != ColumnType::None {
+        return result;
+    }
+
+    if column_type.contains("varchar") {
+        return ColumnType::Varchar;
+    }
+
+    if column_type.contains("char") {
+        return ColumnType::Varchar;
+    }
+
+    if column_type.contains("float") {
+        return ColumnType::Double;
+    }
+
+    if column_type.contains("decimal") {
+        return ColumnType::Decimal;
+    }
+
+    if column_type.contains("numeric") {
+        return ColumnType::Decimal;
+    }
+
+    panic!("Unknown column type: {}", column_type);
 }
 
 impl SchemaMapping {
@@ -193,9 +269,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                     column_name.to_lowercase(),
                     Column {
                         name: field_name.to_string(),
-                        field_type: field_type.to_string(),
+                        field_type: field_type_to_enum(field_type),
                         is_optional: false,
-                        column_type: "".to_string(), // TODO
+                        column_type: ColumnType::None,
                     },
                 );
             }
@@ -223,14 +299,14 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
             let column_type = has_column_type_regex
                 .captures(occurrence)
-                .map(|column_type_match| column_type_match[1].to_string())
-                .unwrap_or_else(|| "".to_string()); // TODO: find out why
+                .map(|column_type_match| column_type_match[1].to_lowercase().to_string())
+                .unwrap_or("".to_string());
 
             context_file_mapping.insert(
                 original_column_name,
                 ContextFileColumn {
                     name: mapped_column_name.to_lowercase(),
-                    column_type: column_type.to_lowercase(),
+                    column_type: column_type_to_enum(column_type.as_str()),
                 },
             );
         }
@@ -253,9 +329,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                     field_name.to_lowercase(),
                     Column {
                         name: field_name.to_string(),
-                        field_type: field_type.to_string(),
+                        field_type: field_type_to_enum(field_type),
                         is_optional,
-                        column_type: "".to_string(), // TODO
+                        column_type: ColumnType::None,
                     },
                 );
             }

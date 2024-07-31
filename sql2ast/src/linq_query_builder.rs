@@ -12,7 +12,7 @@ use sqlparser::dialect::GenericDialect;
 use sqlparser::parser::Parser;
 
 use crate::determine_join_order;
-use crate::schema_mapping::Column;
+use crate::schema_mapping::{Column, ColumnType, FieldType};
 
 use super::case_insensitive_hashmap::CaseInsensitiveHashMap;
 use super::determine_join_order::determine_join_order;
@@ -40,7 +40,12 @@ pub struct ProjectionResult {
     pub group_by_result: String,
     pub calculated_fields: HashMap<String, String>,
     pub aggregated_fields: HashMap<String, String>,
-    pub single_result_column: Option<Column>,
+}
+
+#[derive(Debug)]
+pub struct ProjectionSingleFunctionResult {
+    pub result: String,
+    pub field_type: String,
 }
 
 #[derive(Debug)]
@@ -85,9 +90,10 @@ impl LinqQueryBuilder {
         &self,
         function: &Function,
         alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
-    ) -> String {
+    ) -> ProjectionSingleFunctionResult {
         let function_name = function.name.to_string().to_lowercase();
         let mut result = String::new();
+        let mut field_type: String;
 
         if ["count", "avg", "sum", "min", "max"].contains(&function_name.as_str()) {
             if let FunctionArguments::List(list) = &function.args {
@@ -100,6 +106,7 @@ impl LinqQueryBuilder {
                 if list.args.len() == 1 {
                     if let FunctionArg::Unnamed(ident) = &list.args[0] {
                         if let FunctionArgExpr::Wildcard = ident {
+                            field_type = "int".to_string();
                             // using .Distinct().[Func]() from below
                         } else if let FunctionArgExpr::Expr(expr) = ident {
                             let column_name: String;
@@ -128,18 +135,28 @@ impl LinqQueryBuilder {
                                 .get_column(&table.name, &column_name)
                                 .unwrap();
 
-                            let cast = if mapped_column.field_type == "decimal"
-                                && mapped_column.column_type.contains("decimal")
+                            field_type = match mapped_column.column_type {
+                                ColumnType::Varchar => "string".to_string(),
+                                ColumnType::Int => "int".to_string(),
+                                ColumnType::Decimal => "double".to_string(),
+                                ColumnType::Datetime => "DateTime".to_string(),
+                                ColumnType::Bool => "bool".to_string(),
+                                ColumnType::Double => "double".to_string(),
+                                ColumnType::None => "".to_string(),
+                            };
+
+                            let stringify = if mapped_column.field_type == FieldType::Decimal
+                                && mapped_column.column_type == ColumnType::Varchar
                             {
-                                "(double) "
+                                ".ToString()"
                             } else {
                                 ""
                             };
 
-                            let stringify = if !mapped_column.field_type.contains("str")
-                                && mapped_column.column_type.contains("varchar")
+                            let cast = if stringify.is_empty()
+                                && mapped_column.field_type == FieldType::Decimal
                             {
-                                ".ToString()"
+                                "(double) "
                             } else {
                                 ""
                             };
@@ -195,7 +212,7 @@ impl LinqQueryBuilder {
             panic!("Unknown function");
         }
 
-        return result;
+        return ProjectionSingleFunctionResult { result, field_type };
     }
 
     fn build_projection(
@@ -210,7 +227,6 @@ impl LinqQueryBuilder {
         let mut group_by_result = String::new();
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
         let mut aggregated_fields: HashMap<String, String> = HashMap::new();
-        let mut single_result_column: Option<Column> = None;
 
         let mut selector = if has_group_by {
             &self.group_selector
@@ -385,15 +401,13 @@ impl LinqQueryBuilder {
                     .get_column(&table.name, &column_name)
                     .unwrap();
 
-                let stringify = if !mapped_column.field_type.contains("str")
-                    && mapped_column.column_type.contains("varchar")
+                let stringify = if mapped_column.field_type != FieldType::String
+                    && mapped_column.column_type == ColumnType::Varchar
                 {
                     ".ToString()"
                 } else {
                     ""
                 };
-
-                single_result_column = Some(mapped_column.clone());
 
                 if table_alias.is_empty() {
                     if has_group_by {
@@ -643,7 +657,7 @@ impl LinqQueryBuilder {
                     mapped_function_name, distinct_name, &mapped_column.name, suffix
                 );
 
-                let cast = if mapped_column.field_type == "decimal" {
+                let cast = if mapped_column.field_type == FieldType::Decimal {
                     "(double) "
                 } else {
                     ""
@@ -714,10 +728,6 @@ impl LinqQueryBuilder {
             }
         }
 
-        if expressions.len() != 1 {
-            single_result_column = None;
-        }
-
         select_result.push_str(&select_fields.join(", "));
 
         if should_use_new {
@@ -731,7 +741,6 @@ impl LinqQueryBuilder {
             group_by_result,
             calculated_fields,
             aggregated_fields,
-            single_result_column,
         };
     }
 
@@ -968,8 +977,8 @@ impl LinqQueryBuilder {
                     format!("{}.", table.mapped_alias)
                 };
 
-                let stringify = if !mapped_column.field_type.contains("str")
-                    && mapped_column.column_type.contains("varchar")
+                let stringify = if mapped_column.field_type != FieldType::String
+                    && mapped_column.column_type == ColumnType::Varchar
                 {
                     ".ToString()"
                 } else {
@@ -1114,16 +1123,13 @@ impl LinqQueryBuilder {
 
                 let table = alias_to_table_map.get(alias).unwrap();
 
-                let mapped_column_name = self
-                    .schema_mapping
-                    .get_column_name(&table.name, &field)
-                    .unwrap();
+                let mapped_column = self.schema_mapping.get_column(&table.name, &field).unwrap();
 
                 if alias.is_empty() {
-                    return format!("{}.{}", selector, mapped_column_name);
+                    return format!("{}.{}", selector, mapped_column.name);
                 }
 
-                format!("{}.{}.{}", selector, table.mapped_alias, mapped_column_name)
+                format!("{}.{}.{}", selector, table.mapped_alias, mapped_column.name)
             }
             Expr::Function(func) => {
                 let function_name = func.name.to_string().to_lowercase();
@@ -1237,26 +1243,36 @@ impl LinqQueryBuilder {
                     _ => return value.to_string(),
                 };
 
-                if let Expr::CompoundIdentifier(ident) = &**left {
-                    let alias = ident[0].to_string();
-                    let field = ident[1].to_string();
+                let (alias, field) = match &**left {
+                    Expr::Identifier(ident) => {
+                        let field = ident.to_string();
+                        let alias = self
+                            .get_table_alias_from_field_name(alias_to_table_map, &field)
+                            .unwrap();
+                        (alias.to_string(), field)
+                    }
+                    Expr::CompoundIdentifier(ident) => {
+                        let alias = ident[0].to_string();
+                        let field = ident[1].to_string();
+                        (alias, field)
+                    }
+                    _ => return value.to_string().replace("'", "\""),
+                };
 
-                    let table = alias_to_table_map.get(&alias).unwrap();
+                let table = alias_to_table_map.get(&alias).unwrap();
 
-                    let mapped_column =
-                        self.schema_mapping.get_column(&table.name, &field).unwrap();
+                let mapped_column = self.schema_mapping.get_column(&table.name, &field).unwrap();
 
-                    if mapped_column.field_type == "bool" {
-                        let number = match value {
-                            sqlparser::ast::Value::Number(num, ..) => num,
-                            _ => panic!("Invalid value type"),
-                        };
+                if mapped_column.field_type == FieldType::Bool {
+                    let number = match value {
+                        sqlparser::ast::Value::Number(num, ..) => num,
+                        _ => panic!("Invalid value type"),
+                    };
 
-                        if number == "0" {
-                            return "false".to_string();
-                        } else {
-                            return "true".to_string();
-                        }
+                    if number == "0" {
+                        return "false".to_string();
+                    } else {
+                        return "true".to_string();
                     }
                 }
 
@@ -1847,7 +1863,7 @@ impl LinqQueryBuilder {
                         .get_column(&table.name, &column_name)
                         .unwrap();
 
-                    let cast = if mapped_column.field_type == "decimal" {
+                    let cast = if mapped_column.field_type == FieldType::Decimal {
                         "(double) "
                     } else {
                         ""
@@ -1911,7 +1927,7 @@ impl LinqQueryBuilder {
                     .get_column(&table.name, &column_name)
                     .unwrap();
 
-                let cast = if mapped_column.field_type == "decimal" {
+                let cast = if mapped_column.field_type == FieldType::Decimal {
                     "(double) "
                 } else {
                     ""
@@ -1936,7 +1952,7 @@ impl LinqQueryBuilder {
 
                 let mapped_column = self.schema_mapping.get_column(&table.name, &field).unwrap();
 
-                let cast = if mapped_column.field_type == "decimal" {
+                let cast = if mapped_column.field_type == FieldType::Decimal {
                     "(double) "
                 } else {
                     ""
@@ -2136,19 +2152,6 @@ impl LinqQueryBuilder {
                     use_new_object_for_select,
                 );
 
-                if let Some(single_result_column) = projection_result.single_result_column {
-                    let column_type = single_result_column.column_type;
-                    let field_type: &str;
-
-                    if !column_type.contains("str") && column_type.contains("varchar") {
-                        field_type = "string";
-                    } else {
-                        field_type = ""; // TODO
-                    }
-
-                    linq_query.insert("single_result_type".to_string(), field_type.to_string());
-                }
-
                 calculated_fields = projection_result.calculated_fields;
                 aggregated_fields = projection_result.aggregated_fields;
                 current_linq_query.push_str(&projection_result.select_result);
@@ -2167,7 +2170,11 @@ impl LinqQueryBuilder {
                     let function_projection_result =
                         self.build_projection_single_function(function, &alias_to_table_map);
 
-                    current_linq_query.push_str(&function_projection_result);
+                    current_linq_query.push_str(&function_projection_result.result);
+                    linq_query.insert(
+                        "single_result_type".to_string(),
+                        function_projection_result.field_type.to_string(),
+                    );
                 }
             }
 
@@ -2261,7 +2268,7 @@ impl LinqQueryBuilder {
             } else if let sqlparser::ast::SetOperator::Except = op {
                 result = format!("{}.Except({})", left_query, right_query);
             } else if let sqlparser::ast::SetOperator::Union = op {
-                if let Some(single_result_type) = right_select.get("single_result_type") {
+                if let Some(single_result_type) = left_select.get("single_result_type") {
                     result = format!(
                         "new List<{}> {{ {} }}.Union({})",
                         single_result_type, left_query, right_query

@@ -340,12 +340,26 @@ fn tests() {
         )
     ]);
 
+    all_queries_and_results.insert("cre_theme_park".to_string(), vec![
+        (
+            r#"SELECT avg(price_range) FROM HOTELS WHERE star_rating_code = "5" AND pets_allowed_yn = 1"#,
+            r#"context.Hotels.Where(row => row.StarRatingCode == "5" && row.PetsAllowedYn == true).Select(row => row.PriceRange).Average();"#,
+        )
+    ]);
+
+    all_queries_and_results.insert("college_3".to_string(), vec![
+        (
+            r#"SELECT CName FROM COURSE WHERE Credits = 3 UNION SELECT CName FROM COURSE WHERE Credits = 1 AND Hours = 4"#,
+            r#"context.Courses.Where(row => row.Credits == 3).Select(row => row.Cname).Union(context.Courses.Where(row => row.Credits == 1 && row.Hours == 4).Select(row => row.Cname)).ToList();"#,
+        )
+    ]);
+
     for (db_name, queries_and_results) in all_queries_and_results.iter() {
        
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "cre_docs_and_epenses" || index != 0 {
+            // if db_name != "college_3" || index != 0 {
             //     continue;
             // }
 
