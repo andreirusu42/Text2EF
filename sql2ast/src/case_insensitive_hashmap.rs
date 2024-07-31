@@ -44,6 +44,10 @@ impl<V> CaseInsensitiveHashMap<V> {
         self.lowercase_map.contains_key(&lowercase_key)
     }
 
+    pub fn keys(&self) -> impl Iterator<Item = &String> {
+        self.map.keys()
+    }
+
     pub fn len(&self) -> usize {
         self.map.len()
     }

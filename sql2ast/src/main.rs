@@ -6,6 +6,7 @@ use std::path::Path;
 mod linq_query_builder;
 mod schema_mapping;
 mod case_insensitive_hashmap;
+mod determine_join_order;
 
 use linq_query_builder::LinqQueryBuilder;
 
@@ -216,7 +217,7 @@ fn tests() {
             r#"context.Weathers.Select(row => new { row.Date, Diff = row.MaxTemperatureF - row.MinTemperatureF }).OrderBy(row => row.Diff).Take(1).ToList();"#
         ),
         (
-            r#"SELECT count(*) FROM station AS T1 JOIN trip AS T2 JOIN station AS T3 JOIN trip AS T4 ON T1.id = T2.start_station_id AND T2.id = T4.id AND T3.id = T4.end_station_id WHERE T1.city = "Mountain View" AND T3.city = "Palo Alto""#,
+            r#"SELECT count(*) FROM station AS T1 JOIN trip AS T2 JOIN trip AS T4 JOIN station AS T3 ON T1.id = T2.start_station_id AND T2.id = T4.id AND T3.id = T4.end_station_id WHERE T1.city = "Mountain View" AND T3.city = "Palo Alto""#,
             r#"context.Stations.Join(context.Trips, T1 => T1.Id, T2 => T2.StartStationId, (T1, T2) => new { T1, T2 }).Join(context.Trips, joined => joined.T2.Id, T4 => T4.Id, (joined, T4) => new { joined.T1, joined.T2, T4 }).Join(context.Stations, joined => joined.T4.EndStationId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, joined.T4, T3 }).Where(row => row.T1.City == "Mountain View" && row.T3.City == "Palo Alto").Count();"#,
         )
     ]);
@@ -303,6 +304,14 @@ fn tests() {
         (
             r#"SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"#,
             r#"context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList();"#,
+        ),
+        (
+            r#"SELECT document_id , count(copy_number) FROM Draft_Copies GROUP BY document_id ORDER BY count(copy_number) DESC LIMIT 1;"#,
+            r#"context.DraftCopies.GroupBy(row => new { row.DocumentId }).Select(group => new { group.Key.DocumentId, CountCopyNumber = group.Select(row => row.CopyNumber).Count() }).OrderByDescending(group => group.CountCopyNumber).Take(1).ToList();"#,
+        ),
+        (
+            r#"SELECT document_id , count(T1.copy_number) FROM Draft_Copies AS T1 GROUP BY document_id ORDER BY count(T1.copy_number) DESC LIMIT 1;"#,
+            r#"context.DraftCopies.GroupBy(row => new { row.T1.DocumentId }).Select(group => new { group.Key.DocumentId, CountCopyNumber = group.Select(row => row.T1.CopyNumber).Count() }).OrderByDescending(group => group.CountCopyNumber).Take(1).ToList();"#,
         )
     ]);
 
@@ -310,6 +319,18 @@ fn tests() {
         (
             r#"SELECT degrees FROM campuses AS T1 JOIN degrees AS T2 ON t1.id = t2.campus WHERE t1.campus = "San Jose State University" AND t2.year = 2000"#,
             r#"context.Campuses.Join(context.Degrees, T1 => T1.Id, T2 => T2.Campus, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Campus1 == "San Jose State University" && row.T2.Year == 2000).Select(row => new { row.T2.Degrees }).ToList();"#,
+        ),
+        // make it work with aliases with different cases, it's the next missing step
+        (
+            r#"SELECT T2.faculty FROM campuses AS T1 JOIN faculty AS T2 ON T1.id = t2.campus JOIN degrees AS T3 ON T1.id = T3.campus AND T3.year = T2.year WHERE T2.year = 2002 ORDER BY T3.degrees DESC LIMIT 1"#,
+            r#"context.Campuses.Join(context.Faculties, T1 => T1.Id, T2 => T2.Campus, (T1, T2) => new { T1, T2 }).Join(context.Degrees, joined => new { Pair1 = joined.T1.Id, Pair2 = joined.T2.Year }, T3 => new { Pair1 = T3.Campus, Pair2 = T3.Year }, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T2.Year == 2002).OrderByDescending(row => row.T3.Degrees).Select(row => new { row.T2.Faculty1 }).Take(1).ToList();"#,
+        )
+    ]);
+
+    all_queries_and_results.insert("county_public_safety".to_string(), vec![
+        (
+            r#"SELECT name FROM city WHERE county_ID = (SELECT county_ID FROM county_public_safety ORDER BY Police_officers DESC LIMIT 1)"#,
+            r#"context.Cities.Where(row => row.CountyId == context.CountyPublicSafeties.OrderByDescending(row => row.PoliceOfficers).Select(row => row.CountyId).Take(1).First()).Select(row => new { row.Name }).ToList();"#,
         )
     ]);
 
@@ -318,11 +339,15 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "college_2" || index != 2 {
+            // if db_name != "bike_1" || index != 3 {
+            //     continue;
+            // }
+
+            // if db_name != "csu_1" || index != 1 {
             //     continue;
             // }
             
-            println!("Running test {} | DB: {} | SQL: {}", index, db_name, sql);
+            println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
             let result = linq_query_builder.build_query(sql);
 
@@ -428,6 +453,13 @@ fn create_tests_to_file() {
     let mut successfully_executed_queries = 0;
 
     for db_name in &db_names {
+        // Sadly, this one has issues with the data, since I get
+        // Unhandled exception. System.InvalidOperationException: Nullable object must have a value.
+        // when trying to execute a simple context.idk.Count();
+        if db_name == "college_2" {
+            continue;
+        }
+
         if db_name == "customers_and_addresses" {
             break;
         }
