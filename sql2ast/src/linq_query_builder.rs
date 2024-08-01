@@ -402,7 +402,8 @@ impl LinqQueryBuilder {
                     .get_column(&table.name, &column_name)
                     .unwrap();
 
-                let stringify = if mapped_column.field_type != FieldType::String
+                let stringify = if expressions.len() == 1
+                    && mapped_column.field_type != FieldType::String
                     && mapped_column.column_type == ColumnType::Varchar
                 {
                     ".ToString()"
@@ -1878,10 +1879,9 @@ impl LinqQueryBuilder {
                     };
 
                     let aggregated_field_expr = if table_alias.is_empty() {
-                        format!("{}({})", mapped_function_name, column_name).to_lowercase()
+                        format!("{}({})", function_name, column_name).to_lowercase()
                     } else {
-                        format!("{}({}.{})", mapped_function_name, table_alias, column_name)
-                            .to_lowercase()
+                        format!("{}({}.{})", function_name, table_alias, column_name).to_lowercase()
                     };
 
                     let aggregated_field = aggregated_fields.get(&aggregated_field_expr);

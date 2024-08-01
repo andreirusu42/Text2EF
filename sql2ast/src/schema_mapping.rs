@@ -9,6 +9,7 @@ pub enum FieldType {
     Double,
     Decimal,
     Date,
+    Long,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +58,7 @@ fn field_type_to_enum(field_type: &str) -> FieldType {
         "DateTime" => FieldType::Date,
         "DateOnly" => FieldType::Date,
         "decimal" => FieldType::Decimal,
+        "long" => FieldType::Long,
 
         _ => panic!("Unknown field type: {}", field_type),
     }

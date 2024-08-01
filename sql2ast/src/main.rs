@@ -272,6 +272,10 @@ fn tests() {
         (
             r#"SELECT count(*) , dept_code FROM CLASS AS T1 JOIN course AS T2 ON T1.crs_code = T2.crs_code GROUP BY dept_code"#,
             r#"context.Classes.Join(context.Courses, T1 => T1.CrsCode, T2 => T2.CrsCode, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T2.DeptCode }).Select(group => new { Count = group.Count(), group.Key.DeptCode }).ToList();"#,
+        ),
+        (
+            r#"SELECT T2.dept_name , avg(T1.stu_gpa) FROM student AS T1 JOIN department AS T2 ON T1.dept_code = T2.dept_code GROUP BY T1.dept_code ORDER BY avg(T1.stu_gpa) DESC LIMIT 1"#,
+            r#"context.Students.Join(context.Departments, T1 => T1.DeptCode, T2 => T2.DeptCode, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.DeptCode }).Select(group => new { group.First().T2.DeptName, AverageStuGpa = group.Select(row => row.T1.StuGpa).Average() }).OrderByDescending(group => group.AverageStuGpa).Take(1).ToList();"#,
         )
     ]);
 
@@ -346,6 +350,10 @@ fn tests() {
         (
             r#"SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE "%5%""#,
             r#"new List<string> { context.Accounts.Select(row => row.AccountDetails.ToString()).Max() }.Union(context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails.ToString(), "%5%")).Select(row => row.AccountDetails.ToString())).ToList();"#
+        ),
+        (
+            r#"SELECT account_id , account_details FROM Accounts"#,
+            r#"context.Accounts.Select(row => new { row.AccountId, row.AccountDetails }).ToList();"#
         )
     ]);
 
@@ -383,13 +391,9 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            // if db_name != "browser_web" || index != 1 {
-            //     continue;
-            // }
-
-            //  if db_name != "bike_1" || index != 3 {
-            //     continue;
-            // }
+             if db_name != "college_1" || index != 3 {
+                continue;
+            }
             
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
@@ -408,47 +412,43 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    // let db_names = vec![
-    // "activity_1".to_string(),
-    // "apartment_rentals".to_string(),
-    // "allergy_1".to_string(), 
-    // "assets_maintenance".to_string(),
-    // "baseball_1".to_string(),
-    // "behavior_monitoring".to_string(),
-    // "bike_1".to_string(),
-    // "body_builder".to_string(),
-    // "book_2".to_string(),
-    // "browser_web".to_string(),
-    // "candidate_poll".to_string(),
-    // "chinook_1".to_string(),
-    // "cinema".to_string(),
-    // "climbing".to_string(),
-    // "club_1".to_string(),
-    // "coffee_shop".to_string(),
-    // "college_1".to_string(),
-    // // "college_2".to_string(),
-    // // "college_3".to_string(),
-    // "company_1".to_string()
-    // ];
+    let db_names = vec![
+    "activity_1".to_string(),
+    "apartment_rentals".to_string(),
+    "allergy_1".to_string(), 
+    "assets_maintenance".to_string(),
+    "baseball_1".to_string(),
+    "behavior_monitoring".to_string(),
+    "bike_1".to_string(),
+    "body_builder".to_string(),
+    "book_2".to_string(),
+    "browser_web".to_string(),
+    "candidate_poll".to_string(),
+    "chinook_1".to_string(),
+    "cinema".to_string(),
+    "climbing".to_string(),
+    "club_1".to_string(),
+    "coffee_shop".to_string(),
+    "college_1".to_string(),
+    // "college_2".to_string(),
+    // "college_3".to_string(),
+    "company_1".to_string()
+    ];
 
-    let mut db_names: Vec<String> = Vec::new();
-    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
-        let entry = entry.unwrap();
+    // let mut db_names: Vec<String> = Vec::new();
+    // for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+    //     let entry = entry.unwrap();
+    //     let path = entry.path();
 
-        let path = entry.path();
+    //     if path.is_dir() {
+    //         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+    //         let mut files = fs::read_dir(path).unwrap();
 
-        if path.is_dir() {
-            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-
-            let mut files = fs::read_dir(path).unwrap();
-
-            if files.next().is_some() {
-                db_names.push(file_name);
-            }
-
-        }
-
-    }
+    //         if files.next().is_some() {
+    //             db_names.push(file_name);
+    //         }
+    //     }
+    // }
 
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
