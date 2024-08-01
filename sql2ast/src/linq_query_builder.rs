@@ -221,6 +221,7 @@ impl LinqQueryBuilder {
         has_group_by: bool,
         group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
+        should_stringify_single_select: bool,
     ) -> ProjectionResult {
         let mut select_result = String::new();
         let mut group_by_result = String::new();
@@ -401,6 +402,7 @@ impl LinqQueryBuilder {
                     .unwrap();
 
                 let stringify = if expressions.len() == 1
+                    && should_stringify_single_select
                     && mapped_column.field_type != FieldType::String
                     && mapped_column.column_type == ColumnType::Varchar
                 {
@@ -995,8 +997,13 @@ impl LinqQueryBuilder {
                 expr,
                 negated,
             } => {
-                let built_subquery =
-                    self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+                let built_subquery = self.build_query_helper(
+                    subquery,
+                    Some(false),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                );
 
                 let column_name: String;
                 let table_alias: String;
@@ -1279,8 +1286,13 @@ impl LinqQueryBuilder {
                 return value.to_string().replace("'", "\"");
             }
             Expr::Subquery(subquery) => {
-                let subquery =
-                    self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+                let subquery = self.build_query_helper(
+                    subquery,
+                    Some(false),
+                    Some(false),
+                    Some(true),
+                    Some(false),
+                );
 
                 // TODO: This is a bit hacky
 
@@ -2028,7 +2040,12 @@ impl LinqQueryBuilder {
         return linq_query;
     }
 
-    fn build_select(&self, select: &Box<Select>, use_new_object_for_select: bool) -> SelectResult {
+    fn build_select(
+        &self,
+        select: &Box<Select>,
+        use_new_object_for_select: bool,
+        should_stringify_single_select: bool,
+    ) -> SelectResult {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
         let main_table_name: String;
@@ -2078,8 +2095,13 @@ impl LinqQueryBuilder {
                 format!("context.{}", mapped_table_name),
             );
         } else if let sqlparser::ast::TableFactor::Derived { subquery, .. } = &table.relation {
-            let subquery_result =
-                self.build_query_helper(subquery, Some(false), Some(false), Some(true));
+            let subquery_result = self.build_query_helper(
+                subquery,
+                Some(false),
+                Some(false),
+                Some(true),
+                Some(false),
+            );
 
             main_table_name = String::new();
             main_table_alias = String::new();
@@ -2156,6 +2178,7 @@ impl LinqQueryBuilder {
                     has_group_by,
                     &group_by_fields,
                     use_new_object_for_select,
+                    should_stringify_single_select,
                 );
 
                 calculated_fields = projection_result.calculated_fields;
@@ -2230,6 +2253,7 @@ impl LinqQueryBuilder {
         use_new_object_for_select: Option<bool>,
         with_semicolon: Option<bool>,
         skip_final_aggregation: Option<bool>,
+        stringify_single_select: Option<bool>,
     ) -> String {
         let should_use_semicolon = if let Some(with_semicolon) = with_semicolon {
             with_semicolon
@@ -2244,6 +2268,13 @@ impl LinqQueryBuilder {
                 false
             };
 
+        let should_stringify_single_select =
+            if let Some(stringify_single_select) = stringify_single_select {
+                stringify_single_select
+            } else {
+                false
+            };
+
         if let SetExpr::SetOperation {
             op, left, right, ..
         } = &*query.body
@@ -2252,13 +2283,13 @@ impl LinqQueryBuilder {
             let right_select: HashMap<String, String>;
 
             if let SetExpr::Select(select) = &**left {
-                left_select = self.build_select(select, false).linq_query;
+                left_select = self.build_select(select, false, true).linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
 
             if let SetExpr::Select(select) = &**right {
-                right_select = self.build_select(select, false).linq_query;
+                right_select = self.build_select(select, false, true).linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
@@ -2323,7 +2354,11 @@ impl LinqQueryBuilder {
                 true
             };
 
-        let select_result = self.build_select(select, should_use_new_object_for_select);
+        let select_result = self.build_select(
+            select,
+            should_use_new_object_for_select,
+            should_stringify_single_select,
+        );
 
         let SelectResult {
             linq_query,
@@ -2408,7 +2443,7 @@ impl LinqQueryBuilder {
         let ast = Parser::parse_sql(&dialect, sql).unwrap();
 
         if let Statement::Query(query) = &ast[0] {
-            return self.build_query_helper(query, None, None, None);
+            return self.build_query_helper(query, None, None, None, None);
         } else {
             panic!("Unknown statement type");
         }

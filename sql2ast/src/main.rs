@@ -276,6 +276,10 @@ fn tests() {
         (
             r#"SELECT T2.dept_name , avg(T1.stu_gpa) FROM student AS T1 JOIN department AS T2 ON T1.dept_code = T2.dept_code GROUP BY T1.dept_code ORDER BY avg(T1.stu_gpa) DESC LIMIT 1"#,
             r#"context.Students.Join(context.Departments, T1 => T1.DeptCode, T2 => T2.DeptCode, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.DeptCode }).Select(group => new { group.First().T2.DeptName, AverageStuGpa = group.Select(row => row.T1.StuGpa).Average() }).OrderByDescending(group => group.AverageStuGpa).Take(1).ToList();"#,
+        ),
+        (
+            r#"SELECT class_code FROM CLASS WHERE class_room = "KLR209""#,
+            r#"context.Classes.Where(row => row.ClassRoom == "KLR209").Select(row => new { row.ClassCode }).ToList();"#,
         )
     ]);
 
@@ -391,10 +395,10 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-             if db_name != "college_1" || index != 3 {
-                continue;
-            }
-            
+            //  if db_name != "college_1" || index != 4 {
+            //     continue;
+            // }
+
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
             let result = linq_query_builder.build_query(sql);
@@ -586,6 +590,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }
