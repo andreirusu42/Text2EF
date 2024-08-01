@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
-use indexmap::IndexMap;
-
 use sqlparser::ast::{
     BinaryOperator, Expr, Function, FunctionArg, FunctionArgExpr, FunctionArguments, GroupByExpr,
     JoinConstraint, JoinOperator, Query, Select, SelectItem, SetExpr, Statement, Table, TableAlias,
