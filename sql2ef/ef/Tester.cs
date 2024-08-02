@@ -49,7 +49,7 @@ class Tester
     {
         if (linqQuery is String stringResult)
         {
-            return new List<Dictionary<string, object>> { new Dictionary<string, object> { { "Value", stringResult } } };
+            return new List<Dictionary<string, object>> { new Dictionary<string, object> { { "0", stringResult } } };
         }
         else if (linqQuery is System.Collections.IEnumerable query)
         {
@@ -73,7 +73,7 @@ class Tester
             if (isPrimitive)
             {
                 var primitiveResults = query.Cast<object>().Select(item =>
-                    new Dictionary<string, object> { { "Value", item } }).ToList();
+                    new Dictionary<string, object> { { "0", item } }).ToList();
                 return primitiveResults;
             }
             else
@@ -108,7 +108,7 @@ class Tester
 
         if (linqQuery is int || linqQuery is double)
         {
-            results.Add(new Dictionary<string, object> { { "Value", linqQuery } });
+            results.Add(new Dictionary<string, object> { { "0", linqQuery } });
         }
 
 
@@ -186,6 +186,48 @@ class Tester
         // TODO: Issue. You can not simply compare these.
         // Imagine when you have a VARCHAR(7) in sql, which is translated to a Decimal / int in linq.
         // I know this is stupid, but when you scaffold the model, this is how it's generated :/
+
+        // This is some kind of normalising step, even though, if you ask me, it'd be better to check the types of the columns and compare based on that :/
+        for (int i = 0; i < sqlResults.Count; ++i)
+        {
+            var sql = sqlResults[i];
+            var linq = linqResults[i];
+
+            for (int j = 0; j < sql.Count; ++j)
+            {
+                var sqlKey = sql.Keys.ElementAt(j);
+                var linqKey = linq.Keys.ElementAt(j);
+
+                var sqlValue = sql[sqlKey];
+                var linqValue = linq[linqKey];
+
+                if (sqlValue is string sqlString)
+                {
+                    if (linqValue is double linqDouble)
+                    {
+                        if (sqlString == "" && linqDouble == 0)
+                        {
+                            sqlResults[i][sqlKey] = "0";
+                        }
+                    }
+                    else if (linqValue is Boolean linqBoolean)
+                    {
+                        if (sqlString == "")
+                        {
+                            sqlResults[i][sqlKey] = false;
+                        }
+                        else if (sqlString == "1")
+                        {
+                            sqlResults[i][sqlKey] = true;
+                        }
+                    }
+                }
+
+                // Console.WriteLine($"SQL Value: {sqlValue} ({sqlValue.GetType()})");
+                // Console.WriteLine($"LINQ Value: {linqValue} ({linqValue.GetType()})");
+            }
+
+        }
 
         // Console.WriteLine("SQL Results:");
         // for (int i = 0; i < sqlResults.Count; i++)

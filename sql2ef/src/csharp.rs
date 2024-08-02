@@ -30,7 +30,7 @@ pub struct ExceptionDetails {
 pub fn execute_csharp_code(project_dir: &str, code: &str) -> ExecutionResult {
     let file_path = format!("{}/Program.cs", project_dir);
 
-    save_to_file(&file_path, &code);
+    save_to_file(&file_path, &code).unwrap();
 
     match build_project(project_dir) {
         Ok(output) => {

@@ -1,14 +1,14 @@
-using entity_framework.Models.browser_web; 
+using entity_framework.Models.cre_Doc_Control_Systems; 
 using Microsoft.EntityFrameworkCore;
 
 class Program {
-    public static void Main() {
-        var context = new BrowserWebContext();
+public static void Main() {
+var context = new CreDocControlSystemsContext();
 
-        var sql = "SELECT DISTINCT T1.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T3.market_share > 15;";
-        var linq = context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.MarketShare > 15).Select(row => new { row.T1.Name }).Distinct().ToList();
+var sql = "SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;";
+var linq = context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList();
 
-        Tester.Test(linq, sql, context);
-    }
+Tester.Test(linq, sql, context);
+}
 
 }

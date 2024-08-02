@@ -25,14 +25,36 @@ pub fn write_test(test: Test) -> io::Result<()> {
     Ok(())
 }
 
-pub fn does_test_exist(query: &str) -> bool {
+pub fn get_test(query: &str) -> Option<Test> {
     let file_path = constants::TESTS_JSON_FILE_PATH;
 
     if let Ok(tests) = read_tests(file_path) {
-        tests.iter().any(|t| t.query == query)
-    } else {
-        false
+        for test in tests {
+            if test.query == query {
+                return Some(test);
+            }
+        }
     }
+
+    return None;
+}
+
+pub fn update_test(query: &str, updated_test: Test) -> io::Result<()> {
+    let file_path = constants::TESTS_JSON_FILE_PATH;
+
+    let mut tests = read_tests(file_path)?;
+
+    for test in &mut tests {
+        if test.query == query {
+            *test = updated_test;
+            break;
+        }
+    }
+
+    let serialized = serde_json::to_string(&tests)?;
+    fs::write(file_path, serialized)?;
+
+    Ok(())
 }
 
 pub fn read_tests<P: AsRef<Path>>(path: P) -> io::Result<Vec<Test>> {

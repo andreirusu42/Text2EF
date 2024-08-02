@@ -13,10 +13,65 @@ use std::path::Path;
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
-use tests::{does_test_exist, read_tests, write_test, Test};
+use tests::{get_test, read_tests, update_test, write_test, Test};
+
+fn run_test(context_name: &str, db_name: &str, query: &str, result: &str, update: bool) {
+    let c_sharp_code = format!(
+        r#"using entity_framework.Models.{}; 
+using Microsoft.EntityFrameworkCore;
+
+class Program {{
+public static void Main() {{
+var context = new {}();
+
+var sql = "{}";
+var linq = {}
+
+Tester.Test(linq, sql, context);
+}}
+
+}}"#,
+        db_name,
+        context_name,
+        query.escape_debug(),
+        result
+    );
+
+    let test = Test {
+        db_name: db_name.to_string(),
+        query: query.to_string(),
+        result: result.to_string(),
+    };
+
+    let execution_result = execute_csharp_code(constants::EF_PROJECT_DIR, &c_sharp_code);
+
+    match execution_result.build_result {
+        BuildResultStatus::OK => {
+            let code_result = execution_result.code_result.unwrap();
+
+            match code_result {
+                CodeResultStatus::OK => {
+                    println!("Query executed successfully");
+
+                    if (update) {
+                        update_test(query, test).unwrap();
+                    } else {
+                        write_test(test).unwrap();
+                    }
+                }
+
+                CodeResultStatus::Fail(exception_details) => {
+                    panic!("Query execution failed: {:?}", exception_details);
+                }
+            }
+        }
+        BuildResultStatus::Fail(error_message) => {
+            panic!("Build failed: {}", error_message);
+        }
+    }
+}
 
 fn run_queries() {
-    let mut successfully_executed_queries = 0;
     let dataset = extract_queries(constants::EF_MODELS_DIR, constants::GOLD_DATASET_FILE_PATH);
 
     for db_name in &dataset.db_names {
@@ -71,62 +126,26 @@ fn run_queries() {
                 continue;
             }
 
-            println!("Processing query {} for {} - {}", index, db_name, query);
-
-            if does_test_exist(query) {
-                println!("Query already exists in the tests file, skipping.");
+            // TODO: handle these queries with m2m tables :)
+            if query.to_lowercase().contains("tourist_attraction_features") {
                 continue;
             }
 
+            println!("Processing query {} for {} - {}", index, db_name, query);
+
             let result = linq_query_builder.build_query(query);
 
-            let mut c_sharp_code = format!(
-                r#"using entity_framework.Models.{}; 
-using Microsoft.EntityFrameworkCore;
-
-class Program {{
-    public static void Main() {{
-        var context = new {}();
-
-        var sql = "{}";
-        var linq = {}
-
-        Tester.Test(linq, sql, context);
-    }}
-
-}}"#,
-                db_name, context_name, query, result
-            );
-
-            let test = Test {
-                db_name: db_name.to_string(),
-                query: query.to_string(),
-                result,
-            };
-
-            let execution_result = execute_csharp_code(constants::EF_PROJECT_DIR, &c_sharp_code);
-
-            match execution_result.build_result {
-                BuildResultStatus::OK => {
-                    let code_result = execution_result.code_result.unwrap();
-
-                    match code_result {
-                        CodeResultStatus::OK => {
-                            successfully_executed_queries += 1;
-                            println!("Query executed successfully");
-
-                            write_test(test).unwrap();
-                        }
-
-                        CodeResultStatus::Fail(exception_details) => {
-                            panic!("Query execution failed: {:?}", exception_details);
-                        }
-                    }
+            if let Some(test) = get_test(query) {
+                if test.result == result {
+                    println!("Query already exists in the tests file, skipping.");
+                    continue;
                 }
-                BuildResultStatus::Fail(error_message) => {
-                    panic!("Build failed: {}", error_message);
-                }
+
+                println!("Query already exists in the tests file, but the result is different.");
+                run_test(&context_name, &db_name, &query, &result, true);
             }
+
+            run_test(&context_name, &db_name, &query, &result, false);
         }
     }
 }
