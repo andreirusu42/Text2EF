@@ -125,11 +125,10 @@ class Tester
         return results;
     }
 
-    private static bool CompareResults(List<Dictionary<string, object>> linqResults, List<Dictionary<string, object>> sqlResults)
+    private static void CompareResults(List<Dictionary<string, object>> linqResults, List<Dictionary<string, object>> sqlResults)
     {
         // there is this one case where we only compare one field. in this case,
         // we will compare the values directly
-
         if (linqResults.Count > 0 && linqResults[0].Count == 1)
         {
             var linqStringsWithoutKeys = linqResults.Select(dict => dict.Values.First().ToString()).ToList();
@@ -142,7 +141,12 @@ class Tester
             // Console.WriteLine("Sql results:");
             // Console.WriteLine(string.Join("\n", sqlStringsWithoutKeys));
 
-            return areEqualWithoutKeys;
+            if (!areEqualWithoutKeys)
+            {
+                throw new ResultsAreNotEqualException(sqlResults, linqResults);
+            }
+
+            return;
         }
 
         var linqStrings = linqResults.Select(dict => string.Join(", ", dict.Select(kv => $"{kv.Key}={kv.Value}"))).ToList();
@@ -168,10 +172,13 @@ class Tester
 
         bool areEqual = linqStrings.Count == sqlStrings.Count && !linqStrings.Except(sqlStrings).Any();
 
-        return areEqual;
+        if (!areEqual)
+        {
+            throw new ResultsAreNotEqualException(sqlResults, linqResults);
+        }
     }
 
-    public static bool Test(object linqQuery, string sqlQuery, DbContext context)
+    public static void Test(object linqQuery, string sqlQuery, DbContext context)
     {
         var linqResults = ExecuteLinqQuery<object>(linqQuery);
         var sqlResults = ExecuteSqlQuery(sqlQuery, context);
@@ -194,7 +201,7 @@ class Tester
         //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
         // }
 
-        return CompareResults(linqResults, sqlResults);
+        CompareResults(linqResults, sqlResults);
     }
 
 }

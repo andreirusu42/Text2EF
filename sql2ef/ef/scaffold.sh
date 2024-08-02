@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DATABASE_FOLDER="../databases"
+DATABASE_FOLDER="../../databases"
 OUTPUT_FOLDER="Models"
 
 if [ -d "$DATABASE_FOLDER" ]; then

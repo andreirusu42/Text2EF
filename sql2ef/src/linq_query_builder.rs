@@ -2188,8 +2188,6 @@ impl LinqQueryBuilder {
                     let function_projection_result =
                         self.build_projection_single_function(function, &alias_to_table_map);
 
-                    println!("{:?}", function_projection_result);
-
                     current_linq_query.push_str(&function_projection_result.result);
                     linq_query.insert(
                         "single_result_type".to_string(),
