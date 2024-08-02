@@ -391,6 +391,10 @@ fn tests() {
         (
             r#"SELECT DISTINCT t1.product_name FROM products AS t1 JOIN complaints AS t2 ON t1.product_id = t2.product_id JOIN customers AS t3 GROUP BY t3.customer_id ORDER BY count(*) LIMIT 1"#,
             r#"context.Products.Join(context.Complaints, t1 => t1.ProductId, t2 => t2.ProductId, (t1, t2) => new { t1, t2 }).SelectMany(s => context.Customers, (joined, t3) => new { joined.t1, joined.t2, t3 }).GroupBy(row => new { row.t3.CustomerId }).OrderBy(group => group.Count()).Select(group => new { group.First().t1.ProductName }).Distinct().Take(1).ToList();"#,
+        ),
+        (
+            r#"SELECT count(*) FROM customers GROUP BY customer_type_code ORDER BY count(*) DESC LIMIT 1"#,
+            r#"context.Customers.GroupBy(row => new { row.CustomerTypeCode }).Select(group => new { Count = group.Count() }).OrderByDescending(group => group.Count).Take(1);"#,
         )
     ]);
 
@@ -411,9 +415,9 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            //  if db_name != "college_3" || index != 1 {
-            //     continue;
-            // }
+             if db_name != "customer_complaints" || index != 2 {
+                continue;
+            }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 

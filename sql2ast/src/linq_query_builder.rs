@@ -615,6 +615,9 @@ impl LinqQueryBuilder {
                         mapped_function_name, selector, mapped_function_name
                     ));
 
+                    aggregated_fields
+                        .insert(function.to_string(), mapped_function_name.to_string());
+
                     continue;
                 }
 
@@ -1829,10 +1832,21 @@ impl LinqQueryBuilder {
                 };
 
                 if let FunctionArgExpr::Wildcard = ident {
-                    linq_query.push_str(&format!(
-                        "{} => {}.{}()",
-                        selector, selector, mapped_function_name
-                    ));
+                    let aggregated_field_expr = func.to_string();
+
+                    let aggregated_field = aggregated_fields.get(&aggregated_field_expr);
+
+                    if let Some(aggregated_field) = aggregated_field {
+                        linq_query.push_str(&format!(
+                            "{} => {}.{}",
+                            selector, selector, aggregated_field
+                        ));
+                    } else {
+                        linq_query.push_str(&format!(
+                            "{} => {}.{}()",
+                            selector, selector, mapped_function_name
+                        ));
+                    }
                 } else if let FunctionArgExpr::Expr(expr) = ident {
                     let column_name: String;
                     let table_alias: String;
@@ -2142,6 +2156,7 @@ impl LinqQueryBuilder {
                 };
 
             if !has_only_one_select_item
+                || has_group_by
                 || has_only_one_select_item
                     && first_select_item_is_unnamed
                     && !first_select_item_is_function
@@ -2172,6 +2187,8 @@ impl LinqQueryBuilder {
 
                     let function_projection_result =
                         self.build_projection_single_function(function, &alias_to_table_map);
+
+                    println!("{:?}", function_projection_result);
 
                     current_linq_query.push_str(&function_projection_result.result);
                     linq_query.insert(
