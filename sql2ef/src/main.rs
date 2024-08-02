@@ -415,9 +415,9 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-             if db_name != "customer_complaints" || index != 2 {
-                continue;
-            }
+            //  if db_name != "customer_complaints" || index != 2 {
+            //     continue;
+            // }
 
             println!("Running test {} | DB: {} | SQL: {}", index + 1, db_name, sql);
 
@@ -435,7 +435,7 @@ fn tests() {
     }
 }
 
-fn create_tests_to_file() {
+fn old_create_tests_to_file() {
     // let db_names = vec![
     // "activity_1".to_string(),
     // "apartment_rentals".to_string(),
@@ -609,7 +609,130 @@ fn create_tests_to_file() {
 
 }
 
+
+fn create_tests_to_file() {
+    let mut db_names: Vec<String> = Vec::new();
+    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+
+        if path.is_dir() {
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let mut files = fs::read_dir(path).unwrap();
+
+            if files.next().is_some() {
+                db_names.push(file_name);
+            }
+        }
+    }
+
+    let path =
+        Path::new("/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ast/src/train_gold.sql");
+
+    let file = File::open(&path).unwrap();
+    let reader = io::BufReader::new(file);
+
+    let mut queries: HashMap<String, Vec<String>> = HashMap::new();
+
+    for line in reader.lines() {
+        let line = line.unwrap();
+
+        let parts: Vec<&str> = line.split_whitespace().collect();
+
+        if parts.len() > 1 {
+            // Extract the db_id which is the last part
+            let db_id = parts.last().unwrap().to_string();
+
+            // Join the query parts back into a single string (excluding the db_id)
+            let query = parts[..parts.len() - 1].join(" ");
+
+            // Insert the query into the hashmap
+            queries.entry(db_id).or_insert(Vec::new()).push(query);
+        }
+    }
+
+    let mut successfully_executed_queries = 0;
+
+    for db_name in &db_names {
+        // Sadly, this one has issues with the data, since I get
+        // Unhandled exception. System.InvalidOperationException: Nullable object must have a value.
+        // when trying to execute a simple context.idk.Count();
+        if db_name == "college_2" {
+            continue;
+        }
+
+        if db_name == "customers_and_addresses" {
+            break;
+        }
+
+        let queries = if let Some(queries) = queries.get(db_name.as_str()) {
+            queries
+        } else {
+            continue;
+        };
+
+        let linq_query_builder =
+            LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
+
+        // TODO: not from here pls
+        let context_name = &linq_query_builder.schema_mapping.context;
+        
+        for (index, query) in queries.iter().enumerate() {
+            // wrong in the dataset, activity_1
+            if query.to_lowercase().contains("t2.actid = t2.actid") {
+                continue;
+            }
+    
+            // wrong in the dataset, apartment_rentals
+            if query.to_lowercase().contains("t1.booking_start_date , t1.booking_start_date") {
+                continue;
+            }
+
+            // wrong in the dataset, allergy_1
+            if query.to_lowercase().contains("t2.allergytype") { // the field should be allergy_type
+                continue;
+            }
+
+            // wrong in the dataset, assets_maintenance
+            if query.to_lowercase().contains("ref_company_types") {
+                continue;
+            }
+    
+            println!("Processing query {} for {} - {}", index, db_name, query);
+
+            let result = linq_query_builder.build_query(query);
+
+            let mut c_sharp_code = format!(
+                r#"using entity_framework.Models.{}; 
+using Microsoft.EntityFrameworkCore;
+
+class Program {{
+    public static void Main() {{
+        var context = new {}();
+
+        var sql = "{}";
+        var linq = {}
+
+        return Tester.Test(linq, sql, context);
+    }}
+
+}}"#,
+                db_name, context_name, query, result
+            );
+
+            println!("{}", c_sharp_code);
+
+            panic!("EXIT");
+
+            successfully_executed_queries += 1;   
+        }
+    }
+
+
+}
+
+
 fn main() {
-    tests();
-    // create_tests_to_file();
+    // tests();
+    create_tests_to_file();
 }

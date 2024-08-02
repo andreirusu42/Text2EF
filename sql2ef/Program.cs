@@ -34,13 +34,10 @@ using entity_framework.Models.body_builder;
 
 using Microsoft.EntityFrameworkCore;
 
-class Program
-{
+class Program {
 
-    static void TestBrowserWebContext()
-    {
-        var context = new BrowserWebContext();
-        var tests = new (object, string)[] {(context.Browsers.Where(row => row.MarketShare >= 5).Count(), "SELECT count(*) FROM browser WHERE market_share >= 5"),
+static void TestBrowserWebContext() { var context = new BrowserWebContext(); 
+ var tests = new (object, string)[] {(context.Browsers.Where(row => row.MarketShare >= 5).Count(), "SELECT count(*) FROM browser WHERE market_share >= 5"),
 (context.Browsers.OrderByDescending(row => row.MarketShare).Select(row => new { row.Name }).ToList(), "SELECT name FROM browser ORDER BY market_share DESC"),
 (context.Browsers.Select(row => new { row.Id, row.Name, row.MarketShare }).ToList(), "SELECT id , name , market_share FROM browser"),
 (context.Browsers.GroupBy(row => 1).Select(group => new { MaxMarketShare = group.Select(row => row.MarketShare).Max(), MinMarketShare = group.Select(row => row.MarketShare).Min(), AverageMarketShare = group.Select(row => row.MarketShare).Average() }).ToList(), "SELECT max(market_share) , min(market_share) , avg(market_share) FROM browser"),
@@ -59,19 +56,12 @@ class Program
 (context.WebClientAccelerators.GroupBy(row => new { row.OperatingSystem }).Select(group => new { group.Key.OperatingSystem, Count = group.Count() }).ToList(), "SELECT Operating_system , count(*) FROM web_client_accelerator GROUP BY Operating_system"),
 (context.AcceleratorCompatibleBrowsers.Join(context.Browsers, T1 => T1.BrowserId, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Join(context.WebClientAccelerators, joined => joined.T1.AcceleratorId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).OrderByDescending(row => row.T1.CompatibleSinceYear).Select(row => new { T2Name = row.T2.Name, T3Name = row.T3.Name }).ToList(), "SELECT T2.name , T3.name FROM accelerator_compatible_browser AS T1 JOIN browser AS T2 ON T1.browser_id = T2.id JOIN web_client_accelerator AS T3 ON T1.accelerator_id = T3.id ORDER BY T1.compatible_since_year DESC"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCreThemeParkContext()
-    {
-        var context = new CreThemeParkContext();
-        var tests = new (object, string)[] {
-            (context.Hotels.Count(), "SELECT count(*) FROM HOTELS"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCreThemeParkContext() { var context = new CreThemeParkContext(); 
+ var tests = new (object, string)[] {(context.Hotels.Count(), "SELECT count(*) FROM HOTELS"),
 (context.Hotels.Count(), "SELECT count(*) FROM HOTELS"),
 (context.Hotels.Select(row => new { row.PriceRange }).ToList(), "SELECT price_range FROM HOTELS"),
 (context.Hotels.Select(row => new { row.PriceRange }).ToList(), "SELECT price_range FROM HOTELS"),
@@ -145,6 +135,8 @@ class Program
 (context.TouristAttractions.Join(context.Visits, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T2.TouristAttractionId }).Where(group => group.Count() <= 1).Select(group => new { group.First().T1.Name, group.Key.TouristAttractionId }).ToList(), "SELECT T1.Name , T1.Tourist_Attraction_ID FROM Tourist_Attractions AS T1 JOIN VISITS AS T2 ON T1.Tourist_Attraction_ID = T2.Tourist_Attraction_ID GROUP BY T2.Tourist_Attraction_ID HAVING count(*) <= 1"),
 (context.Locations.Join(context.TouristAttractions, T1 => T1.LocationId, T2 => T2.LocationId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Address == "660 Shea Crescent" || row.T2.HowToGetThere == "walk").Select(row => new { row.T2.Name }).ToList(), "SELECT T2.Name FROM Locations AS T1 JOIN Tourist_Attractions AS T2 ON T1.Location_ID = T2.Location_ID WHERE T1.Address = \"660 Shea Crescent\" OR T2.How_to_Get_There = \"walk\""),
 (context.Locations.Join(context.TouristAttractions, T1 => T1.LocationId, T2 => T2.LocationId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Address == "660 Shea Crescent" || row.T2.HowToGetThere == "walk").Select(row => new { row.T2.Name }).ToList(), "SELECT T2.Name FROM Locations AS T1 JOIN Tourist_Attractions AS T2 ON T1.Location_ID = T2.Location_ID WHERE T1.Address = \"660 Shea Crescent\" OR T2.How_to_Get_There = \"walk\""),
+(context.TouristAttractions.Join(context.TouristAttractionFeature, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).Join(context.Features, joined => joined.T2.FeatureId, T3 => T3.FeatureId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.FeatureDetails == "park").Select(row => row.T1.Name).Union(context.TouristAttractions.Join(context.TouristAttractionFeature, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).Join(context.Features, joined => joined.T2.FeatureId, T3 => T3.FeatureId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.FeatureDetails == "shopping").Select(row => row.T1.Name)).ToList(), "SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id = T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID = T3.Feature_ID WHERE T3.feature_Details = \'park\' UNION SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id = T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID = T3.Feature_ID WHERE T3.feature_Details = \'shopping\'"),
+(context.TouristAttractions.Join(context.TouristAttractionFeature, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).Join(context.Features, joined => joined.T2.FeatureId, T3 => T3.FeatureId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.FeatureDetails == "park").Select(row => row.T1.Name).Union(context.TouristAttractions.Join(context.TouristAttractionFeature, T1 => T1.TouristAttractionId, T2 => T2.TouristAttractionId, (T1, T2) => new { T1, T2 }).Join(context.Features, joined => joined.T2.FeatureId, T3 => T3.FeatureId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.FeatureDetails == "shopping").Select(row => row.T1.Name)).ToList(), "SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id = T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID = T3.Feature_ID WHERE T3.feature_Details = \'park\' UNION SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id = T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID = T3.Feature_ID WHERE T3.feature_Details = \'shopping\'"),
 (context.Locations.Join(context.TouristAttractions, T1 => T1.LocationId, T2 => T2.LocationId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Address == "254 Ottilie Junction" || row.T2.HowToGetThere == "bus").Select(row => new { row.T2.Name }).ToList(), "SELECT T2.Name FROM Locations AS T1 JOIN Tourist_Attractions AS T2 ON T1.Location_ID = T2.Location_ID WHERE T1.Address = \"254 Ottilie Junction\" OR T2.How_to_Get_There = \"bus\""),
 (context.Locations.Join(context.TouristAttractions, T1 => T1.LocationId, T2 => T2.LocationId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Address == "254 Ottilie Junction" || row.T2.HowToGetThere == "bus").Select(row => new { row.T2.Name }).ToList(), "SELECT T2.Name FROM Locations AS T1 JOIN Tourist_Attractions AS T2 ON T1.Location_ID = T2.Location_ID WHERE T1.Address = \"254 Ottilie Junction\" OR T2.How_to_Get_There = \"bus\""),
 (context.TouristAttractions.Join(context.Visits, T1 => T1.TouristAttractionId, T3 => T3.TouristAttractionId, (T1, T3) => new { T1, T3 }).Join(context.Visitors, joined => joined.T3.TouristId, T2 => T2.TouristId, (joined, T2) => new { joined.T1, joined.T3, T2 }).Where(row => row.T2.TouristDetails == "Vincent").Select(row => row.T1.Name).Intersect(context.TouristAttractions.Join(context.Visits, T1 => T1.TouristAttractionId, T3 => T3.TouristAttractionId, (T1, T3) => new { T1, T3 }).Join(context.Visitors, joined => joined.T3.TouristId, T2 => T2.TouristId, (joined, T2) => new { joined.T1, joined.T3, T2 }).Where(row => row.T2.TouristDetails == "Marcelle").Select(row => row.T1.Name)).ToList(), "SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN VISITORS AS T2 JOIN VISITS AS T3 ON T1.Tourist_Attraction_ID = T3.Tourist_Attraction_ID AND T2.Tourist_ID = T3.Tourist_ID WHERE T2.Tourist_Details = \"Vincent\" INTERSECT SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN VISITORS AS T2 JOIN VISITS AS T3 ON T1.Tourist_Attraction_ID = T3.Tourist_Attraction_ID AND T2.Tourist_ID = T3.Tourist_ID WHERE T2.Tourist_Details = \"Marcelle\""),
@@ -154,18 +146,12 @@ class Program
 (context.Visitors.Where(row => !context.Visits.Select(row => row.TouristId).Contains(row.TouristId)).Count(), "SELECT count(*) FROM Visitors WHERE Tourist_ID NOT IN ( SELECT Tourist_ID FROM Visits )"),
 (context.Visitors.Where(row => !context.Visits.Select(row => row.TouristId).Contains(row.TouristId)).Count(), "SELECT count(*) FROM Visitors WHERE Tourist_ID NOT IN ( SELECT Tourist_ID FROM Visits )"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestBike1Context()
-    {
-        var context = new Bike1Context();
-        var tests = new (object, string)[] {(context.Weathers.Where(row => row.MaxTemperatureF > 85).Select(row => new { row.Date }).ToList(), "SELECT date FROM weather WHERE max_temperature_f > 85"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestBike1Context() { var context = new Bike1Context(); 
+ var tests = new (object, string)[] {(context.Weathers.Where(row => row.MaxTemperatureF > 85).Select(row => new { row.Date }).ToList(), "SELECT date FROM weather WHERE max_temperature_f > 85"),
 (context.Weathers.Where(row => row.MaxTemperatureF > 85).Select(row => new { row.Date }).ToList(), "SELECT date FROM weather WHERE max_temperature_f > 85"),
 (context.Stations.Where(row => row.Lat < 37.5).Select(row => new { row.Name }).ToList(), "SELECT name FROM station WHERE lat < 37.5"),
 (context.Stations.Where(row => row.Lat < 37.5).Select(row => new { row.Name }).ToList(), "SELECT name FROM station WHERE lat < 37.5"),
@@ -270,18 +256,12 @@ class Program
 (context.Stations.Join(context.Trips, T1 => T1.Id, T2 => T2.StartStationId, (T1, T2) => new { T1, T2 }).GroupBy(row => 1).Select(group => new { AverageLat = group.Select(row => row.T1.Lat).Average(), AverageLong = group.Select(row => row.T1.Long).Average() }).ToList(), "SELECT avg(T1.lat) , avg(T1.long) FROM station AS T1 JOIN trip AS T2 ON T1.id = T2.start_station_id"),
 (context.Stations.Join(context.Trips, T1 => T1.Id, T2 => T2.StartStationId, (T1, T2) => new { T1, T2 }).GroupBy(row => 1).Select(group => new { AverageLat = group.Select(row => row.T1.Lat).Average(), AverageLong = group.Select(row => row.T1.Long).Average() }).ToList(), "SELECT avg(T1.lat) , avg(T1.long) FROM station AS T1 JOIN trip AS T2 ON T1.id = T2.start_station_id"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCinemaContext()
-    {
-        var context = new CinemaContext();
-        var tests = new (object, string)[] {(context.Cinemas.Select(row => row.Location).Except(context.Cinemas.Where(row => row.Capacity > 800).Select(row => row.Location)).ToList(), "SELECT LOCATION FROM cinema EXCEPT SELECT LOCATION FROM cinema WHERE capacity > 800"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCinemaContext() { var context = new CinemaContext(); 
+ var tests = new (object, string)[] {(context.Cinemas.Select(row => row.Location).Except(context.Cinemas.Where(row => row.Capacity > 800).Select(row => row.Location)).ToList(), "SELECT LOCATION FROM cinema EXCEPT SELECT LOCATION FROM cinema WHERE capacity > 800"),
 (context.Cinemas.Where(row => row.OpenningYear == 2010).Select(row => row.Location).Intersect(context.Cinemas.Where(row => row.OpenningYear == 2011).Select(row => row.Location)).ToList(), "SELECT LOCATION FROM cinema WHERE openning_year = 2010 INTERSECT SELECT LOCATION FROM cinema WHERE openning_year = 2011"),
 (context.Cinemas.Count(), "SELECT count(*) FROM cinema"),
 (context.Cinemas.Count(), "SELECT count(*) FROM cinema"),
@@ -312,18 +292,12 @@ class Program
 (context.Films.Where(row => EF.Functions.Like(row.Title, "%Dummy%")).Count(), "SELECT count(*) FROM film WHERE title LIKE \"%Dummy%\""),
 (context.Films.Where(row => EF.Functions.Like(row.Title, "%Dummy%")).Count(), "SELECT count(*) FROM film WHERE title LIKE \"%Dummy%\""),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCollege3Context()
-    {
-        var context = new College3Context();
-        var tests = new (object, string)[] {(context.Courses.Count(), "SELECT count(*) FROM COURSE"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCollege3Context() { var context = new College3Context(); 
+ var tests = new (object, string)[] {(context.Courses.Count(), "SELECT count(*) FROM COURSE"),
 (context.Courses.Count(), "SELECT count(*) FROM COURSE"),
 (context.Courses.Where(row => row.Credits > 2).Count(), "SELECT count(*) FROM COURSE WHERE Credits > 2"),
 (context.Courses.Where(row => row.Credits > 2).Count(), "SELECT count(*) FROM COURSE WHERE Credits > 2"),
@@ -398,18 +372,12 @@ class Program
 (context.Students.Where(row => !context.EnrolledIns.Select(row => row.StuId).Contains(row.StuId)).Select(row => new { row.Fname }).ToList(), "SELECT Fname FROM STUDENT WHERE StuID NOT IN (SELECT StuID FROM ENROLLED_IN)"),
 (context.Students.Where(row => !context.EnrolledIns.Select(row => row.StuId).Contains(row.StuId)).Select(row => new { row.Fname }).ToList(), "SELECT Fname FROM STUDENT WHERE StuID NOT IN (SELECT StuID FROM ENROLLED_IN)"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCandidatePollContext()
-    {
-        var context = new CandidatePollContext();
-        var tests = new (object, string)[] {(context.Candidates.Count(), "SELECT count(*) FROM candidate"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCandidatePollContext() { var context = new CandidatePollContext(); 
+ var tests = new (object, string)[] {(context.Candidates.Count(), "SELECT count(*) FROM candidate"),
 (context.Candidates.Count(), "SELECT count(*) FROM candidate"),
 (context.Candidates.GroupBy(row => new { row.PollSource }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.PollSource }).Take(1).ToList(), "SELECT poll_source FROM candidate GROUP BY poll_source ORDER BY count(*) DESC LIMIT 1"),
 (context.Candidates.GroupBy(row => new { row.PollSource }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.PollSource }).Take(1).ToList(), "SELECT poll_source FROM candidate GROUP BY poll_source ORDER BY count(*) DESC LIMIT 1"),
@@ -450,18 +418,12 @@ class Program
 (context.People.ToList(), "SELECT * FROM people"),
 (context.People.ToList(), "SELECT * FROM people"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCreDocControlSystemsContext()
-    {
-        var context = new CreDocControlSystemsContext();
-        var tests = new (object, string)[] {(context.RefDocumentStatuses.Select(row => new { row.DocumentStatusCode }).ToList(), "SELECT document_status_code FROM Ref_Document_Status;"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCreDocControlSystemsContext() { var context = new CreDocControlSystemsContext(); 
+ var tests = new (object, string)[] {(context.RefDocumentStatuses.Select(row => new { row.DocumentStatusCode }).ToList(), "SELECT document_status_code FROM Ref_Document_Status;"),
 (context.RefDocumentStatuses.Where(row => row.DocumentStatusCode == "working").Select(row => new { row.DocumentStatusDescription }).ToList(), "SELECT document_status_description FROM Ref_Document_Status WHERE document_status_code = \"working\";"),
 (context.RefDocumentTypes.Select(row => new { row.DocumentTypeCode }).ToList(), "SELECT document_type_code FROM Ref_Document_Types;"),
 (context.RefDocumentTypes.Where(row => row.DocumentTypeCode == "Paper").Select(row => new { row.DocumentTypeDescription }).ToList(), "SELECT document_type_description FROM Ref_Document_Types WHERE document_type_code = \"Paper\";"),
@@ -489,20 +451,18 @@ class Program
 (context.DocumentDrafts.Where(row => row.DocumentId == 7).Select(row => new { row.DraftDetails }).ToList(), "SELECT draft_details FROM Document_Drafts WHERE document_id = 7;"),
 (context.DraftCopies.Where(row => row.DocumentId == 2).Count(), "SELECT count(*) FROM Draft_Copies WHERE document_id = 2;"),
 (context.DraftCopies.GroupBy(row => new { row.DocumentId }).Select(group => new { group.Key.DocumentId, CountCopyNumber = group.Select(row => row.CopyNumber).Count() }).OrderByDescending(group => group.CountCopyNumber).Take(1).ToList(), "SELECT document_id , count(copy_number) FROM Draft_Copies GROUP BY document_id ORDER BY count(copy_number) DESC LIMIT 1;"),
-(context.DraftCopies.GroupBy(row => new { row.DocumentId }).Where(group => group.Count() > 1).Select(group => new { group.Key.DocumentId, Count = group.Count() }).ToList(), "SELECT document_id , count(*) FROM Draft_Copies GROUP BY document_id HAVING count(*) > 1;")};
+(context.DraftCopies.GroupBy(row => new { row.DocumentId }).Where(group => group.Count() > 1).Select(group => new { group.Key.DocumentId, Count = group.Count() }).ToList(), "SELECT document_id , count(*) FROM Draft_Copies GROUP BY document_id HAVING count(*) > 1;"),
+(context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList(), "SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"),
+(context.Employees.Select(row => row.EmployeeName).Except(context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Select(row => row.Employees.EmployeeName)).ToList(), "SELECT employee_name FROM Employees EXCEPT SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id"),
+(context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).GroupBy(row => new { row.CirculationHistory.DocumentId, row.CirculationHistory.DraftNumber, row.CirculationHistory.CopyNumber }).OrderByDescending(group => group.Count()).Select(group => new { group.First().Employees.EmployeeName, Count = group.Count() }).Take(1).ToList(), "SELECT Employees.employee_name , count(*) FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id GROUP BY Circulation_History.document_id , Circulation_History.draft_number , Circulation_History.copy_number ORDER BY count(*) DESC LIMIT 1;"),
+(context.CirculationHistory.GroupBy(row => new { row.DocumentId }).Select(group => new { group.Key.DocumentId, CountDistinctEmployeeId = group.Select(row => row.EmployeeId).Distinct().Count() }).ToList(), "SELECT document_id , count(DISTINCT employee_id) FROM Circulation_History GROUP BY document_id;"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCsu1Context()
-    {
-        var context = new Csu1Context();
-        var tests = new (object, string)[] {(context.Campuses.Where(row => row.County == "Los Angeles").Select(row => new { row.Campus1 }).ToList(), "SELECT campus FROM campuses WHERE county = \"Los Angeles\""),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCsu1Context() { var context = new Csu1Context(); 
+ var tests = new (object, string)[] {(context.Campuses.Where(row => row.County == "Los Angeles").Select(row => new { row.Campus1 }).ToList(), "SELECT campus FROM campuses WHERE county = \"Los Angeles\""),
 (context.Campuses.Where(row => row.County == "Los Angeles").Select(row => new { row.Campus1 }).ToList(), "SELECT campus FROM campuses WHERE county = \"Los Angeles\""),
 (context.Campuses.Where(row => row.Location == "Chico").Select(row => new { row.Campus1 }).ToList(), "SELECT campus FROM campuses WHERE LOCATION = \"Chico\""),
 (context.Campuses.Where(row => row.Location == "Chico").Select(row => new { row.Campus1 }).ToList(), "SELECT campus FROM campuses WHERE LOCATION = \"Chico\""),
@@ -573,18 +533,12 @@ class Program
 (context.Campuses.Count(), "SELECT count(*) FROM campuses"),
 (context.Campuses.Count(), "SELECT count(*) FROM campuses"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCustomerDeliveriesContext()
-    {
-        var context = new CustomerDeliveriesContext();
-        var tests = new (object, string)[] {(context.ActualOrders.Where(row => row.OrderStatusCode == "Success").Select(row => new { row.ActualOrderId }).ToList(), "SELECT actual_order_id FROM actual_orders WHERE order_status_code = \'Success\'"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCustomerDeliveriesContext() { var context = new CustomerDeliveriesContext(); 
+ var tests = new (object, string)[] {(context.ActualOrders.Where(row => row.OrderStatusCode == "Success").Select(row => new { row.ActualOrderId }).ToList(), "SELECT actual_order_id FROM actual_orders WHERE order_status_code = \'Success\'"),
 (context.Products.Join(context.RegularOrderProducts, t1 => t1.ProductId, t2 => t2.ProductId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.ProductId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().t1.ProductName, group.First().t1.ProductPrice }).Take(1).ToList(), "SELECT t1.product_name , t1.product_price FROM products AS t1 JOIN regular_order_products AS t2 ON t1.product_id = t2.product_id GROUP BY t2.product_id ORDER BY count(*) DESC LIMIT 1"),
 (context.Customers.Count(), "SELECT count(*) FROM customers"),
 (context.Customers.Select(row => row.PaymentMethod).Distinct().Count(), "SELECT count(DISTINCT payment_method) FROM customers"),
@@ -601,18 +555,12 @@ class Program
 (context.DeliveryRoutes.Join(context.DeliveryRouteLocations, t1 => t1.RouteId, t2 => t2.RouteId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t1.RouteId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().t1.RouteName }).Take(1).ToList(), "SELECT t1.route_name FROM Delivery_Routes AS t1 JOIN Delivery_Route_Locations AS t2 ON t1.route_id = t2.route_id GROUP BY t1.route_id ORDER BY count(*) DESC LIMIT 1"),
 (context.CustomerAddresses.Join(context.Addresses, t1 => t1.AddressId, t2 => t2.AddressId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.StateProvinceCounty }).Select(group => new { group.Key.StateProvinceCounty, Count = group.Count() }).ToList(), "SELECT t2.state_province_county , count(*) FROM customer_addresses AS t1 JOIN addresses AS t2 ON t1.address_id = t2.address_id GROUP BY t2.state_province_county"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCreDocTrackingDbContext()
-    {
-        var context = new CreDocTrackingDbContext();
-        var tests = new (object, string)[] {(context.RefCalendars.Count(), "SELECT count(*) FROM Ref_calendar"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCreDocTrackingDbContext() { var context = new CreDocTrackingDbContext(); 
+ var tests = new (object, string)[] {(context.RefCalendars.Count(), "SELECT count(*) FROM Ref_calendar"),
 (context.RefCalendars.Count(), "SELECT count(*) FROM Ref_calendar"),
 (context.RefCalendars.Select(row => new { row.CalendarDate, row.DayNumber }).ToList(), "SELECT calendar_date , day_Number FROM Ref_calendar"),
 (context.RefCalendars.Select(row => new { row.CalendarDate, row.DayNumber }).ToList(), "SELECT calendar_date , day_Number FROM Ref_calendar"),
@@ -703,18 +651,12 @@ class Program
 (context.DocumentsToBeDestroyeds.Select(row => row.DestroyedByEmployeeId).Union(context.DocumentsToBeDestroyeds.Select(row => row.DestructionAuthorisedByEmployeeId)).ToList(), "SELECT Destroyed_by_Employee_ID FROM Documents_to_be_destroyed UNION SELECT Destruction_Authorised_by_Employee_ID FROM Documents_to_be_destroyed"),
 (context.DocumentsToBeDestroyeds.Select(row => row.DestroyedByEmployeeId).Union(context.DocumentsToBeDestroyeds.Select(row => row.DestructionAuthorisedByEmployeeId)).ToList(), "SELECT Destroyed_by_Employee_ID FROM Documents_to_be_destroyed UNION SELECT Destruction_Authorised_by_Employee_ID FROM Documents_to_be_destroyed"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestClub1Context()
-    {
-        var context = new Club1Context();
-        var tests = new (object, string)[] {(context.Clubs.Count(), "SELECT count(*) FROM club"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestClub1Context() { var context = new Club1Context(); 
+ var tests = new (object, string)[] {(context.Clubs.Count(), "SELECT count(*) FROM club"),
 (context.Clubs.Count(), "SELECT count(*) FROM club"),
 (context.Clubs.Select(row => new { row.ClubName }).ToList(), "SELECT clubname FROM club"),
 (context.Clubs.Select(row => new { row.ClubName }).ToList(), "SELECT clubname FROM club"),
@@ -785,18 +727,12 @@ class Program
 (context.Clubs.Join(context.MemberOfClubs, t1 => t1.ClubId, t2 => t2.ClubId, (t1, t2) => new { t1, t2 }).Join(context.Students, joined => joined.t2.StuId, t3 => t3.StuId, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.ClubName == "Tennis Club").Select(row => row.t3.Age).Average(), "SELECT avg(t3.age) FROM club AS t1 JOIN member_of_club AS t2 ON t1.clubid = t2.clubid JOIN student AS t3 ON t2.stuid = t3.stuid WHERE t1.clubname = \"Tennis Club\""),
 (context.Clubs.Join(context.MemberOfClubs, t1 => t1.ClubId, t2 => t2.ClubId, (t1, t2) => new { t1, t2 }).Join(context.Students, joined => joined.t2.StuId, t3 => t3.StuId, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.ClubName == "Tennis Club").Select(row => row.t3.Age).Average(), "SELECT avg(t3.age) FROM club AS t1 JOIN member_of_club AS t2 ON t1.clubid = t2.clubid JOIN student AS t3 ON t2.stuid = t3.stuid WHERE t1.clubname = \"Tennis Club\""),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestAllergy1Context()
-    {
-        var context = new Allergy1Context();
-        var tests = new (object, string)[] {(context.AllergyTypes.Select(row => row.Allergy).Distinct().Count(), "SELECT count(DISTINCT allergy) FROM Allergy_type"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestAllergy1Context() { var context = new Allergy1Context(); 
+ var tests = new (object, string)[] {(context.AllergyTypes.Select(row => row.Allergy).Distinct().Count(), "SELECT count(DISTINCT allergy) FROM Allergy_type"),
 (context.AllergyTypes.Select(row => row.Allergy).Distinct().Count(), "SELECT count(DISTINCT allergy) FROM Allergy_type"),
 (context.AllergyTypes.Select(row => row.AllergyType1).Distinct().Count(), "SELECT count(DISTINCT allergytype) FROM Allergy_type"),
 (context.AllergyTypes.Select(row => row.AllergyType1).Distinct().Count(), "SELECT count(DISTINCT allergytype) FROM Allergy_type"),
@@ -883,18 +819,12 @@ class Program
 (context.Students.Where(row => !context.HasAllergies.Where(row => row.Allergy == "Soy").Select(row => row.StuId).Contains(row.StuId)).Select(row => new { row.Fname, row.Major }).ToList(), "SELECT fname , major FROM Student WHERE StuID NOT IN (SELECT StuID FROM Has_allergy WHERE Allergy = \"Soy\")"),
 (context.Students.Where(row => !context.HasAllergies.Where(row => row.Allergy == "Soy").Select(row => row.StuId).Contains(row.StuId)).Select(row => new { row.Fname, row.Major }).ToList(), "SELECT fname , major FROM Student WHERE StuID NOT IN (SELECT StuID FROM Has_allergy WHERE Allergy = \"Soy\")"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCustomerComplaintsContext()
-    {
-        var context = new CustomerComplaintsContext();
-        var tests = new (object, string)[] {(context.Customers.Count(), "SELECT count(*) FROM customers"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCustomerComplaintsContext() { var context = new CustomerComplaintsContext(); 
+ var tests = new (object, string)[] {(context.Customers.Count(), "SELECT count(*) FROM customers"),
 (context.Customers.Count(), "SELECT count(*) FROM customers"),
 (context.Customers.OrderBy(row => row.EmailAddress).ThenBy(row => row.PhoneNumber).Select(row => new { row.EmailAddress, row.PhoneNumber }).ToList(), "SELECT email_address , phone_number FROM customers ORDER BY email_address , phone_number"),
 (context.Customers.OrderBy(row => row.EmailAddress).ThenBy(row => row.PhoneNumber).Select(row => new { row.EmailAddress, row.PhoneNumber }).ToList(), "SELECT email_address , phone_number FROM customers ORDER BY email_address , phone_number"),
@@ -926,6 +856,8 @@ class Program
 (context.Complaints.GroupBy(row => new { row.ComplaintStatusCode }).Where(group => group.Count() > 3).Select(group => new { group.Key.ComplaintStatusCode }).ToList(), "SELECT complaint_status_code FROM complaints GROUP BY complaint_status_code HAVING count(*) > 3"),
 (context.Staff.Where(row => EF.Functions.Like(row.EmailAddress, "%wrau%")).Select(row => new { row.LastName }).ToList(), "SELECT last_name FROM staff WHERE email_address LIKE \"%wrau%\""),
 (context.Staff.Where(row => EF.Functions.Like(row.EmailAddress, "%wrau%")).Select(row => new { row.LastName }).ToList(), "SELECT last_name FROM staff WHERE email_address LIKE \"%wrau%\""),
+(context.Customers.GroupBy(row => new { row.CustomerTypeCode }).OrderByDescending(group => group.Count()).Count().Take(1), "SELECT count(*) FROM customers GROUP BY customer_type_code ORDER BY count(*) DESC LIMIT 1"),
+(context.Customers.GroupBy(row => new { row.CustomerTypeCode }).OrderByDescending(group => group.Count()).Count().Take(1), "SELECT count(*) FROM customers GROUP BY customer_type_code ORDER BY count(*) DESC LIMIT 1"),
 (context.Staff.Join(context.Complaints, t1 => t1.StaffId, t2 => t2.StaffId, (t1, t2) => new { t1, t2 }).OrderBy(row => row.t2.DateComplaintRaised).Select(row => new { row.t1.LastName }).Take(1).ToList(), "SELECT t1.last_name FROM staff AS t1 JOIN complaints AS t2 ON t1.staff_id = t2.staff_id ORDER BY t2.date_complaint_raised LIMIT 1"),
 (context.Staff.Join(context.Complaints, t1 => t1.StaffId, t2 => t2.StaffId, (t1, t2) => new { t1, t2 }).OrderBy(row => row.t2.DateComplaintRaised).Select(row => new { row.t1.LastName }).Take(1).ToList(), "SELECT t1.last_name FROM staff AS t1 JOIN complaints AS t2 ON t1.staff_id = t2.staff_id ORDER BY t2.date_complaint_raised LIMIT 1"),
 (context.Complaints.Select(row => row.ComplaintTypeCode).Distinct().Count(), "SELECT count(DISTINCT complaint_type_code) FROM complaints"),
@@ -939,18 +871,12 @@ class Program
 (context.Customers.GroupBy(row => new { row.State }).OrderBy(group => group.Count()).Select(group => new { group.Key.State }).Take(1).ToList(), "SELECT state FROM customers GROUP BY state ORDER BY count(*) LIMIT 1"),
 (context.Customers.GroupBy(row => new { row.State }).OrderBy(group => group.Count()).Select(group => new { group.Key.State }).Take(1).ToList(), "SELECT state FROM customers GROUP BY state ORDER BY count(*) LIMIT 1"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCompany1Context()
-    {
-        var context = new Company1Context();
-        var tests = new (object, string)[] {(context.Departments.OrderBy(row => row.MgrStartDate).Select(row => new { row.Dname }).ToList(), "SELECT dname FROM department ORDER BY mgr_start_date"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCompany1Context() { var context = new Company1Context(); 
+ var tests = new (object, string)[] {(context.Departments.OrderBy(row => row.MgrStartDate).Select(row => new { row.Dname }).ToList(), "SELECT dname FROM department ORDER BY mgr_start_date"),
 (context.Dependents.Where(row => row.Relationship == "Spouse").Select(row => new { row.DependentName }).ToList(), "SELECT Dependent_name FROM dependent WHERE relationship = \'Spouse\'"),
 (context.Dependents.Where(row => row.Sex == "F").Count(), "SELECT count(*) FROM dependent WHERE sex = \'F\'"),
 (context.Departments.Join(context.DeptLocations, t1 => t1.Dnumber, t2 => t2.Dnumber, (t1, t2) => new { t1, t2 }).Where(row => row.t2.Dlocation == "Houston").Select(row => new { row.t1.Dname }).ToList(), "SELECT t1.dname FROM department AS t1 JOIN dept_locations AS t2 ON t1.dnumber = t2.dnumber WHERE t2.dlocation = \'Houston\'"),
@@ -958,18 +884,12 @@ class Program
 (context.Employees.Where(row => row.Salary < 50000).GroupBy(row => new { row.Sex }).Select(group => new { Count = group.Count(), group.Key.Sex }).ToList(), "SELECT count(*) , sex FROM employee WHERE salary < 50000 GROUP BY sex"),
 (context.Employees.OrderBy(row => row.Bdate).Select(row => new { row.Fname, row.Lname, row.Address }).ToList(), "SELECT fname , lname , address FROM employee ORDER BY Bdate"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCreDocsAndEpensesContext()
-    {
-        var context = new CreDocsAndEpensesContext();
-        var tests = new (object, string)[] {(context.Accounts.Count(), "SELECT count(*) FROM Accounts"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCreDocsAndEpensesContext() { var context = new CreDocsAndEpensesContext(); 
+ var tests = new (object, string)[] {(context.Accounts.Count(), "SELECT count(*) FROM Accounts"),
 (context.Accounts.Count(), "SELECT count(*) FROM Accounts"),
 (context.Accounts.Select(row => new { row.AccountId, row.AccountDetails }).ToList(), "SELECT account_id , account_details FROM Accounts"),
 (context.Accounts.Select(row => new { row.AccountId, row.AccountDetails }).ToList(), "SELECT account_id , account_details FROM Accounts"),
@@ -1054,18 +974,12 @@ class Program
 (new List<string> { context.Accounts.Select(row => row.AccountDetails.ToString()).Max() }.Union(context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails.ToString(), "%5%")).Select(row => row.AccountDetails.ToString())).ToList(), "SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE \"%5%\""),
 (new List<string> { context.Accounts.Select(row => row.AccountDetails.ToString()).Max() }.Union(context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails.ToString(), "%5%")).Select(row => row.AccountDetails.ToString())).ToList(), "SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE \"%5%\""),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestCountyPublicSafetyContext()
-    {
-        var context = new CountyPublicSafetyContext();
-        var tests = new (object, string)[] {(context.CountyPublicSafeties.Count(), "SELECT count(*) FROM county_public_safety"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestCountyPublicSafetyContext() { var context = new CountyPublicSafetyContext(); 
+ var tests = new (object, string)[] {(context.CountyPublicSafeties.Count(), "SELECT count(*) FROM county_public_safety"),
 (context.CountyPublicSafeties.Count(), "SELECT count(*) FROM county_public_safety"),
 (context.CountyPublicSafeties.OrderByDescending(row => row.Population).Select(row => new { row.Name }).ToList(), "SELECT Name FROM county_public_safety ORDER BY Population DESC"),
 (context.CountyPublicSafeties.OrderByDescending(row => row.Population).Select(row => new { row.Name }).ToList(), "SELECT Name FROM county_public_safety ORDER BY Population DESC"),
@@ -1106,18 +1020,12 @@ class Program
 (context.CountyPublicSafeties.OrderByDescending(row => row.Population).Select(row => new { row.CaseBurden }).ToList(), "SELECT Case_burden FROM county_public_safety ORDER BY Population DESC"),
 (context.CountyPublicSafeties.OrderByDescending(row => row.Population).Select(row => new { row.CaseBurden }).ToList(), "SELECT Case_burden FROM county_public_safety ORDER BY Population DESC"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestBaseball1Context()
-    {
-        var context = new Baseball1Context();
-        var tests = new (object, string)[] {(context.Colleges.Join(context.PlayerColleges, T1 => T1.CollegeId, T2 => T2.CollegeId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.CollegeId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().T1.NameFull, group.Key.CollegeId }).Take(1).ToList(), "SELECT T1.name_full , T1.college_id FROM college AS T1 JOIN player_college AS T2 ON T1.college_id = T2.college_id GROUP BY T1.college_id ORDER BY count(*) DESC LIMIT 1;"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestBaseball1Context() { var context = new Baseball1Context(); 
+ var tests = new (object, string)[] {(context.Colleges.Join(context.PlayerColleges, T1 => T1.CollegeId, T2 => T2.CollegeId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.CollegeId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().T1.NameFull, group.Key.CollegeId }).Take(1).ToList(), "SELECT T1.name_full , T1.college_id FROM college AS T1 JOIN player_college AS T2 ON T1.college_id = T2.college_id GROUP BY T1.college_id ORDER BY count(*) DESC LIMIT 1;"),
 (context.Colleges.Join(context.PlayerColleges, T1 => T1.CollegeId, T2 => T2.CollegeId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.CollegeId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().T1.NameFull, group.Key.CollegeId }).Take(1).ToList(), "SELECT T1.name_full , T1.college_id FROM college AS T1 JOIN player_college AS T2 ON T1.college_id = T2.college_id GROUP BY T1.college_id ORDER BY count(*) DESC LIMIT 1;"),
 (context.Salaries.Join(context.Teams, T1 => T1.TeamId, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings").Select(row => row.T1.Salary1).Average(), "SELECT avg(T1.salary) FROM salary AS T1 JOIN team AS T2 ON T1.team_id = T2.team_id_br WHERE T2.name = \'Boston Red Stockings\'"),
 (context.Salaries.Join(context.Teams, T1 => T1.TeamId, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == "Boston Red Stockings").Select(row => row.T1.Salary1).Average(), "SELECT avg(T1.salary) FROM salary AS T1 JOIN team AS T2 ON T1.team_id = T2.team_id_br WHERE T2.name = \'Boston Red Stockings\'"),
@@ -1200,18 +1108,12 @@ class Program
 (context.HomeGames.Join(context.Parks, T1 => T1.ParkId, T2 => T2.ParkId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Year == 2008).OrderByDescending(row => row.T1.Attendance).Select(row => new { row.T2.ParkName }).Take(1).ToList(), "SELECT T2.park_name FROM home_game AS T1 JOIN park AS T2 ON T1.park_id = T2.park_id WHERE T1.year = 2008 ORDER BY T1.attendance DESC LIMIT 1;"),
 (context.HomeGames.Join(context.Parks, T1 => T1.ParkId, T2 => T2.ParkId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Year == 2008).OrderByDescending(row => row.T1.Attendance).Select(row => new { row.T2.ParkName }).Take(1).ToList(), "SELECT T2.park_name FROM home_game AS T1 JOIN park AS T2 ON T1.park_id = T2.park_id WHERE T1.year = 2008 ORDER BY T1.attendance DESC LIMIT 1;"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
-    static void TestClimbingContext()
-    {
-        var context = new ClimbingContext();
-        var tests = new (object, string)[] {(context.Climbers.Count(), "SELECT count(*) FROM climber"),
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
+static void TestClimbingContext() { var context = new ClimbingContext(); 
+ var tests = new (object, string)[] {(context.Climbers.Count(), "SELECT count(*) FROM climber"),
 (context.Climbers.Count(), "SELECT count(*) FROM climber"),
 (context.Climbers.OrderByDescending(row => row.Points).Select(row => new { row.Name }).ToList(), "SELECT Name FROM climber ORDER BY Points DESC"),
 (context.Climbers.OrderByDescending(row => row.Points).Select(row => new { row.Name }).ToList(), "SELECT Name FROM climber ORDER BY Points DESC"),
@@ -1252,54 +1154,45 @@ class Program
 (context.Mountains.Where(row => row.Height > 5000 || row.Prominence > 1000).Select(row => new { row.Name }).ToList(), "SELECT Name FROM mountain WHERE Height > 5000 OR Prominence > 1000"),
 (context.Mountains.Where(row => row.Height > 5000 || row.Prominence > 1000).Select(row => new { row.Name }).ToList(), "SELECT Name FROM mountain WHERE Height > 5000 OR Prominence > 1000"),};
 
-        for (int i = 0; i < tests.Length; ++i)
-        {
-            var (linq_query, sql_query) = tests[i];
+ for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];
 
-            var test_passed = Tester.Test(linq_query, sql_query, context);
-            if (!test_passed) { Console.WriteLine($"Test {i + 1} failed."); }
-        }
-    }
+var test_passed = Tester.Test(linq_query, sql_query, context); 
+ if (!test_passed) { Console.WriteLine($"Test { i + 1 } failed."); } } }
 
-    static void Main()
-    {
-        Console.WriteLine("Running tests for CreThemeParkContext");
-        TestCreThemeParkContext();
-        Console.WriteLine("Running tests for BrowserWebContext");
-        TestBrowserWebContext();
-        Console.WriteLine("Running tests for CreThemeParkContext");
-        TestCreThemeParkContext();
-        Console.WriteLine("Running tests for Bike1Context");
-        TestBike1Context();
-        Console.WriteLine("Running tests for CinemaContext");
-        TestCinemaContext();
-        Console.WriteLine("Running tests for College3Context");
-        TestCollege3Context();
-        Console.WriteLine("Running tests for CandidatePollContext");
-        TestCandidatePollContext();
-        Console.WriteLine("Running tests for CreDocControlSystemsContext");
-        TestCreDocControlSystemsContext();
-        Console.WriteLine("Running tests for Csu1Context");
-        TestCsu1Context();
-        Console.WriteLine("Running tests for CustomerDeliveriesContext");
-        TestCustomerDeliveriesContext();
-        Console.WriteLine("Running tests for CreDocTrackingDbContext");
-        TestCreDocTrackingDbContext();
-        Console.WriteLine("Running tests for Club1Context");
-        TestClub1Context();
-        Console.WriteLine("Running tests for Allergy1Context");
-        TestAllergy1Context();
-        Console.WriteLine("Running tests for CustomerComplaintsContext");
-        TestCustomerComplaintsContext();
-        Console.WriteLine("Running tests for Company1Context");
-        TestCompany1Context();
-        Console.WriteLine("Running tests for CreDocsAndEpensesContext");
-        TestCreDocsAndEpensesContext();
-        Console.WriteLine("Running tests for CountyPublicSafetyContext");
-        TestCountyPublicSafetyContext();
-        Console.WriteLine("Running tests for Baseball1Context");
-        TestBaseball1Context();
-        Console.WriteLine("Running tests for ClimbingContext");
-        TestClimbingContext();
-    }
-}
+static void Main() { Console.WriteLine("Running tests for BrowserWebContext");
+ TestBrowserWebContext();
+Console.WriteLine("Running tests for CreThemeParkContext");
+ TestCreThemeParkContext();
+Console.WriteLine("Running tests for Bike1Context");
+ TestBike1Context();
+Console.WriteLine("Running tests for CinemaContext");
+ TestCinemaContext();
+Console.WriteLine("Running tests for College3Context");
+ TestCollege3Context();
+Console.WriteLine("Running tests for CandidatePollContext");
+ TestCandidatePollContext();
+Console.WriteLine("Running tests for CreDocControlSystemsContext");
+ TestCreDocControlSystemsContext();
+Console.WriteLine("Running tests for Csu1Context");
+ TestCsu1Context();
+Console.WriteLine("Running tests for CustomerDeliveriesContext");
+ TestCustomerDeliveriesContext();
+Console.WriteLine("Running tests for CreDocTrackingDbContext");
+ TestCreDocTrackingDbContext();
+Console.WriteLine("Running tests for Club1Context");
+ TestClub1Context();
+Console.WriteLine("Running tests for Allergy1Context");
+ TestAllergy1Context();
+Console.WriteLine("Running tests for CustomerComplaintsContext");
+ TestCustomerComplaintsContext();
+Console.WriteLine("Running tests for Company1Context");
+ TestCompany1Context();
+Console.WriteLine("Running tests for CreDocsAndEpensesContext");
+ TestCreDocsAndEpensesContext();
+Console.WriteLine("Running tests for CountyPublicSafetyContext");
+ TestCountyPublicSafetyContext();
+Console.WriteLine("Running tests for Baseball1Context");
+ TestBaseball1Context();
+Console.WriteLine("Running tests for ClimbingContext");
+ TestClimbingContext();
+ }}

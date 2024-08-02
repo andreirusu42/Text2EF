@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 
 class Tester
 {
-    private static List<Dictionary<string, object>> ExecuteSqlQuery(string query, DbContext context)
+    public static List<Dictionary<string, object>> ExecuteSqlQuery(string query, DbContext context)
     {
         var connection = context.Database.GetDbConnection();
 
@@ -47,7 +47,11 @@ class Tester
 
     private static List<Dictionary<string, object>> ExecuteLinqQuery<TResult>(object linqQuery)
     {
-        if (linqQuery is System.Collections.IEnumerable query)
+        if (linqQuery is String stringResult)
+        {
+            return new List<Dictionary<string, object>> { new Dictionary<string, object> { { "Value", stringResult } } };
+        }
+        else if (linqQuery is System.Collections.IEnumerable query)
         {
             var enumerator = query.GetEnumerator();
 
@@ -63,11 +67,11 @@ class Tester
                 return new List<Dictionary<string, object>>();
             }
 
+
             var isPrimitive = firstItem.GetType().IsPrimitive || firstItem is string || firstItem is int || firstItem is double;
 
             if (isPrimitive)
             {
-
                 var primitiveResults = query.Cast<object>().Select(item =>
                     new Dictionary<string, object> { { "Value", item } }).ToList();
                 return primitiveResults;
@@ -82,7 +86,10 @@ class Tester
                         foreach (var p in item.GetType().GetProperties())
                         {
                             var value = p.GetValue(item);
-                            if (value != null)
+
+                            var isList = value != null && value is IEnumerable<object>;
+
+                            if (value != null && !isList)
                             {
                                 result[$"{key}"] = value is DateTime dateTime ? dateTime.ToString("yyyy-MM-dd HH:mm:ss") : value;
                             }
@@ -103,6 +110,8 @@ class Tester
         {
             results.Add(new Dictionary<string, object> { { "Value", linqQuery } });
         }
+
+
         // else
         // {
         //     results.Add(linqQuery.GetType().GetProperties().ToDictionary(p => p.Name, p =>
@@ -167,6 +176,9 @@ class Tester
         var linqResults = ExecuteLinqQuery<object>(linqQuery);
         var sqlResults = ExecuteSqlQuery(sqlQuery, context);
 
+        // TODO: Issue. You can not simply compare these.
+        // Imagine when you have a VARCHAR(7) in sql, which is translated to a Decimal / int in linq.
+        // I know this is stupid, but when you scaffold the model, this is how it's generated :/
 
         // Console.WriteLine("SQL Results:");
         // for (int i = 0; i < sqlResults.Count; i++)
