@@ -33,6 +33,12 @@ class Tester
                         var columnName = $"{i}";
                         row[columnName] = value;
                     }
+
+                    if (row.Count == 0)
+                    {
+                        continue;
+                    }
+
                     sqlQueryResults.Add(row);
                 }
             }
@@ -188,6 +194,7 @@ class Tester
         // I know this is stupid, but when you scaffold the model, this is how it's generated :/
 
         // This is some kind of normalising step, even though, if you ask me, it'd be better to check the types of the columns and compare based on that :/
+
         for (int i = 0; i < sqlResults.Count; ++i)
         {
             var sql = sqlResults[i];
@@ -226,7 +233,6 @@ class Tester
                 // Console.WriteLine($"SQL Value: {sqlValue} ({sqlValue.GetType()})");
                 // Console.WriteLine($"LINQ Value: {linqValue} ({linqValue.GetType()})");
             }
-
         }
 
         // Console.WriteLine("SQL Results:");

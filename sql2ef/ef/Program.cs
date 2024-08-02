@@ -1,12 +1,12 @@
-using entity_framework.Models.cre_Doc_Control_Systems; 
+using entity_framework.Models.csu_1; 
 using Microsoft.EntityFrameworkCore;
 
 class Program {
 public static void Main() {
-var context = new CreDocControlSystemsContext();
+var context = new Csu1Context();
 
-var sql = "SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;";
-var linq = context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList();
+var sql = "SELECT avg(campusfee) FROM csu_fees WHERE YEAR = 1996";
+var linq = context.CsuFees.Where(row => row.Year == 1996).Select(row => row.CampusFee).Average();
 
 Tester.Test(linq, sql, context);
 }

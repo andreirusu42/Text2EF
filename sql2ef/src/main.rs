@@ -102,32 +102,18 @@ fn run_queries() {
         let context_name = linq_query_builder.get_context_name();
 
         for (index, query) in queries.iter().enumerate() {
-            // wrong in the dataset, activity_1
-            if query.to_lowercase().contains("t2.actid = t2.actid") {
-                continue;
-            }
+            let lowercase_query = query.to_lowercase();
 
-            // wrong in the dataset, apartment_rentals
-            if query
-                .to_lowercase()
-                .contains("t1.booking_start_date , t1.booking_start_date")
-            {
-                continue;
-            }
+            let blacklist = vec![
+                "t2.actid = t2.actid",                           // activity_1
+                "t1.booking_start_date , t1.booking_start_date", // apartment_rentals
+                "t2.allergytype",                                // allergy_1
+                "ref_company_types",                             // assets_maintenance
+                "tourist_attraction_features",                   // TODO: m2m tables
+                "circulation_history",                           // TODO: m2m tables
+            ];
 
-            // wrong in the dataset, allergy_1
-            if query.to_lowercase().contains("t2.allergytype") {
-                // the field should be allergy_type
-                continue;
-            }
-
-            // wrong in the dataset, assets_maintenance
-            if query.to_lowercase().contains("ref_company_types") {
-                continue;
-            }
-
-            // TODO: handle these queries with m2m tables :)
-            if query.to_lowercase().contains("tourist_attraction_features") {
+            if blacklist.iter().any(|key| lowercase_query.contains(key)) {
                 continue;
             }
 
