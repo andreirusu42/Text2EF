@@ -2,14 +2,8 @@ dataset/
 databases/
 
 node_modules/
-.venv/
-__pycache__/
 .vscode/
 
-Text2ORM.egg-info
-build
-
-entity-framework/bin/
-entity-framework/Models/
-entity-framework/obj/
-
+sql2ef/entity-framework/bin/
+sql2ef/entity-framework/Models/
+sql2ef/entity-framework/obj/
