@@ -25,7 +25,7 @@ class Tester
                     {
                         var value = reader.GetValue(i);
 
-                        if (value is System.DBNull)
+                        if (value is DBNull)
                         {
                             continue;
                         }
@@ -102,9 +102,10 @@ class Tester
                             key += 1;
                         }
 
-                        return result;
+                        return result.Count > 0 ? result : null;
                     }
-                ).ToList();
+                ).Where(rez => rez != null)
+                .ToList();
 
                 return complexResults;
             }
@@ -193,48 +194,6 @@ class Tester
         // Imagine when you have a VARCHAR(7) in sql, which is translated to a Decimal / int in linq.
         // I know this is stupid, but when you scaffold the model, this is how it's generated :/
 
-        // This is some kind of normalising step, even though, if you ask me, it'd be better to check the types of the columns and compare based on that :/
-
-        for (int i = 0; i < sqlResults.Count; ++i)
-        {
-            var sql = sqlResults[i];
-            var linq = linqResults[i];
-
-            for (int j = 0; j < sql.Count; ++j)
-            {
-                var sqlKey = sql.Keys.ElementAt(j);
-                var linqKey = linq.Keys.ElementAt(j);
-
-                var sqlValue = sql[sqlKey];
-                var linqValue = linq[linqKey];
-
-                if (sqlValue is string sqlString)
-                {
-                    if (linqValue is double linqDouble)
-                    {
-                        if (sqlString == "" && linqDouble == 0)
-                        {
-                            sqlResults[i][sqlKey] = "0";
-                        }
-                    }
-                    else if (linqValue is Boolean linqBoolean)
-                    {
-                        if (sqlString == "")
-                        {
-                            sqlResults[i][sqlKey] = false;
-                        }
-                        else if (sqlString == "1")
-                        {
-                            sqlResults[i][sqlKey] = true;
-                        }
-                    }
-                }
-
-                // Console.WriteLine($"SQL Value: {sqlValue} ({sqlValue.GetType()})");
-                // Console.WriteLine($"LINQ Value: {linqValue} ({linqValue.GetType()})");
-            }
-        }
-
         // Console.WriteLine("SQL Results:");
         // for (int i = 0; i < sqlResults.Count; i++)
         // {
@@ -248,6 +207,101 @@ class Tester
         //     var row = linqResults[i];
         //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
         // }
+
+        // if (sqlResults.Count != linqResults.Count)
+        // {
+        //     Console.WriteLine($"SQL Results: {sqlResults.Count}");
+        //     Console.WriteLine($"LINQ Results: {linqResults.Count}");
+        // }
+
+
+
+        // This is some kind of normalising step, even though, if you ask me, it'd be better to check the types of the columns and compare based on that :/
+        if (sqlResults.Count == linqResults.Count)
+        {
+            for (int i = 0; i < sqlResults.Count; ++i)
+            {
+                var sql = sqlResults[i];
+                var linq = linqResults[i];
+
+                for (int j = 0; j < sql.Count; ++j)
+                {
+                    var sqlKey = sql.Keys.ElementAt(j);
+                    var linqKey = linq.Keys.ElementAt(j);
+
+                    var sqlValue = sql[sqlKey];
+                    var linqValue = linq[linqKey];
+
+                    // Console.WriteLine($"SQL Key: {sqlKey} ({sqlValue.GetType()})");
+                    // Console.WriteLine($"LINQ Key: {linqKey} ({linqValue.GetType()})");
+                    // Console.WriteLine($"SQL Value: {sqlValue}");
+                    // Console.WriteLine($"LINQ Value: {linqValue}");
+
+                    if (sqlValue is string sqlString)
+                    {
+                        if (linqValue is double linqDouble)
+                        {
+                            if (sqlString == "" && linqDouble == 0)
+                            {
+                                sqlResults[i][sqlKey] = "0";
+                            }
+                        }
+                        else if (linqValue is Boolean linqBoolean)
+                        {
+                            if (sqlString == "")
+                            {
+                                sqlResults[i][sqlKey] = false;
+                            }
+                            else if (sqlString == "1")
+                            {
+                                sqlResults[i][sqlKey] = true;
+                            }
+                        }
+                    }
+
+                    else if (sqlValue is DBNull)
+                    {
+                        if (linqValue is double linqDouble)
+                        {
+                            sqlResults[i][sqlKey] = 0;
+                        }
+                        else if (linqValue is Boolean linqBoolean)
+                        {
+                            sqlResults[i][sqlKey] = false;
+                        }
+                    }
+
+                    // Console.WriteLine($"SQL Value: {sqlValue} ({sqlValue.GetType()})");
+                    // Console.WriteLine($"LINQ Value: {linqValue} ({linqValue.GetType()})");
+                }
+            }
+        }
+        else
+        {
+            if (linqResults.Count == 1 && sqlResults.Count == 0)
+            {
+                var linq = linqResults[0];
+
+
+                if (linq.Count != 1)
+                {
+                    throw new Exception("sad face");
+                }
+
+                var linqValue = linq.Values.First();
+
+                // Console.WriteLine($"LINQ Value: {linqValue} ({linqValue.GetType()})");
+
+                if (linqValue is double linqDouble && linqDouble == 0)
+                {
+                    linqResults.RemoveAt(0);
+                }
+
+
+            }
+        }
+
+
 
         CompareResults(linqResults, sqlResults);
     }

@@ -8,14 +8,23 @@ mod linq_query_builder;
 mod manual_tests;
 mod schema_mapping;
 mod tests;
+
+use std::fs::File;
 use std::path::Path;
+use std::{collections::HashSet, io::Write};
 
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
 use tests::{get_test, read_tests, update_test, write_test, Test};
 
-fn run_test(context_name: &str, db_name: &str, query: &str, result: &str, update: bool) {
+fn execute_query_and_update_tests_file(
+    context_name: &str,
+    db_name: &str,
+    query: &str,
+    result: &str,
+    update: bool,
+) {
     let c_sharp_code = format!(
         r#"using entity_framework.Models.{}; 
 using Microsoft.EntityFrameworkCore;
@@ -53,7 +62,7 @@ Tester.Test(linq, sql, context);
                 CodeResultStatus::OK => {
                     println!("Query executed successfully");
 
-                    if (update) {
+                    if update {
                         update_test(query, test).unwrap();
                     } else {
                         write_test(test).unwrap();
@@ -71,7 +80,75 @@ Tester.Test(linq, sql, context);
     }
 }
 
-fn run_queries() {
+// This is being used for when I modify something in the logic of testing the queries (in C#).
+fn run_queries_bulk() {
+    let tests = read_tests(constants::TESTS_JSON_FILE_PATH).unwrap();
+
+    let mut c_sharp_code = String::new();
+    let mut main_code = String::new();
+
+    let db_names: HashSet<String> = tests.iter().map(|test| test.db_name.clone()).collect();
+
+    for db_name in &db_names {
+        c_sharp_code = format!(
+            "{}using entity_framework.Models.{};\n",
+            c_sharp_code, db_name
+        );
+    }
+
+    c_sharp_code = format!(
+        "{}\nusing Microsoft.EntityFrameworkCore;\n\nclass Program {{\n",
+        c_sharp_code
+    );
+
+    for db_name in &db_names {
+        let linq_query_builder = LinqQueryBuilder::new(
+            Path::new(constants::EF_MODELS_DIR)
+                .join(db_name)
+                .to_str()
+                .unwrap(),
+        );
+
+        let context_name = linq_query_builder.get_context_name();
+        c_sharp_code.push_str(&format!(
+            "\nstatic void Test{}() {{ var context = new {}(); \n var tests = new (object, string)[] {{\n",
+            context_name, context_name
+        ));
+
+        let sql_and_results: Vec<(&str, &str)> = tests
+            .iter()
+            .filter(|test| test.db_name == *db_name)
+            .map(|test| (test.query.as_str(), test.result.as_str()))
+            .collect();
+
+        let result = sql_and_results
+            .iter()
+            .map(|(a, b)| format!("({}, \"{}\"),", b.trim_end_matches(';'), a.escape_default()))
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        c_sharp_code.push_str(&result);
+
+        c_sharp_code.push_str(
+            "};\n\n for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];\n\n Console.WriteLine($\"Testing {sql_query}\");  Tester.Test(linq_query, sql_query, context); } }",
+        );
+
+        main_code.push_str(&format!(
+            "Console.WriteLine(\"Running tests for {}\");\n Test{}();\n",
+            context_name, context_name
+        ));
+    }
+
+    c_sharp_code.push_str(&format!("\nstatic void Main() {{\n{}\n}}", main_code));
+    c_sharp_code.push_str("\n}");
+
+    let path = Path::new("./ef/Program.cs");
+    let mut file = File::create(&path).expect("Unable to create file");
+    file.write_all(c_sharp_code.as_bytes())
+        .expect("Unable to write data");
+}
+
+fn run_queries_sequentially() {
     let dataset = extract_queries(constants::EF_MODELS_DIR, constants::GOLD_DATASET_FILE_PATH);
 
     for db_name in &dataset.db_names {
@@ -128,10 +205,10 @@ fn run_queries() {
                 }
 
                 println!("Query already exists in the tests file, but the result is different.");
-                run_test(&context_name, &db_name, &query, &result, true);
+                execute_query_and_update_tests_file(&context_name, &db_name, &query, &result, true);
             }
 
-            run_test(&context_name, &db_name, &query, &result, false);
+            execute_query_and_update_tests_file(&context_name, &db_name, &query, &result, false);
         }
     }
 }
@@ -161,5 +238,6 @@ fn run_tests() {
 
 fn main() {
     // run_tests();
-    run_queries();
+    // run_queries_sequentially();
+    run_queries_bulk();
 }
