@@ -63,7 +63,7 @@ pub struct TableAliasAndName {
 }
 
 pub struct LinqQueryBuilder {
-    pub schema_mapping: SchemaMapping,
+    schema_mapping: SchemaMapping,
     row_selector: String,
     group_selector: String,
 }
@@ -83,6 +83,10 @@ impl LinqQueryBuilder {
             row_selector: "row".to_string(),
             group_selector: "group".to_string(),
         }
+    }
+
+    pub fn get_context_name(&self) -> &String {
+        &self.schema_mapping.context
     }
 
     fn build_projection_single_function(
