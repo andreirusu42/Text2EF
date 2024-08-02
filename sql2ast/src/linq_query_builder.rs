@@ -1380,8 +1380,13 @@ impl LinqQueryBuilder {
             );
         }
 
-        let mut aliases_in_correct_order_to_join =
-            determine_join_order(&mut all_constraints, &main_table_alias.to_lowercase());
+        let all_tables = joins.iter().map(|join| join.table_alias.as_str()).collect();
+
+        let mut aliases_in_correct_order_to_join = determine_join_order(
+            &mut all_constraints,
+            all_tables,
+            &main_table_alias.to_lowercase(),
+        );
         let mut aliases_known_so_far: CaseInsensitiveHashSet<String> =
             CaseInsensitiveHashSet::new();
         aliases_known_so_far.insert(
@@ -1494,31 +1499,149 @@ impl LinqQueryBuilder {
             });
         }
 
-        let number_of_constraints = joins.iter().map(|j| j.constraints.len()).sum::<usize>();
+        self.rearrange_joins(&mut joins, main_table_alias);
 
-        if number_of_constraints > 0 {
-            self.rearrange_joins(&mut joins, main_table_alias);
+        for join in joins {
+            let mapped_table_name = self
+                .schema_mapping
+                .get_table_name(&join.table_name)
+                .unwrap();
 
-            for join in joins {
-                let mapped_table_name = self
-                    .schema_mapping
-                    .get_table_name(&join.table_name)
-                    .unwrap();
+            let table = alias_to_table_map.get(&join.table_alias).unwrap();
 
+            if join.constraints.len() == 1 {
                 linq_query.push_str(&format!(".Join(context.{}, ", mapped_table_name));
 
-                if join.constraints.len() == 1 {
-                    let constraint = &join.constraints[0];
+                let constraint = &join.constraints[0];
+                let mut left_table_alias = &constraint.left_table_alias;
+                let mut right_table_alias = &constraint.right_table_alias;
+
+                let mut left_table_field = &constraint.left_table_field;
+                let mut right_table_field = &constraint.right_table_field;
+
+                let right_table = alias_to_table_map.get(right_table_alias).unwrap();
+                if joined_aliases.contains(&right_table.mapped_alias)
+                    || main_table_alias.to_lowercase() == right_table_alias.to_lowercase()
+                // this is the case when you join the table in reverse order, only ƒor the first constraint
+                {
+                    let temp_table_alias = left_table_alias;
+                    let temp_table_field = left_table_field;
+
+                    left_table_alias = right_table_alias;
+                    left_table_field = right_table_field;
+
+                    right_table_alias = temp_table_alias;
+                    right_table_field = temp_table_field;
+                }
+
+                let left_table = alias_to_table_map.get(left_table_alias).unwrap();
+                let right_table = alias_to_table_map.get(right_table_alias).unwrap();
+
+                let mapped_left_field = self
+                    .schema_mapping
+                    .get_column_name(&left_table.name, &left_table_field)
+                    .unwrap();
+
+                let mapped_right_field = self
+                    .schema_mapping
+                    .get_column_name(&right_table.name, &right_table_field)
+                    .unwrap();
+
+                let outer_key_selector: String;
+
+                if joined_aliases.len() == 0 {
+                    outer_key_selector = left_table.mapped_alias.to_string();
+                    joined_aliases.push(left_table.mapped_alias.clone());
+                } else {
+                    outer_key_selector = "joined".to_string()
+                }
+
+                if outer_key_selector == "joined" {
+                    let mut joined_aliases_str = String::new();
+
+                    for alias in &joined_aliases {
+                        joined_aliases_str.push_str(&format!("joined.{}, ", alias));
+                    }
+
+                    linq_query.push_str(&format!(
+                        "{} => {}.{}.{}, ",
+                        outer_key_selector,
+                        outer_key_selector,
+                        left_table.mapped_alias,
+                        mapped_left_field
+                    ));
+
+                    linq_query.push_str(&format!(
+                        "{} => {}.{}, ",
+                        right_table.mapped_alias, right_table.mapped_alias, mapped_right_field
+                    ));
+
+                    linq_query.push_str(&format!(
+                        "({}, {}) => new {{ {}{} }})",
+                        outer_key_selector,
+                        right_table.mapped_alias,
+                        joined_aliases_str,
+                        right_table.mapped_alias
+                    ));
+                } else {
+                    linq_query.push_str(&format!(
+                        "{} => {}.{}, {} => {}.{}, ({}, {}) => new {{ {}, {} }})",
+                        left_table.mapped_alias,
+                        left_table.mapped_alias,
+                        mapped_left_field,
+                        right_table.mapped_alias,
+                        right_table.mapped_alias,
+                        mapped_right_field,
+                        left_table.mapped_alias,
+                        right_table.mapped_alias,
+                        left_table.mapped_alias,
+                        right_table.mapped_alias
+                    ));
+                }
+
+                joined_aliases.push(right_table.mapped_alias.clone());
+            } else if join.constraints.len() == 0 {
+                if joined_aliases.len() > 0 {
+                    let mut joined_aliases_str = String::new();
+                    for alias in &joined_aliases {
+                        joined_aliases_str.push_str(&format!("joined.{}, ", alias));
+                    }
+
+                    linq_query.push_str(&format!(
+                        ".SelectMany(s => context.{}, (joined, {}) => new {{ {}{} }})",
+                        mapped_table_name,
+                        table.mapped_alias,
+                        joined_aliases_str,
+                        table.mapped_alias
+                    ));
+                } else {
+                    linq_query.push_str(&format!(
+                        ".SelectMany(s => context.{}, ({}, {}) => new {{ {}, {} }})",
+                        mapped_table_name,
+                        main_table_alias,
+                        table.mapped_alias,
+                        main_table_alias,
+                        table.mapped_alias
+                    ));
+                }
+            } else {
+                linq_query.push_str(&format!(".Join(context.{}, ", mapped_table_name));
+
+                let mut left_join_fields: Vec<String> = Vec::new();
+                let mut right_join_fields: Vec<String> = Vec::new();
+
+                let mut last_table_alias = String::new();
+
+                for (index, constraint) in join.constraints.iter().enumerate() {
                     let mut left_table_alias = &constraint.left_table_alias;
                     let mut right_table_alias = &constraint.right_table_alias;
 
                     let mut left_table_field = &constraint.left_table_field;
                     let mut right_table_field = &constraint.right_table_field;
 
-                    let right_table = alias_to_table_map.get(right_table_alias).unwrap();
-                    if joined_aliases.contains(&right_table.mapped_alias)
-                        || main_table_alias.to_lowercase() == right_table_alias.to_lowercase()
-                    // this is the case when you join the table in reverse order, only ƒor the first constraint
+                    let mapped_right_table = alias_to_table_map.get(right_table_alias).unwrap();
+                    if joined_aliases.contains(&mapped_right_table.mapped_alias)
+                    // this is the case when you join the table in reverse order
                     {
                         let temp_table_alias = left_table_alias;
                         let temp_table_field = left_table_field;
@@ -1543,191 +1666,38 @@ impl LinqQueryBuilder {
                         .get_column_name(&right_table.name, &right_table_field)
                         .unwrap();
 
-                    let outer_key_selector: String;
-
-                    if joined_aliases.len() == 0 {
-                        outer_key_selector = left_table.mapped_alias.to_string();
-                        joined_aliases.push(left_table.mapped_alias.clone());
-                    } else {
-                        outer_key_selector = "joined".to_string()
-                    }
-
-                    if outer_key_selector == "joined" {
-                        let mut joined_aliases_str = String::new();
-
-                        for alias in &joined_aliases {
-                            joined_aliases_str.push_str(&format!("joined.{}, ", alias));
-                        }
-
-                        linq_query.push_str(&format!(
-                            "{} => {}.{}.{}, ",
-                            outer_key_selector,
-                            outer_key_selector,
-                            left_table.mapped_alias,
-                            mapped_left_field
-                        ));
-
-                        linq_query.push_str(&format!(
-                            "{} => {}.{}, ",
-                            right_table.mapped_alias, right_table.mapped_alias, mapped_right_field
-                        ));
-
-                        linq_query.push_str(&format!(
-                            "({}, {}) => new {{ {}{} }})",
-                            outer_key_selector,
-                            right_table.mapped_alias,
-                            joined_aliases_str,
-                            right_table.mapped_alias
-                        ));
-                    } else {
-                        linq_query.push_str(&format!(
-                            "{} => {}.{}, {} => {}.{}, ({}, {}) => new {{ {}, {} }})",
-                            left_table.mapped_alias,
-                            left_table.mapped_alias,
-                            mapped_left_field,
-                            right_table.mapped_alias,
-                            right_table.mapped_alias,
-                            mapped_right_field,
-                            left_table.mapped_alias,
-                            right_table.mapped_alias,
-                            left_table.mapped_alias,
-                            right_table.mapped_alias
-                        ));
-                    }
-
-                    joined_aliases.push(right_table.mapped_alias.clone());
-                } else {
-                    let mut left_join_fields: Vec<String> = Vec::new();
-                    let mut right_join_fields: Vec<String> = Vec::new();
-
-                    let mut last_table_alias = String::new();
-
-                    for (index, constraint) in join.constraints.iter().enumerate() {
-                        let mut left_table_alias = &constraint.left_table_alias;
-                        let mut right_table_alias = &constraint.right_table_alias;
-
-                        let mut left_table_field = &constraint.left_table_field;
-                        let mut right_table_field = &constraint.right_table_field;
-
-                        let mapped_right_table = alias_to_table_map.get(right_table_alias).unwrap();
-                        if joined_aliases.contains(&mapped_right_table.mapped_alias)
-                        // this is the case when you join the table in reverse order
-                        {
-                            let temp_table_alias = left_table_alias;
-                            let temp_table_field = left_table_field;
-
-                            left_table_alias = right_table_alias;
-                            left_table_field = right_table_field;
-
-                            right_table_alias = temp_table_alias;
-                            right_table_field = temp_table_field;
-                        }
-
-                        let left_table = alias_to_table_map.get(left_table_alias).unwrap();
-                        let right_table = alias_to_table_map.get(right_table_alias).unwrap();
-
-                        let mapped_left_field = self
-                            .schema_mapping
-                            .get_column_name(&left_table.name, &left_table_field)
-                            .unwrap();
-
-                        let mapped_right_field = self
-                            .schema_mapping
-                            .get_column_name(&right_table.name, &right_table_field)
-                            .unwrap();
-
-                        left_join_fields.push(format!(
-                            "Pair{} = joined.{}.{}",
-                            index + 1,
-                            left_table.mapped_alias,
-                            mapped_left_field
-                        ));
-                        right_join_fields.push(format!(
-                            "Pair{} = {}.{}",
-                            index + 1,
-                            right_table.mapped_alias,
-                            mapped_right_field
-                        ));
-
-                        last_table_alias = right_table.mapped_alias.clone();
-                    }
-
-                    let mut joined_aliases_str = String::new();
-
-                    for alias in &joined_aliases {
-                        joined_aliases_str.push_str(&format!("joined.{}, ", alias));
-                    }
-
-                    linq_query.push_str(&format!(
-                        "joined => new {{ {} }}, {} => new {{ {} }}, (joined, {}) => new {{ {}{} }})",
-                        left_join_fields.join(", "),
-                        last_table_alias,
-                        right_join_fields.join(", "),
-                        last_table_alias,
-                        joined_aliases_str,
-                        last_table_alias
+                    left_join_fields.push(format!(
+                        "Pair{} = joined.{}.{}",
+                        index + 1,
+                        left_table.mapped_alias,
+                        mapped_left_field
+                    ));
+                    right_join_fields.push(format!(
+                        "Pair{} = {}.{}",
+                        index + 1,
+                        right_table.mapped_alias,
+                        mapped_right_field
                     ));
 
-                    joined_aliases.push(last_table_alias);
-                }
-            }
-        } else {
-            for join in &table.joins {
-                let table_alias: String;
-                let table_name: String;
-                let mapped_table_name: String;
-
-                if let sqlparser::ast::TableFactor::Table {
-                    name,
-                    alias: Some(alias),
-                    ..
-                } = &join.relation
-                {
-                    table_name = name.to_string();
-                    table_alias = alias.to_string();
-
-                    mapped_table_name = self
-                        .schema_mapping
-                        .get_table_name(&table_name)
-                        .unwrap()
-                        .to_string();
-                } else {
-                    panic!("Unknown table factor type");
+                    last_table_alias = right_table.mapped_alias.clone();
                 }
 
-                let constraint = if let JoinOperator::Inner(constraint) = &join.join_operator {
-                    constraint
-                } else {
-                    panic!("Unknown join operator type");
-                };
-
-                if let JoinConstraint::None = constraint {
-                } else {
-                    panic!("Unexpected join operator type");
+                let mut joined_aliases_str = String::new();
+                for alias in &joined_aliases {
+                    joined_aliases_str.push_str(&format!("joined.{}, ", alias));
                 }
 
-                let alias_option = if let TableFactor::Table { alias, .. } = &table.relation {
-                    alias
-                } else {
-                    panic!("Unknown table factor type");
-                };
-
-                let alias = if let Some(alias) = alias_option {
-                    alias.to_string()
-                } else {
-                    panic!("No alias for main table");
-                };
-
-                let main_table_alias: String = alias.to_string();
                 linq_query.push_str(&format!(
-                    ".SelectMany({} => context.{}, ({}, {}) => new {{ {}, {} }})",
-                    main_table_alias,
-                    mapped_table_name,
-                    main_table_alias,
-                    table_alias,
-                    main_table_alias,
-                    table_alias
+                    "joined => new {{ {} }}, {} => new {{ {} }}, (joined, {}) => new {{ {}{} }})",
+                    left_join_fields.join(", "),
+                    last_table_alias,
+                    right_join_fields.join(", "),
+                    last_table_alias,
+                    joined_aliases_str,
+                    last_table_alias
                 ));
+
+                joined_aliases.push(last_table_alias);
             }
         }
 

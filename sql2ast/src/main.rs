@@ -162,7 +162,7 @@ fn tests() {
         ),
         (
             r#"SELECT T1.engineer_id , T1.first_name , T1.last_name FROM Maintenance_Engineers AS T1 JOIN Engineer_Visits AS T2 GROUP BY T1.engineer_id ORDER BY count(*) DESC LIMIT 1"#,
-            r#"context.MaintenanceEngineers.SelectMany(T1 => context.EngineerVisits, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EngineerId }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.EngineerId, group.First().T1.FirstName, group.First().T1.LastName }).Take(1).ToList();"#,
+            r#"context.MaintenanceEngineers.SelectMany(s => context.EngineerVisits, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EngineerId }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.EngineerId, group.First().T1.FirstName, group.First().T1.LastName }).Take(1).ToList();"#,
         ),
         (
             r#"SELECT T1.first_name , T1.last_name , T1.other_details , T3.skill_description FROM Maintenance_Engineers AS T1 JOIN Engineer_Skills AS T2 ON T1.engineer_id = T2.engineer_id JOIN Skills AS T3 ON T2.skill_id = T3.skill_id"#,
@@ -329,6 +329,10 @@ fn tests() {
         (
             r#"SELECT document_id , count(T1.copy_number) FROM Draft_Copies AS T1 GROUP BY document_id ORDER BY count(T1.copy_number) DESC LIMIT 1;"#,
             r#"context.DraftCopies.GroupBy(row => new { row.T1.DocumentId }).Select(group => new { group.Key.DocumentId, CountCopyNumber = group.Select(row => row.T1.CopyNumber).Count() }).OrderByDescending(group => group.CountCopyNumber).Take(1).ToList();"#,
+        ),
+        (
+            r#"SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1"#,
+            r#"context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList();"#,
         )
     ]);
 
@@ -379,6 +383,10 @@ fn tests() {
         (
             r#"SELECT email_address , phone_number FROM customers ORDER BY email_address , phone_number"#,
             r#"context.Customers.OrderBy(row => row.EmailAddress).ThenBy(row => row.PhoneNumber).Select(row => new { row.EmailAddress, row.PhoneNumber }).ToList();"#,
+        ),
+        (
+            r#"SELECT DISTINCT t1.product_name FROM products AS t1 JOIN complaints AS t2 ON t1.product_id = t2.product_id JOIN customers AS t3 GROUP BY t3.customer_id ORDER BY count(*) LIMIT 1"#,
+            r#"context.Products.Join(context.Complaints, t1 => t1.ProductId, t2 => t2.ProductId, (t1, t2) => new { t1, t2 }).SelectMany(s => context.Customers, (joined, t3) => new { joined.t1, joined.t2, t3 }).GroupBy(row => new { row.t3.CustomerId }).OrderBy(group => group.Count()).Select(group => new { group.First().t1.ProductName }).Distinct().Take(1).ToList();"#,
         )
     ]);
 
@@ -395,7 +403,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            //  if db_name != "college_1" || index != 4 {
+            //  if db_name != "customer_complaints" || index != 1 {
             //     continue;
             // }
 
@@ -416,43 +424,43 @@ fn tests() {
 }
 
 fn create_tests_to_file() {
-    let db_names = vec![
-    "activity_1".to_string(),
-    "apartment_rentals".to_string(),
-    "allergy_1".to_string(), 
-    "assets_maintenance".to_string(),
-    "baseball_1".to_string(),
-    "behavior_monitoring".to_string(),
-    "bike_1".to_string(),
-    "body_builder".to_string(),
-    "book_2".to_string(),
-    "browser_web".to_string(),
-    "candidate_poll".to_string(),
-    "chinook_1".to_string(),
-    "cinema".to_string(),
-    "climbing".to_string(),
-    "club_1".to_string(),
-    "coffee_shop".to_string(),
-    "college_1".to_string(),
-    // "college_2".to_string(),
-    // "college_3".to_string(),
-    "company_1".to_string()
-    ];
+    // let db_names = vec![
+    // "activity_1".to_string(),
+    // "apartment_rentals".to_string(),
+    // "allergy_1".to_string(), 
+    // "assets_maintenance".to_string(),
+    // "baseball_1".to_string(),
+    // "behavior_monitoring".to_string(),
+    // "bike_1".to_string(),
+    // "body_builder".to_string(),
+    // "book_2".to_string(),
+    // "browser_web".to_string(),
+    // "candidate_poll".to_string(),
+    // "chinook_1".to_string(),
+    // "cinema".to_string(),
+    // "climbing".to_string(),
+    // "club_1".to_string(),
+    // "coffee_shop".to_string(),
+    // "college_1".to_string(),
+    // // "college_2".to_string(),
+    // // "college_3".to_string(),
+    // "company_1".to_string()
+    // ];
 
-    // let mut db_names: Vec<String> = Vec::new();
-    // for entry in fs::read_dir("../entity-framework/Models").unwrap() {
-    //     let entry = entry.unwrap();
-    //     let path = entry.path();
+    let mut db_names: Vec<String> = Vec::new();
+    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
 
-    //     if path.is_dir() {
-    //         let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
-    //         let mut files = fs::read_dir(path).unwrap();
+        if path.is_dir() {
+            let file_name = path.file_name().unwrap().to_str().unwrap().to_string();
+            let mut files = fs::read_dir(path).unwrap();
 
-    //         if files.next().is_some() {
-    //             db_names.push(file_name);
-    //         }
-    //     }
-    // }
+            if files.next().is_some() {
+                db_names.push(file_name);
+            }
+        }
+    }
 
 
         // TODO: EF might not be required tho. to simplify things we could simply run a lint at the end
@@ -590,6 +598,6 @@ fn create_tests_to_file() {
 }
 
 fn main() {
-    // tests();
-    create_tests_to_file();
+    tests();
+    // create_tests_to_file();
 }

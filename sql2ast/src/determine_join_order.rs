@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 pub fn determine_join_order(
     join_constraints: &mut Vec<Vec<(&str, &str)>>,
+    all_tables: Vec<&str>,
     main_table_alias: &str,
 ) -> Vec<String> {
     let mut seen: HashSet<&str> = HashSet::new();
@@ -33,6 +34,12 @@ pub fn determine_join_order(
             for constraint in constraints_to_remove {
                 constraints.retain(|c| *c != constraint);
             }
+        }
+    }
+
+    for table in all_tables.iter() {
+        if !seen.contains(table) {
+            order.push(table.to_string());
         }
     }
 
