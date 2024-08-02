@@ -238,6 +238,6 @@ fn run_tests() {
 
 fn main() {
     // run_tests();
-    // run_queries_sequentially();
-    run_queries_bulk();
+    run_queries_sequentially();
+    // run_queries_bulk();
 }

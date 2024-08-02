@@ -292,7 +292,7 @@ class Tester
 
                 // Console.WriteLine($"LINQ Value: {linqValue} ({linqValue.GetType()})");
 
-                if (linqValue is double linqDouble && linqDouble == 0)
+                if (linqValue is int linqInt && linqInt == 0 || linqValue is double linqDouble && linqDouble == 0)
                 {
                     linqResults.RemoveAt(0);
                 }
