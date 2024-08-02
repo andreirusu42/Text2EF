@@ -1282,7 +1282,13 @@ impl LinqQueryBuilder {
                     }
                 }
 
-                return value.to_string().replace("'", "\"");
+                let value = value.to_string().replace("'", "\"");
+
+                if mapped_column.field_type == FieldType::String && !value.starts_with("\"") {
+                    return format!("\"{}\"", value);
+                }
+
+                return value;
             }
             Expr::Subquery(subquery) => {
                 let subquery = self.build_query_helper(

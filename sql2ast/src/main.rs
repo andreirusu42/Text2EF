@@ -398,6 +398,10 @@ fn tests() {
         (
             r#"SELECT T2.Lname FROM DEPARTMENT AS T1 JOIN FACULTY AS T2 ON T1.DNO = T3.DNO JOIN MEMBER_OF AS T3 ON T2.FacID = T3.FacID WHERE T1.DName = "Computer Science""#,
             r#"context.Departments.Join(context.MemberOfs, T1 => T1.Dno, T3 => T3.Dno, (T1, T3) => new { T1, T3 }).Join(context.Faculties, joined => joined.T3.FacId, T2 => T2.FacId, (joined, T2) => new { joined.T1, joined.T3, T2 }).Where(row => row.T1.Dname == "Computer Science").Select(row => new { row.T2.Lname }).ToList();"#,
+        ),
+        (
+            r#"SELECT CName FROM COURSE WHERE Credits = 3 UNION SELECT CName FROM COURSE WHERE Credits = 1 AND Hours = 4"#,
+            r#"context.Courses.Where(row => row.Credits == 3).Select(row => row.Cname).Union(context.Courses.Where(row => row.Credits == 1 && row.Hours == "4").Select(row => row.Cname)).ToList();"#,
         )
     ]);
 
@@ -407,7 +411,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            //  if db_name != "browser_web" || index != 2 {
+            //  if db_name != "college_3" || index != 1 {
             //     continue;
             // }
 
