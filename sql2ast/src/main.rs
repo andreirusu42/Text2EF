@@ -231,11 +231,11 @@ fn tests() {
         (
             r#"SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'CACHEbox'"#,
             r#"context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "CACHEbox").Select(row => new { row.T3.Name }).ToList();"#,
+        ),
+        (
+            r#"SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'CACHEbox' INTERSECT SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'Fasterfox'"#,
+            r#"context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "CACHEbox").Select(row => row.T3.Name).Intersect(context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "Fasterfox").Select(row => row.T3.Name)).ToList();"#,
         )
-        // (
-        //     r#"SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'CACHEbox' INTERSECT SELECT T3.name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id JOIN browser AS T3 ON T2.browser_id = T3.id WHERE T1.name = 'Fasterfox'"#,
-        //     r#"context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "CACHEbox").Select(row => row.T3.Name).Intersect(context.WebClientAccelerators.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.AcceleratorId, (T1, T2) => new { T1, T2 }).Join(context.Browsers, joined => joined.T2.BrowserId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == "Fasterfox").Select(row => row.T3.Name)).ToList();"#,
-        // )
     ]);
 
     all_queries_and_results.insert("candidate_poll".to_string(), vec![
@@ -333,6 +333,10 @@ fn tests() {
         (
             r#"SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1"#,
             r#"context.Employees.Join(context.CirculationHistory, Employees => Employees.EmployeeId, CirculationHistory => CirculationHistory.EmployeeId, (Employees, CirculationHistory) => new { Employees, CirculationHistory }).Where(row => row.CirculationHistory.DocumentId == 1).Select(row => new { row.Employees.EmployeeName }).ToList();"#,
+        ),
+        (
+            r#"SELECT Ref_Shipping_Agents.shipping_agent_name , count(Documents.document_id) FROM Ref_Shipping_Agents JOIN Documents ON Documents.shipping_agent_code = Ref_Shipping_Agents.shipping_agent_code GROUP BY Ref_Shipping_Agents.shipping_agent_code ORDER BY count(Documents.document_id) DESC LIMIT 1;"#,
+            r#"context.RefShippingAgents.Join(context.Documents, RefShippingAgents => RefShippingAgents.ShippingAgentCode, Documents => Documents.ShippingAgentCode, (RefShippingAgents, Documents) => new { RefShippingAgents, Documents }).GroupBy(row => new { row.RefShippingAgents.ShippingAgentCode }).Select(group => new { group.First().RefShippingAgents.ShippingAgentName, CountDocumentId = group.Select(row => row.Documents.DocumentId).Count() }).OrderByDescending(group => group.CountDocumentId).Take(1).ToList();"#,
         )
     ]);
 
@@ -403,7 +407,7 @@ fn tests() {
         let linq_query_builder = LinqQueryBuilder::new(&format!("../entity-framework/Models/{}", db_name));
 
         for (index, (sql, expected_result)) in queries_and_results.iter().enumerate() {
-            //  if db_name != "customer_complaints" || index != 1 {
+            //  if db_name != "browser_web" || index != 2 {
             //     continue;
             // }
 

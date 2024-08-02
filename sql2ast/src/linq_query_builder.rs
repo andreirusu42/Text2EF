@@ -752,7 +752,6 @@ impl LinqQueryBuilder {
     fn build_group_by(
         &self,
         select: &Box<Select>,
-        table_name: &str,
         alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
     ) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
@@ -791,7 +790,7 @@ impl LinqQueryBuilder {
                     } else {
                         group_by_fields.push(format!(
                             "{}.{}.{}",
-                            self.row_selector, table_alias, mapped_column_name
+                            self.row_selector, table.mapped_alias, mapped_column_name
                         ));
                     }
 
@@ -809,7 +808,7 @@ impl LinqQueryBuilder {
 
                     group_by_fields.push(format!(
                         "{}.{}.{}",
-                        self.row_selector, table_alias, mapped_column_name
+                        self.row_selector, table.mapped_alias, mapped_column_name
                     ));
                     raw_group_by_fields.push(mapped_column_name.to_string());
                 } else {
@@ -2101,8 +2100,7 @@ impl LinqQueryBuilder {
             false
         };
 
-        let (group_by_query, group_by_fields) =
-            self.build_group_by(select, &main_table_name, &alias_to_table_map);
+        let (group_by_query, group_by_fields) = self.build_group_by(select, &alias_to_table_map);
 
         linq_query.insert("group_by".to_string(), group_by_query);
 
