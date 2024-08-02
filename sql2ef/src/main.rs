@@ -612,7 +612,7 @@ fn old_create_tests_to_file() {
 
 fn create_tests_to_file() {
     let mut db_names: Vec<String> = Vec::new();
-    for entry in fs::read_dir("../entity-framework/Models").unwrap() {
+    for entry in fs::read_dir("./entity-framework/Models").unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
 

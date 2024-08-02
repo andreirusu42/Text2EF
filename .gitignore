@@ -4,6 +4,6 @@ databases/
 node_modules/
 .vscode/
 
-sql2ef/entity-framework/bin/
-sql2ef/entity-framework/Models/
-sql2ef/entity-framework/obj/
+sql2ef/ef/bin/
+sql2ef/ef/Models/
+sql2ef/ef/obj/
