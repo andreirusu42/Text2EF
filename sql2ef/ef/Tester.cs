@@ -237,6 +237,19 @@ class Tester
                     // Console.WriteLine($"SQL Value: {sqlValue}");
                     // Console.WriteLine($"LINQ Value: {linqValue}");
 
+                    /*
+                        Also, this is incredible too. When running in Rust, you can get this:
+
+                         "SQL Results:\nRow 1: 0=7, 1=495.063\nRow 2: 0=61, 1=930.14\nRow 3: 0=98, 1=6035.84\nRow 4: 0=136, 1=199.52\nRow 5: 0=164, 1=12223.93\nRow 6: 0=209, 1=11130.23\nRow 7: 0=211, 1=1230.454\nRow 8: 0=240, 1=6352.31\nRow 9: 0=262, 1=147.96\nRow 10: 0=280, 1=187.14\nRow 11: 0=321, 1=745.817\nRow 12: 0=346, 1=127.9\nRow 13: 0=414, 1=25.41\nRow 14: 0=427, 1=1168.32\nRow 15: 0=451, 1=658.26\n
+                         LINQ Results:\nRow 1: 0=7, 1=495,063\nRow 2: 0=61, 1=930,14\nRow 3: 0=98, 1=6035,84\nRow 4: 0=136, 1=199,52\nRow 5: 0=164, 1=12223,93\nRow 6: 0=209, 1=11130,23\nRow 7: 0=211, 1=1230,454\nRow 8: 0=240, 1=6352,31\nRow 9: 0=262, 1=147,96\nRow 10: 0=280, 1=187,14\nRow 11: 0=321, 1=745,817\nRow 12: 0=346, 1=127,9\nRow 13: 0=414, 1=25,41\nRow 14: 0=427, 1=1168,32\nRow 15: 0=451, 1=658,26\n"
+
+                        For some reason, the decimal point is a comma in the LINQ results
+                    */
+                    if (linqValue is decimal linqDecimal)
+                    {
+                        linqResults[i][linqKey] = linqDecimal.ToString().Replace(",", ".");
+                    }
+
                     if (sqlValue is string sqlString)
                     {
                         if (linqValue is double linqDouble)
@@ -296,8 +309,6 @@ class Tester
                 {
                     linqResults.RemoveAt(0);
                 }
-
-
             }
         }
 

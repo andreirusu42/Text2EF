@@ -45,6 +45,7 @@ pub fn execute_csharp_code(project_dir: &str, code: &str) -> ExecutionResult {
                     Ok(output) => {
                         if !output.status.success() {
                             let error_message = String::from_utf8_lossy(&output.stderr).to_string();
+
                             let exception_details = parse_exception_details(&error_message);
                             return ExecutionResult {
                                 build_result: BuildResultStatus::OK,

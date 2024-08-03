@@ -32,7 +32,7 @@ public class ResultsAreNotEqualException : Exception
             int j = 0;
             foreach (var kvp in row)
             {
-                serialized.Append($"\"{kvp.Key}\": \"{kvp.Value}\"");
+                serialized.Append($"{kvp.Key}: {kvp.Value}");
                 if (j < row.Count - 1)
                 {
                     serialized.Append(", ");
