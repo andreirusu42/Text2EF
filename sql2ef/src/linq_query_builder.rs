@@ -96,7 +96,7 @@ impl LinqQueryBuilder {
     ) -> ProjectionSingleFunctionResult {
         let function_name = function.name.to_string().to_lowercase();
         let mut result = String::new();
-        let mut field_type: String;
+        let field_type: String;
 
         if ["count", "avg", "sum", "min", "max"].contains(&function_name.as_str()) {
             if let FunctionArguments::List(list) = &function.args {
@@ -156,11 +156,11 @@ impl LinqQueryBuilder {
                                 ""
                             };
 
-                            // Checking the function name only because varchar is transformed into a String when scaffolding
                             let cast = if stringify.is_empty()
                                 && (mapped_column.field_type == FieldType::Decimal
                                     || (function_name == "avg"
-                                        && mapped_column.field_type != FieldType::Int))
+                                        && mapped_column.field_type != FieldType::Int
+                                        && mapped_column.field_type != FieldType::String))
                             {
                                 "(double) "
                             } else {
@@ -186,6 +186,16 @@ impl LinqQueryBuilder {
                                     &mapped_column.name,
                                     stringify
                                 ));
+                            }
+
+                            // This is the only way to do this afaik
+                            if cast.is_empty()
+                                && mapped_column.field_type == FieldType::String
+                                && function_name == "avg"
+                            {
+                                result.push_str(
+                                    ".ToList().Select(value => double.Parse(value)).ToList()",
+                                );
                             }
                         } else {
                             panic!("Invalid function argument");
