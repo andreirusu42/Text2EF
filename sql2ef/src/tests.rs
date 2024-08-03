@@ -25,12 +25,12 @@ pub fn write_test(test: Test) -> io::Result<()> {
     Ok(())
 }
 
-pub fn get_test(query: &str) -> Option<Test> {
+pub fn get_test(query: &str, db_name: &str) -> Option<Test> {
     let file_path = constants::TESTS_JSON_FILE_PATH;
 
     if let Ok(tests) = read_tests(file_path) {
         for test in tests {
-            if test.query == query {
+            if test.query == query && test.db_name == db_name {
                 return Some(test);
             }
         }

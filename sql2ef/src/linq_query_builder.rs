@@ -156,8 +156,11 @@ impl LinqQueryBuilder {
                                 ""
                             };
 
+                            // Checking the function name only because varchar is transformed into a String when scaffolding
                             let cast = if stringify.is_empty()
-                                && mapped_column.field_type == FieldType::Decimal
+                                && (mapped_column.field_type == FieldType::Decimal
+                                    || (function_name == "avg"
+                                        && mapped_column.field_type != FieldType::Int))
                             {
                                 "(double) "
                             } else {

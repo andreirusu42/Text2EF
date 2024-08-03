@@ -130,7 +130,7 @@ fn run_queries_bulk() {
         c_sharp_code.push_str(&result);
 
         c_sharp_code.push_str(
-            "};\n\n for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];\n\n Console.WriteLine($\"Testing {sql_query}\");  Tester.Test(linq_query, sql_query, context); } }",
+            "};\n\n for (int i = 0; i < tests.Length; ++i) { var (linq_query, sql_query) = tests[i];\n\n  try { Tester.Test(linq_query, sql_query, context); } catch(Exception e) { Console.WriteLine($\"Query {sql_query} failed \"); throw e; } } }",
         );
 
         main_code.push_str(&format!(
@@ -157,10 +157,6 @@ fn run_queries_sequentially() {
         // when trying to execute a simple context.idk.Count();
         if db_name == "college_2" {
             continue;
-        }
-
-        if db_name == "customers_and_addresses" {
-            break;
         }
 
         let queries = if let Some(queries) = dataset.queries.get(db_name.as_str()) {
@@ -198,7 +194,7 @@ fn run_queries_sequentially() {
 
             let result = linq_query_builder.build_query(query);
 
-            if let Some(test) = get_test(query) {
+            if let Some(test) = get_test(query, db_name) {
                 if test.result == result {
                     println!("Query already exists in the tests file, skipping.");
                     continue;

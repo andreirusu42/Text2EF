@@ -248,6 +248,7 @@ class Tester
                     if (linqValue is decimal linqDecimal)
                     {
                         linqResults[i][linqKey] = linqDecimal.ToString().Replace(",", ".");
+                        sqlResults[i][sqlKey] = sqlValue.ToString().Replace(",", ".");
                     }
 
                     if (sqlValue is string sqlString)
