@@ -53,10 +53,18 @@ class Tester
 
     private static List<Dictionary<string, object>> ExecuteLinqQuery<TResult>(object linqQuery)
     {
+        // TODO: 1, we should have the logic for 1 element, and then apply for an array if needed
+        // TODO: 2, this date conversion won't last forever, because we might have a formatted date in the query
         if (linqQuery is String stringResult)
         {
             return new List<Dictionary<string, object>> { new Dictionary<string, object> { { "0", stringResult } } };
         }
+
+        if (linqQuery is DateTime dateTime)
+        {
+            return new List<Dictionary<string, object>> { new Dictionary<string, object> { { "0", dateTime.ToString("yyyy-MM-dd HH:mm:ss") } } };
+        }
+
         else if (linqQuery is System.Collections.IEnumerable query)
         {
             var enumerator = query.GetEnumerator();

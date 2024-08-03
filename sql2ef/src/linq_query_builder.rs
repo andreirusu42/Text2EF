@@ -1173,7 +1173,7 @@ impl LinqQueryBuilder {
                     panic!("Invalid function arguments");
                 };
 
-                let function_name = match function_name.as_str() {
+                let mapped_function_name = match function_name.as_str() {
                     "count" => "Count",
                     "sum" => "Sum",
                     "avg" => "Average",
@@ -1193,7 +1193,7 @@ impl LinqQueryBuilder {
                 };
 
                 if let FunctionArgExpr::Wildcard = function_arg_expr {
-                    return format!("{}.{}()", selector, function_name);
+                    return format!("{}.{}()", selector, mapped_function_name);
                 }
 
                 let expr = if let FunctionArgExpr::Expr(expr) = &function_arg_expr {
@@ -1218,26 +1218,37 @@ impl LinqQueryBuilder {
                             .get_column_name(&table.name, &field)
                             .unwrap();
 
-                        if alias.is_empty() {
-                            return format!(
-                                "{}.{}({} => {}.{})",
-                                selector,
-                                function_name,
-                                self.row_selector,
-                                self.row_selector,
-                                mapped_column_name
-                            );
-                        }
+                        println!("Function name: {}", mapped_function_name);
 
-                        return format!(
-                            "{}.{}({} => {}.{}.{})",
-                            selector,
-                            function_name,
-                            self.row_selector,
-                            self.row_selector,
-                            alias,
-                            mapped_column_name
-                        );
+                        let suffix = if function_name == "count" {
+                            " != null"
+                        } else {
+                            ""
+                        };
+                        let formatted_string = if alias.is_empty() {
+                            format!(
+                                "{}.{}({} => {}.{}{})",
+                                selector,
+                                mapped_function_name,
+                                self.row_selector,
+                                self.row_selector,
+                                mapped_column_name,
+                                suffix
+                            )
+                        } else {
+                            format!(
+                                "{}.{}({} => {}.{}.{}{})",
+                                selector,
+                                mapped_function_name,
+                                self.row_selector,
+                                self.row_selector,
+                                alias,
+                                mapped_column_name,
+                                suffix
+                            )
+                        };
+
+                        formatted_string
                     }
                     Expr::CompoundIdentifier(ident) => {
                         let alias = ident[0].to_string();
@@ -1253,7 +1264,7 @@ impl LinqQueryBuilder {
                         return format!(
                             "{}.{}({} => {}.{}.{})",
                             selector,
-                            function_name,
+                            mapped_function_name,
                             self.row_selector,
                             self.row_selector,
                             alias,
