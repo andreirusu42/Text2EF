@@ -142,7 +142,7 @@ fn run_queries_bulk() {
     c_sharp_code.push_str(&format!("\nstatic void Main() {{\n{}\n}}", main_code));
     c_sharp_code.push_str("\n}");
 
-    let path = Path::new("./ef/Program.cs");
+    let path = Path::new(constants::EF_PROJECT_DIR).join("Program.cs");
     let mut file = File::create(&path).expect("Unable to create file");
     file.write_all(c_sharp_code.as_bytes())
         .expect("Unable to write data");
@@ -177,13 +177,15 @@ fn run_queries_sequentially() {
         for (index, query) in queries.iter().enumerate() {
             let lowercase_query = query.to_lowercase();
 
-            let blacklist = vec![
-                "t2.actid = t2.actid",                           // activity_1
-                "t1.booking_start_date , t1.booking_start_date", // apartment_rentals
-                "t2.allergytype",                                // allergy_1
-                "ref_company_types",                             // assets_maintenance
-                "tourist_attraction_features",                   // TODO: m2m tables
-                "circulation_history",                           // TODO: m2m tables
+            let blacklist: Vec<&str> = vec![
+                // "t2.actid = t2.actid",                           // activity_1
+                // "t1.booking_start_date , t1.booking_start_date", // apartment_rentals
+                // "t2.allergytype",                                // allergy_1
+                // "ref_company_types",                             // assets_maintenance
+                // "tourist_attraction_features",                   // TODO: m2m tables
+                // "circulation_history",                           // TODO: m2m tables
+                // "active_to_date - active_from_date", // customers_and_addresses - TODO: date diff when averaging
+                // "order_date",                        // customers_and_addresses TODO just now ;D
             ];
 
             if blacklist.iter().any(|key| lowercase_query.contains(key)) {
@@ -232,8 +234,26 @@ fn run_tests() {
     }
 }
 
+fn debug_query(db_name: &str, query: &str) {
+    let linq_query_builder = LinqQueryBuilder::new(
+        Path::new(constants::EF_MODELS_DIR)
+            .join(db_name)
+            .to_str()
+            .unwrap(),
+    );
+
+    let result = linq_query_builder.build_query(query);
+
+    println!("{}", result);
+}
+
 fn main() {
     // run_tests();
     run_queries_sequentially();
     // run_queries_bulk();
+
+    // debug_query(
+    //     "hospital_1",
+    //     r#"SELECT name FROM department GROUP BY departmentID ORDER BY count(departmentID) DESC LIMIT 1;"#,
+    // );
 }

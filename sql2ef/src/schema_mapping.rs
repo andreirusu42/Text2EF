@@ -75,6 +75,7 @@ fn column_type_to_enum(column_type: &str) -> ColumnType {
         "integer" => ColumnType::Int,
         "bit" => ColumnType::Bool,
         "numeric" => ColumnType::Decimal,
+        "boolean" => ColumnType::Bool,
         _ => ColumnType::None,
     };
 
