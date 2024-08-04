@@ -2281,6 +2281,7 @@ impl LinqQueryBuilder {
                         self.build_projection_single_function(function, &alias_to_table_map);
 
                     current_linq_query.push_str(&function_projection_result.result);
+
                     linq_query.insert(
                         "single_result_type".to_string(),
                         function_projection_result.field_type.to_string(),
@@ -2506,7 +2507,12 @@ impl LinqQueryBuilder {
         }
 
         append_if_some(&mut linq_query, select_result, "distinct");
-        append_if_some(&mut linq_query, keywords_result, "limit");
+
+        // The idea here is, if we have a single item in the projecton, then it doesn't make sense to limit it.
+        // It's for stupid queries like `SELECT COUNT(*) FROM table LIMIT 2;`, for which limit is useless
+        if !select_result.contains_key("single_result_type") {
+            append_if_some(&mut linq_query, keywords_result, "limit");
+        }
 
         if !skip_final_aggregation {
             append_if_some(&mut linq_query, select_result, "final_aggregation");
