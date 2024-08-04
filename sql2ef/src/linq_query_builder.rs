@@ -1735,15 +1735,23 @@ impl LinqQueryBuilder {
                         .get_column_name(&right_table.name, &right_table_field)
                         .unwrap();
 
+                    let prefix = if joined_aliases.len() == 0 {
+                        "".to_string()
+                    } else {
+                        "joined.".to_string()
+                    };
+
                     left_join_fields.push(format!(
-                        "Pair{} = joined.{}.{}",
+                        "Pair{} = {}{}.{}",
                         index + 1,
+                        prefix,
                         left_table.mapped_alias,
                         mapped_left_field
                     ));
                     right_join_fields.push(format!(
-                        "Pair{} = {}.{}",
+                        "Pair{} = {}{}.{}",
                         index + 1,
+                        prefix,
                         right_table.mapped_alias,
                         mapped_right_field
                     ));
@@ -1751,18 +1759,33 @@ impl LinqQueryBuilder {
                     last_table_alias = right_table.mapped_alias.clone();
                 }
 
+                let left_selector = if joined_aliases.len() == 0 {
+                    main_table_alias.to_string()
+                } else {
+                    "joined".to_string()
+                };
+
                 let mut joined_aliases_str = String::new();
                 for alias in &joined_aliases {
                     joined_aliases_str.push_str(&format!("joined.{}, ", alias));
                 }
 
+                let left_table_alias = if joined_aliases.len() == 0 {
+                    format!("{}, ", main_table_alias)
+                } else {
+                    "".to_string()
+                };
+
                 linq_query.push_str(&format!(
-                    "joined => new {{ {} }}, {} => new {{ {} }}, (joined, {}) => new {{ {}{} }})",
+                    "{} => new {{ {} }}, {} => new {{ {} }}, ({}, {}) => new {{ {}{}{} }})",
+                    left_selector,
                     left_join_fields.join(", "),
                     last_table_alias,
                     right_join_fields.join(", "),
+                    left_selector,
                     last_table_alias,
                     joined_aliases_str,
+                    left_table_alias,
                     last_table_alias
                 ));
 
