@@ -98,6 +98,15 @@ impl LinqQueryBuilder {
         let mut result = String::new();
         let field_type: String;
 
+        let mapped_function_name = match function_name.as_str() {
+            "count" => "Count",
+            "sum" => "Sum",
+            "avg" => "Average",
+            "min" => "Min",
+            "max" => "Max",
+            _ => panic!("Unknown function"),
+        };
+
         if ["count", "avg", "sum", "min", "max"].contains(&function_name.as_str()) {
             if let FunctionArguments::List(list) = &function.args {
                 let is_distinct = if let Some(x) = list.duplicate_treatment {
@@ -127,7 +136,42 @@ impl LinqQueryBuilder {
                             } else if let Expr::CompoundIdentifier(ident) = expr {
                                 table_alias = ident[0].to_string();
                                 column_name = ident[1].to_string();
-                            } else {
+                            }
+                            // else if let Expr::BinaryOp { left, op, right } = expr {
+                            //     let left_expr = self.build_where_expr(
+                            //         left,
+                            //         alias_to_table_map,
+                            //         false,
+                            //         expr,
+                            //         &HashMap::new(),
+                            //     );
+                            //     let right_expr = self.build_where_expr(
+                            //         right,
+                            //         alias_to_table_map,
+                            //         false,
+                            //         expr,
+                            //         &HashMap::new(),
+                            //     );
+
+                            //     let operator = match op {
+                            //         BinaryOperator::Minus => " - ",
+                            //         _ => panic!("Unknown comparison operator"),
+                            //     };
+
+                            //     result.push_str(&format!(
+                            //         ".{}({} => {}{}{})",
+                            //         mapped_function_name,
+                            //         self.row_selector,
+                            //         left_expr,
+                            //         operator,
+                            //         right_expr
+                            //     ));
+                            //     return ProjectionSingleFunctionResult {
+                            //         result,
+                            //         field_type: "int".to_string(),
+                            //     };
+                            // }
+                            else {
                                 panic!("Invalid function argument");
                             }
 
@@ -204,15 +248,6 @@ impl LinqQueryBuilder {
                         if is_distinct {
                             result.push_str(".Distinct()");
                         }
-
-                        let mapped_function_name = match function_name.as_str() {
-                            "count" => "Count",
-                            "sum" => "Sum",
-                            "avg" => "Average",
-                            "min" => "Min",
-                            "max" => "Max",
-                            _ => panic!("Unknown function"),
-                        };
 
                         result.push_str(&format!(".{}()", mapped_function_name));
                     } else {
@@ -1218,8 +1253,6 @@ impl LinqQueryBuilder {
                             .get_column_name(&table.name, &field)
                             .unwrap();
 
-                        println!("Function name: {}", mapped_function_name);
-
                         let suffix = if function_name == "count" {
                             " != null"
                         } else {
@@ -1919,20 +1952,27 @@ impl LinqQueryBuilder {
                             selector, selector, aggregated_field
                         ));
                     } else {
+                        let suffix = if function_name == "count" {
+                            " != null"
+                        } else {
+                            ""
+                        };
+
                         if table_alias.is_empty() {
                             linq_query.push_str(&format!(
-                                "{} => {}.{}({} => {}{}.{})",
+                                "{} => {}.{}({} => {}{}.{}{})",
                                 selector,
                                 selector,
                                 mapped_function_name,
                                 self.row_selector,
                                 cast,
                                 self.row_selector,
-                                &mapped_column.name
+                                &mapped_column.name,
+                                suffix
                             ));
                         } else {
                             linq_query.push_str(&format!(
-                                "{} => {}.{}({} => {}{}.{}.{})",
+                                "{} => {}.{}({} => {}{}.{}.{}{})",
                                 selector,
                                 selector,
                                 mapped_function_name,
@@ -1940,7 +1980,8 @@ impl LinqQueryBuilder {
                                 cast,
                                 self.row_selector,
                                 table.mapped_alias,
-                                &mapped_column.name
+                                &mapped_column.name,
+                                suffix
                             ));
                         }
                     }
