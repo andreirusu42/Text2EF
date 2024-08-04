@@ -103,6 +103,10 @@ fn column_type_to_enum(column_type: &str) -> ColumnType {
         return ColumnType::Decimal;
     }
 
+    if column_type.contains("number") {
+        return ColumnType::Decimal;
+    }
+
     panic!("Unknown column type: {}", column_type);
 }
 

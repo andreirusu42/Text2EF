@@ -10,6 +10,7 @@ mod schema_mapping;
 mod tests;
 
 use std::fs::File;
+use std::panic::catch_unwind;
 use std::path::Path;
 use std::{collections::HashSet, io::Write};
 
@@ -70,12 +71,12 @@ Tester.Test(linq, sql, context);
                 }
 
                 CodeResultStatus::Fail(exception_details) => {
-                    panic!("Query execution failed: {:?}", exception_details);
+                    println!("Query execution failed: {:?}", exception_details);
                 }
             }
         }
         BuildResultStatus::Fail(error_message) => {
-            panic!("Build failed: {}", error_message);
+            println!("Build failed: {}", error_message);
         }
     }
 }
@@ -152,25 +153,25 @@ fn run_queries_sequentially() {
     let dataset = extract_queries(constants::EF_MODELS_DIR, constants::GOLD_DATASET_FILE_PATH);
 
     for db_name in &dataset.db_names {
-        // Sadly, this one has issues with the data, since I get
-        // Unhandled exception. System.InvalidOperationException: Nullable object must have a value.
-        // when trying to execute a simple context.idk.Count();
-        if db_name == "college_2" {
-            continue;
-        }
-
         let queries = if let Some(queries) = dataset.queries.get(db_name.as_str()) {
             queries
         } else {
             continue;
         };
 
-        let linq_query_builder = LinqQueryBuilder::new(
-            Path::new(constants::EF_MODELS_DIR)
-                .join(db_name)
-                .to_str()
-                .unwrap(),
-        );
+        let linq_query_builder = if let Ok(res) = catch_unwind(|| {
+            LinqQueryBuilder::new(
+                Path::new(constants::EF_MODELS_DIR)
+                    .join(db_name)
+                    .to_str()
+                    .unwrap(),
+            )
+        }) {
+            res
+        } else {
+            println!("Failed to create LinqQueryBuilder for {}", db_name);
+            continue;
+        };
 
         let context_name = linq_query_builder.get_context_name();
 
@@ -178,6 +179,7 @@ fn run_queries_sequentially() {
             let lowercase_query = query.to_lowercase();
 
             let blacklist: Vec<&str> = vec![
+                // "join route", // 1-m relationships
                 // "t2.actid = t2.actid",                           // activity_1
                 // "t1.booking_start_date , t1.booking_start_date", // apartment_rentals
                 // "t2.allergytype",                                // allergy_1
@@ -194,7 +196,12 @@ fn run_queries_sequentially() {
 
             println!("Processing query {} for {} - {}", index, db_name, query);
 
-            let result = linq_query_builder.build_query(query);
+            let result = if let Ok(res) = catch_unwind(|| linq_query_builder.build_query(query)) {
+                res
+            } else {
+                println!("Failed to build query for {}", query);
+                continue;
+            };
 
             if let Some(test) = get_test(query, db_name) {
                 if test.result == result {
@@ -253,7 +260,7 @@ fn main() {
     // run_queries_bulk();
 
     // debug_query(
-    //     "hospital_1",
-    //     r#"SELECT name FROM department GROUP BY departmentID ORDER BY count(departmentID) DESC LIMIT 1;"#,
+    //     "manufacturer",
+    //     r#"SELECT sum(market_rate) FROM furniture ORDER BY market_rate DESC LIMIT 2;"#,
     // );
 }
