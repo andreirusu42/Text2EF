@@ -1,16 +1,18 @@
 use std::collections::HashMap;
 
+use indexmap::IndexMap;
+
 #[derive(Debug)]
-pub struct CaseInsensitiveHashMap<V> {
-    map: HashMap<String, V>,
-    lowercase_map: HashMap<String, String>,
+pub struct CaseInsensitiveIndexMap<V> {
+    map: IndexMap<String, V>,
+    lowercase_map: IndexMap<String, String>,
 }
 
-impl<V> CaseInsensitiveHashMap<V> {
+impl<V> CaseInsensitiveIndexMap<V> {
     pub fn new() -> Self {
-        CaseInsensitiveHashMap {
-            map: HashMap::new(),
-            lowercase_map: HashMap::new(),
+        CaseInsensitiveIndexMap {
+            map: IndexMap::new(),
+            lowercase_map: IndexMap::new(),
         }
     }
 
@@ -53,18 +55,18 @@ impl<V> CaseInsensitiveHashMap<V> {
     }
 }
 
-impl<'a, V> IntoIterator for &'a CaseInsensitiveHashMap<V> {
+impl<'a, V> IntoIterator for &'a CaseInsensitiveIndexMap<V> {
     type Item = (&'a String, &'a V);
-    type IntoIter = std::collections::hash_map::Iter<'a, String, V>;
+    type IntoIter = indexmap::map::Iter<'a, String, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.iter()
     }
 }
 
-impl<V> IntoIterator for CaseInsensitiveHashMap<V> {
+impl<V> IntoIterator for CaseInsensitiveIndexMap<V> {
     type Item = (String, V);
-    type IntoIter = std::collections::hash_map::IntoIter<String, V>;
+    type IntoIter = indexmap::map::IntoIter<String, V>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.map.into_iter()

@@ -1,5 +1,5 @@
-mod case_insensitive_hashmap;
 mod case_insensitive_hashset;
+mod case_insensitive_indexmap;
 mod constants;
 mod csharp;
 mod dataset;
@@ -17,15 +17,16 @@ use std::{collections::HashSet, io::Write};
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
-use tests::{get_test, read_tests, update_test, write_test, Test};
+use tests::{
+    get_test, read_tests, update_test, write_test, write_test_or_update, Test, TestStatus,
+};
 
-fn execute_query_and_update_tests_file(
+fn create_code_execution_code(
     context_name: &str,
     db_name: &str,
     query: &str,
     result: &str,
-    update: bool,
-) {
+) -> String {
     let c_sharp_code = format!(
         r#"using entity_framework.Models.{}; 
 using Microsoft.EntityFrameworkCore;
@@ -47,11 +48,16 @@ Tester.Test(linq, sql, context);
         result
     );
 
-    let test = Test {
-        db_name: db_name.to_string(),
-        query: query.to_string(),
-        result: result.to_string(),
-    };
+    return c_sharp_code;
+}
+
+fn execute_query_and_update_tests_file(
+    context_name: &str,
+    db_name: &str,
+    query: &str,
+    result: &str,
+) {
+    let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
 
     let execution_result = execute_csharp_code(constants::EF_PROJECT_DIR, &c_sharp_code);
 
@@ -63,20 +69,43 @@ Tester.Test(linq, sql, context);
                 CodeResultStatus::OK => {
                     println!("Query executed successfully");
 
-                    if update {
-                        update_test(query, test).unwrap();
-                    } else {
-                        write_test(test).unwrap();
-                    }
+                    let test = Test {
+                        db_name: db_name.to_string(),
+                        query: query.to_string(),
+                        result: result.to_string(),
+                        error: None,
+                        status: TestStatus::Passed,
+                    };
+
+                    write_test_or_update(test).unwrap();
                 }
 
                 CodeResultStatus::Fail(exception_details) => {
                     println!("Query execution failed: {:?}", exception_details);
+
+                    let test = Test {
+                        db_name: db_name.to_string(),
+                        query: query.to_string(),
+                        result: result.to_string(),
+                        error: Some(format!("{:?}", exception_details)),
+                        status: TestStatus::CodeFailed,
+                    };
+
+                    write_test_or_update(test).unwrap();
                 }
             }
         }
         BuildResultStatus::Fail(error_message) => {
             println!("Build failed: {}", error_message);
+
+            let test = Test {
+                db_name: db_name.to_string(),
+                query: query.to_string(),
+                result: result.to_string(),
+                error: Some(error_message),
+                status: TestStatus::BuildFailed,
+            };
+            write_test_or_update(test).unwrap();
         }
     }
 }
@@ -204,16 +233,16 @@ fn run_queries_sequentially() {
             };
 
             if let Some(test) = get_test(query, db_name) {
-                if test.result == result {
-                    println!("Query already exists in the tests file, skipping.");
+                if test.result == result && test.status == TestStatus::Passed {
+                    println!("Query already exists in the tests file and it's passed.");
                     continue;
                 }
 
-                println!("Query already exists in the tests file, but the result is different.");
-                execute_query_and_update_tests_file(&context_name, &db_name, &query, &result, true);
+                println!("Query already exists in the tests file, but the result is different or it's not passed.");
+                execute_query_and_update_tests_file(&context_name, &db_name, &query, &result);
             }
 
-            execute_query_and_update_tests_file(&context_name, &db_name, &query, &result, false);
+            execute_query_and_update_tests_file(&context_name, &db_name, &query, &result);
         }
     }
 }
@@ -241,7 +270,7 @@ fn run_tests() {
     }
 }
 
-fn debug_query(db_name: &str, query: &str) {
+fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
     let linq_query_builder = LinqQueryBuilder::new(
         Path::new(constants::EF_MODELS_DIR)
             .join(db_name)
@@ -251,7 +280,21 @@ fn debug_query(db_name: &str, query: &str) {
 
     let result = linq_query_builder.build_query(query);
 
-    println!("{}", result);
+    println!("Result: {}", result);
+
+    if with_code_execution {
+        let result = execute_csharp_code(
+            constants::EF_PROJECT_DIR,
+            &create_code_execution_code(
+                &linq_query_builder.get_context_name(),
+                db_name,
+                query,
+                &result,
+            ),
+        );
+
+        println!("{:?}", result);
+    }
 }
 
 fn main() {
@@ -261,6 +304,7 @@ fn main() {
 
     // debug_query(
     //     "manufacturer",
-    //     r#"SELECT sum(market_rate) FROM furniture ORDER BY market_rate DESC LIMIT 2;"#,
+    //     r#"SELECT Market_Rate , name FROM furniture WHERE Furniture_ID NOT IN (SELECT Furniture_ID FROM furniture_manufacte)"#,
+    //     true,
     // );
 }

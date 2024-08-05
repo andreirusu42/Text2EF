@@ -35,9 +35,10 @@ pub fn execute_csharp_code(project_dir: &str, code: &str) -> ExecutionResult {
     match build_project(project_dir) {
         Ok(output) => {
             if !output.status.success() {
-                let error_message = String::from_utf8_lossy(&output.stderr).to_string();
+                let errors = extract_relevant_errors(&String::from_utf8_lossy(&output.stdout));
+
                 return ExecutionResult {
-                    build_result: BuildResultStatus::Fail(error_message),
+                    build_result: BuildResultStatus::Fail(errors),
                     code_result: None,
                 };
             } else {
@@ -81,6 +82,7 @@ fn build_project(project_dir: &str) -> io::Result<Output> {
     Command::new("dotnet")
         .arg("build")
         .current_dir(project_dir)
+        .arg("--verbosity:minimal") // Set minimal verbosity to reduce output
         .output()
 }
 
@@ -108,5 +110,15 @@ fn parse_exception_details(error_message: &str) -> ExceptionDetails {
     ExceptionDetails {
         sql_results,
         linq_results,
+    }
+}
+
+fn extract_relevant_errors(build_output: &str) -> String {
+    let lines: Vec<&str> = build_output.lines().collect();
+    let error_start_index = lines.iter().rposition(|line| line.contains("error"));
+    if let Some(index) = error_start_index {
+        lines[index..].join("\n")
+    } else {
+        String::from("No specific errors found in build output.")
     }
 }

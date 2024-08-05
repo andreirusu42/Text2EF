@@ -5,8 +5,8 @@ class Program {
 public static void Main() {
 var context = new Manufactory1Context();
 
-var sql = "SELECT avg(revenue) , max(revenue) , sum(revenue) FROM manufacturers";
-var linq = context.Manufacturers.GroupBy(row => 1).Select(group => new { AverageRevenue = group.Select(row => row.Revenue).Average(), MaxRevenue = group.Select(row => row.Revenue).Max(), SumRevenue = group.Select(row => row.Revenue).Sum() }).ToList();
+var sql = "SELECT * FROM products WHERE price BETWEEN 60 AND 120";
+var linq = context.Products.Where(row => row.Price >= 60 && row.Price <= 120).Select(row => new { row..Code, row..Name, row..Price, row..Manufacturer }).ToList();
 
 Tester.Test(linq, sql, context);
 }

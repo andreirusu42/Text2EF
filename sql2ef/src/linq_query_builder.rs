@@ -13,7 +13,7 @@ use crate::case_insensitive_hashset::CaseInsensitiveHashSet;
 use crate::determine_join_order;
 use crate::schema_mapping::{Column, ColumnType, FieldType};
 
-use super::case_insensitive_hashmap::CaseInsensitiveHashMap;
+use super::case_insensitive_indexmap::CaseInsensitiveIndexMap;
 use super::determine_join_order::determine_join_order;
 use super::schema_mapping::{create_schema_map, SchemaMapping};
 
@@ -50,7 +50,7 @@ pub struct ProjectionSingleFunctionResult {
 #[derive(Debug)]
 pub struct SelectResult {
     pub linq_query: HashMap<String, String>,
-    pub alias_to_table_map: CaseInsensitiveHashMap<TableAliasAndName>,
+    pub alias_to_table_map: CaseInsensitiveIndexMap<TableAliasAndName>,
     pub calculated_fields: HashMap<String, String>,
     pub group_by_fields: Vec<String>,
     pub aggregated_fields: HashMap<String, String>,
@@ -66,6 +66,19 @@ pub struct LinqQueryBuilder {
     schema_mapping: SchemaMapping,
     row_selector: String,
     group_selector: String,
+}
+
+fn to_firstletterupperrestlower(s: &str) -> String {
+    let mut chars = s.chars();
+
+    let first_char = chars
+        .next()
+        .map(|c| c.to_uppercase().collect::<String>())
+        .unwrap_or_default();
+
+    let rest_chars = chars.as_str().to_lowercase();
+
+    format!("{}{}", first_char, rest_chars)
 }
 
 fn append_if_some(linq_query: &mut String, map: &HashMap<String, String>, key: &str) {
@@ -92,7 +105,7 @@ impl LinqQueryBuilder {
     fn build_projection_single_function(
         &self,
         function: &Function,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
     ) -> ProjectionSingleFunctionResult {
         let function_name = function.name.to_string().to_lowercase();
         let mut result = String::new();
@@ -266,10 +279,60 @@ impl LinqQueryBuilder {
         return ProjectionSingleFunctionResult { result, field_type };
     }
 
+    fn build_projection_wildcard(
+        &self,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
+    ) -> String {
+        let mut result = String::new();
+
+        let mut seen_fields: HashSet<String> = HashSet::new();
+        let mut fields_with_same_name: HashSet<String> = HashSet::new();
+        let mut select_fields: Vec<String> = Vec::new();
+
+        for (_, table) in alias_to_table_map {
+            let columns = self.schema_mapping.get_table_columns(&table.name).unwrap();
+
+            for (_, column) in columns {
+                if seen_fields.contains(&column.name) {
+                    fields_with_same_name.insert(column.name.clone());
+                } else {
+                    seen_fields.insert(column.name.clone());
+                }
+            }
+        }
+
+        for (_, table) in alias_to_table_map {
+            let columns = self.schema_mapping.get_table_columns(&table.name).unwrap();
+
+            for (_, column) in columns {
+                let prefix = if fields_with_same_name.contains(&column.name) {
+                    format!(
+                        "{}{} = ",
+                        table.mapped_alias,
+                        to_firstletterupperrestlower(&column.name)
+                    )
+                } else {
+                    "".to_string()
+                };
+
+                select_fields.push(format!(
+                    "{}{}.{}.{}",
+                    prefix, self.row_selector, table.mapped_alias, column.name
+                ));
+            }
+        }
+
+        result.push_str(&format!(".Select({} => new {{ ", self.row_selector));
+        result.push_str(&select_fields.join(", "));
+        result.push_str(" })");
+
+        return result;
+    }
+
     fn build_projection(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         has_group_by: bool,
         group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
@@ -807,7 +870,7 @@ impl LinqQueryBuilder {
     fn build_group_by(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
     ) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
         let mut raw_group_by_fields: Vec<String> = Vec::new();
@@ -882,7 +945,7 @@ impl LinqQueryBuilder {
 
     fn get_table_alias_from_field_name<'a>(
         &'a self,
-        alias_to_table_map: &'a CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &'a CaseInsensitiveIndexMap<TableAliasAndName>,
         field_name: &str,
     ) -> Option<&String> {
         let mut result: Option<&String> = None;
@@ -905,7 +968,7 @@ impl LinqQueryBuilder {
     fn build_where(
         &self,
         select: &Box<Select>,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         aggregated_fields: &HashMap<String, String>,
     ) -> (String, String) {
         let mut selection_query = String::new();
@@ -934,7 +997,7 @@ impl LinqQueryBuilder {
     fn build_where_helper(
         &self,
         expr: &Expr,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         parent_precedence: Option<i32>,
         is_having: bool,
         aggregated_fields: &HashMap<String, String>,
@@ -1147,7 +1210,7 @@ impl LinqQueryBuilder {
     fn build_where_expr(
         &self,
         expr: &Box<Expr>,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         is_having: bool,
         root_expr: &Expr,
         aggregated_fields: &HashMap<String, String>,
@@ -1503,7 +1566,7 @@ impl LinqQueryBuilder {
         &self,
         table: &TableWithJoins,
         main_table_alias: &str,
-        alias_to_table_map: &mut CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &mut CaseInsensitiveIndexMap<TableAliasAndName>,
     ) -> String {
         let mut linq_query = String::new();
         let mut joined_aliases: Vec<String> = Vec::new();
@@ -1800,7 +1863,7 @@ impl LinqQueryBuilder {
         &self,
         query: &Box<Query>,
         selector: String,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
         aggregated_fields: &HashMap<String, String>,
@@ -1849,7 +1912,7 @@ impl LinqQueryBuilder {
         &self,
         query: &Box<Query>,
         selector: String,
-        alias_to_table_map: &CaseInsensitiveHashMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
         aggregated_fields: &HashMap<String, String>,
@@ -2133,8 +2196,8 @@ impl LinqQueryBuilder {
         let main_table_alias: String;
         let mapped_main_table_alias: String;
 
-        let mut alias_to_table_map: CaseInsensitiveHashMap<TableAliasAndName> =
-            CaseInsensitiveHashMap::new();
+        let mut alias_to_table_map: CaseInsensitiveIndexMap<TableAliasAndName> =
+            CaseInsensitiveIndexMap::new();
 
         let table = &select.from[0];
 
@@ -2226,6 +2289,7 @@ impl LinqQueryBuilder {
 
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
         let mut aggregated_fields: HashMap<String, String> = HashMap::new();
+
         if select.projection.len() > 0 {
             let mut current_linq_query = String::new();
 
@@ -2270,7 +2334,11 @@ impl LinqQueryBuilder {
                     linq_query.insert("group_by".to_string(), projection_result.group_by_result);
                 }
             } else {
-                if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
+                if let SelectItem::Wildcard { .. } = &select.projection[0] {
+                    let result = self.build_projection_wildcard(&alias_to_table_map);
+
+                    current_linq_query.push_str(&result);
+                } else if let SelectItem::UnnamedExpr(expr) = &select.projection[0] {
                     let function = if let Expr::Function(function) = expr {
                         function
                     } else {

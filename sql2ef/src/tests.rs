@@ -5,11 +5,20 @@ use std::path::Path;
 
 use crate::constants;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum TestStatus {
+    Passed,
+    BuildFailed,
+    CodeFailed,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Test {
     pub query: String,
     pub result: String,
     pub db_name: String,
+    pub status: TestStatus,
+    pub error: Option<String>,
 }
 
 pub fn write_test(test: Test) -> io::Result<()> {
@@ -19,7 +28,31 @@ pub fn write_test(test: Test) -> io::Result<()> {
 
     tests.push(test);
 
-    let serialized = serde_json::to_string(&tests)?;
+    let serialized = serde_json::to_string_pretty(&tests)?;
+    fs::write(file_path, serialized)?;
+
+    Ok(())
+}
+
+pub fn write_test_or_update(test: Test) -> io::Result<()> {
+    let file_path = constants::TESTS_JSON_FILE_PATH;
+
+    let mut tests = read_tests(file_path)?;
+
+    let mut found = false;
+    for t in &mut tests {
+        if t.query == test.query && t.db_name == test.db_name {
+            *t = test.clone();
+            found = true;
+            break;
+        }
+    }
+
+    if !found {
+        tests.push(test);
+    }
+
+    let serialized = serde_json::to_string_pretty(&tests)?;
     fs::write(file_path, serialized)?;
 
     Ok(())
@@ -51,7 +84,7 @@ pub fn update_test(query: &str, updated_test: Test) -> io::Result<()> {
         }
     }
 
-    let serialized = serde_json::to_string(&tests)?;
+    let serialized = serde_json::to_string_pretty(&tests)?;
     fs::write(file_path, serialized)?;
 
     Ok(())

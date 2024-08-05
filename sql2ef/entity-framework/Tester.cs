@@ -202,19 +202,19 @@ class Tester
         // Imagine when you have a VARCHAR(7) in sql, which is translated to a Decimal / int in linq.
         // I know this is stupid, but when you scaffold the model, this is how it's generated :/
 
-        // Console.WriteLine("SQL Results:");
-        // for (int i = 0; i < sqlResults.Count; i++)
-        // {
-        //     var row = sqlResults[i];
-        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        // }
+        Console.WriteLine("SQL Results:");
+        for (int i = 0; i < sqlResults.Count; i++)
+        {
+            var row = sqlResults[i];
+            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
 
-        // Console.WriteLine("LINQ Results:");
-        // for (int i = 0; i < linqResults.Count; i++)
-        // {
-        //     var row = linqResults[i];
-        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        // }
+        Console.WriteLine("LINQ Results:");
+        for (int i = 0; i < linqResults.Count; i++)
+        {
+            var row = linqResults[i];
+            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        }
 
         // if (sqlResults.Count != linqResults.Count)
         // {

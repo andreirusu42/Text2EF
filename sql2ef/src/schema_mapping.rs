@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fs;
 
+use indexmap::IndexMap;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldType {
     Int,
@@ -40,7 +42,7 @@ pub struct ContextFileColumn {
 #[derive(Debug)]
 pub struct SchemaMapTable {
     pub table: String,
-    pub columns: HashMap<String, Column>,
+    pub columns: IndexMap<String, Column>,
 }
 
 #[derive(Debug)]
@@ -117,7 +119,10 @@ impl SchemaMapping {
             .map(|table| &table.table)
     }
 
-    pub fn get_table_columns(&self, original_table_name: &str) -> Option<&HashMap<String, Column>> {
+    pub fn get_table_columns(
+        &self,
+        original_table_name: &str,
+    ) -> Option<&IndexMap<String, Column>> {
         let columns = self
             .tables
             .get(&original_table_name.to_lowercase())
@@ -233,9 +238,9 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     }
 
     for cap in entity_regex.captures_iter(&context_content) {
-        let mut model_file_properties: HashMap<String, Column> = HashMap::new();
+        let mut model_file_properties: IndexMap<String, Column> = IndexMap::new();
         let mut context_file_mapping: HashMap<String, ContextFileColumn> = HashMap::new();
-        let mut columns: HashMap<String, Column> = HashMap::new();
+        let mut columns: IndexMap<String, Column> = IndexMap::new();
 
         let entity_name = &cap[1];
         let entity_content = &cap[2];
@@ -263,7 +268,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             let mapped_table_name = join_table_table_and_alias.get(1).unwrap().as_str();
             let table_name = join_table_table_and_alias.get(2).unwrap().as_str();
 
-            let mut columns: HashMap<String, Column> = HashMap::new();
+            let mut columns: IndexMap<String, Column> = IndexMap::new();
 
             let join_table_fields = join_table_fields_regex.captures_iter(join_table_content);
 
@@ -301,7 +306,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
             let original_column_name = has_column_name_regex
                 .captures(occurrence)
-                .map(|original_column_match| original_column_match[1].to_lowercase())
+                .map(|original_column_match| original_column_match[1].to_string())
                 .unwrap_or_else(|| mapped_column_name.to_lowercase());
 
             let column_type = has_column_type_regex
@@ -310,16 +315,15 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                 .unwrap_or("".to_string());
 
             context_file_mapping.insert(
-                original_column_name,
+                mapped_column_name.to_lowercase(),
                 ContextFileColumn {
-                    name: mapped_column_name.to_lowercase(),
+                    name: original_column_name,
                     column_type: column_type_to_enum(column_type.as_str()),
                 },
             );
         }
 
         let model_property_occurrences = model_property_regex.captures_iter(&model_content);
-
         for occurrence in model_property_occurrences {
             let field_type_with_qm = &occurrence[1];
             let field_type = field_type_with_qm.trim_end_matches('?');
@@ -344,31 +348,41 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             }
         }
 
-        for (original_column_name, mapped_column) in context_file_mapping {
-            if let Some(property) = model_file_properties.get(&mapped_column.name) {
+        // The key in model_file_properties is the mapped column name, lowercased
+        // The value in model_file_properties' Column is the mapped column name, original
+
+        // The key in context_file_mapping is the mapped column name, lowercased
+        // The value in context_file_mapping's ContextFileColumn is the original column name
+
+        // Hence, key(model_file_property) = value(context_file_mapping).name
+
+        for (key, column) in &model_file_properties {
+            if let Some(mapped_column) = context_file_mapping.get(key) {
                 columns.insert(
-                    original_column_name,
+                    mapped_column.name.to_lowercase(),
                     Column {
-                        name: property.name.clone(),
-                        field_type: property.field_type.clone(),
-                        is_optional: property.is_optional,
-                        column_type: mapped_column.column_type,
+                        name: column.name.clone(),
+                        field_type: column.field_type.clone(),
+                        is_optional: column.is_optional,
+                        column_type: mapped_column.column_type.clone(),
                     },
                 );
-                model_file_properties.remove(&mapped_column.name);
+            } else {
+                columns.insert(
+                    key.to_string(),
+                    Column {
+                        name: column.name.clone(),
+                        field_type: column.field_type.clone(),
+                        is_optional: column.is_optional,
+                        column_type: column.column_type.clone(),
+                    },
+                );
             }
         }
-        for (column_name, property) in model_file_properties {
-            columns.insert(
-                column_name,
-                Column {
-                    name: property.name,
-                    field_type: property.field_type,
-                    is_optional: property.is_optional,
-                    column_type: property.column_type,
-                },
-            );
-        }
+
+        // println!("Model file properties: {:?}", model_file_properties);
+        // println!("Context file mapping: {:?}", context_file_mapping);
+        // println!("Columns: {:?}", columns);
 
         let schema_map_table = SchemaMapTable {
             table: tables[&entity_name.to_lowercase()].clone(),
