@@ -21,84 +21,82 @@ pub struct Test {
     pub error: Option<String>,
 }
 
-pub fn write_test(test: Test) -> io::Result<()> {
-    let file_path = constants::TESTS_JSON_FILE_PATH;
-
-    let mut tests = read_tests(file_path)?;
-
-    tests.push(test);
-
-    let serialized = serde_json::to_string_pretty(&tests)?;
-    fs::write(file_path, serialized)?;
-
-    Ok(())
+pub struct TestManager {
+    tests: Vec<Test>,
+    file_path: String,
 }
 
-pub fn write_test_or_update(test: Test) -> io::Result<()> {
-    let file_path = constants::TESTS_JSON_FILE_PATH;
+impl TestManager {
+    pub fn new(file_path: &str) -> io::Result<Self> {
+        let tests = Self::read_tests(file_path)?;
+        Ok(Self {
+            tests,
+            file_path: file_path.to_string(),
+        })
+    }
 
-    let mut tests = read_tests(file_path)?;
+    pub fn get_tests(&self) -> &Vec<Test> {
+        &self.tests
+    }
 
-    let mut found = false;
-    for t in &mut tests {
-        if t.query == test.query && t.db_name == test.db_name {
-            *t = test.clone();
-            found = true;
-            break;
+    fn read_tests<P: AsRef<Path>>(path: P) -> io::Result<Vec<Test>> {
+        if !path.as_ref().exists() {
+            return Ok(Vec::new());
         }
+
+        let mut file = fs::File::open(path)?;
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)?;
+
+        let tests: Vec<Test> = serde_json::from_str(&contents)?;
+        Ok(tests)
     }
 
-    if !found {
-        tests.push(test);
+    fn write_tests(&self) -> io::Result<()> {
+        let serialized = serde_json::to_string_pretty(&self.tests)?;
+        fs::write(&self.file_path, serialized)?;
+        Ok(())
     }
 
-    let serialized = serde_json::to_string_pretty(&tests)?;
-    fs::write(file_path, serialized)?;
+    pub fn write_test(&mut self, test: Test) -> io::Result<()> {
+        self.tests.push(test);
+        self.write_tests()
+    }
 
-    Ok(())
-}
-
-pub fn get_test(query: &str, db_name: &str) -> Option<Test> {
-    let file_path = constants::TESTS_JSON_FILE_PATH;
-
-    if let Ok(tests) = read_tests(file_path) {
-        for test in tests {
-            if test.query == query && test.db_name == db_name {
-                return Some(test);
+    pub fn write_test_or_update(&mut self, test: Test) -> io::Result<()> {
+        let mut found = false;
+        for t in &mut self.tests {
+            if t.query == test.query && t.db_name == test.db_name {
+                *t = test.clone();
+                found = true;
+                break;
             }
         }
-    }
 
-    return None;
-}
-
-pub fn update_test(query: &str, updated_test: Test) -> io::Result<()> {
-    let file_path = constants::TESTS_JSON_FILE_PATH;
-
-    let mut tests = read_tests(file_path)?;
-
-    for test in &mut tests {
-        if test.query == query {
-            *test = updated_test;
-            break;
+        if !found {
+            self.tests.push(test);
         }
+
+        self.write_tests()
     }
 
-    let serialized = serde_json::to_string_pretty(&tests)?;
-    fs::write(file_path, serialized)?;
-
-    Ok(())
-}
-
-pub fn read_tests<P: AsRef<Path>>(path: P) -> io::Result<Vec<Test>> {
-    if !path.as_ref().exists() {
-        return Ok(Vec::new());
+    pub fn get_test(&self, query: &str, db_name: &str) -> Option<Test> {
+        for test in &self.tests {
+            if test.query == query && test.db_name == db_name {
+                return Some(test.clone());
+            }
+        }
+        None
     }
 
-    let mut file = fs::File::open(path)?;
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
+    pub fn update_test(&mut self, query: &str, updated_test: Test) -> io::Result<()> {
+        for test in &mut self.tests {
+            if test.query == query {
+                *test = updated_test;
+                break;
+            }
+        }
 
-    let tests: Vec<Test> = serde_json::from_str(&contents)?;
-    Ok(tests)
+        self.write_tests()
+    }
 }

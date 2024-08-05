@@ -17,9 +17,7 @@ use std::{collections::HashSet, io::Write};
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
-use tests::{
-    get_test, read_tests, update_test, write_test, write_test_or_update, Test, TestStatus,
-};
+use tests::{Test, TestManager, TestStatus};
 
 fn create_code_execution_code(
     context_name: &str,
@@ -56,6 +54,7 @@ fn execute_query_and_update_tests_file(
     db_name: &str,
     query: &str,
     result: &str,
+    test_manager: &mut TestManager,
 ) {
     let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
 
@@ -77,7 +76,7 @@ fn execute_query_and_update_tests_file(
                         status: TestStatus::Passed,
                     };
 
-                    write_test_or_update(test).unwrap();
+                    test_manager.write_test_or_update(test).unwrap();
                 }
 
                 CodeResultStatus::Fail(exception_details) => {
@@ -91,7 +90,7 @@ fn execute_query_and_update_tests_file(
                         status: TestStatus::CodeFailed,
                     };
 
-                    write_test_or_update(test).unwrap();
+                    test_manager.write_test_or_update(test).unwrap();
                 }
             }
         }
@@ -105,19 +104,23 @@ fn execute_query_and_update_tests_file(
                 error: Some(error_message),
                 status: TestStatus::BuildFailed,
             };
-            write_test_or_update(test).unwrap();
+            test_manager.write_test_or_update(test).unwrap();
         }
     }
 }
 
 // This is being used for when I modify something in the logic of testing the queries (in C#).
 fn run_queries_bulk() {
-    let tests = read_tests(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
 
     let mut c_sharp_code = String::new();
     let mut main_code = String::new();
 
-    let db_names: HashSet<String> = tests.iter().map(|test| test.db_name.clone()).collect();
+    let db_names: HashSet<String> = test_manager
+        .get_tests()
+        .iter()
+        .map(|test| test.db_name.clone())
+        .collect();
 
     for db_name in &db_names {
         c_sharp_code = format!(
@@ -145,9 +148,10 @@ fn run_queries_bulk() {
             context_name, context_name
         ));
 
-        let sql_and_results: Vec<(&str, &str)> = tests
+        let sql_and_results: Vec<(&str, &str)> = test_manager
+            .get_tests()
             .iter()
-            .filter(|test| test.db_name == *db_name)
+            .filter(|test| test.db_name == *db_name && test.status == TestStatus::Passed)
             .map(|test| (test.query.as_str(), test.result.as_str()))
             .collect();
 
@@ -180,6 +184,7 @@ fn run_queries_bulk() {
 
 fn run_queries_sequentially() {
     let dataset = extract_queries(constants::EF_MODELS_DIR, constants::GOLD_DATASET_FILE_PATH);
+    let mut test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
 
     for db_name in &dataset.db_names {
         let queries = if let Some(queries) = dataset.queries.get(db_name.as_str()) {
@@ -232,25 +237,42 @@ fn run_queries_sequentially() {
                 continue;
             };
 
-            if let Some(test) = get_test(query, db_name) {
+            if let Some(test) = test_manager.get_test(query, db_name) {
                 if test.result == result && test.status == TestStatus::Passed {
                     println!("Query already exists in the tests file and it's passed.");
                     continue;
                 }
 
-                println!("Query already exists in the tests file, but the result is different or it's not passed.");
-                execute_query_and_update_tests_file(&context_name, &db_name, &query, &result);
+                if test.status != TestStatus::Passed {
+                    println!("Query already exists in the tests file, but it's not passed.");
+                    continue;
+                }
+
+                println!("Query already exists in the tests file, but the result is different.");
+                execute_query_and_update_tests_file(
+                    &context_name,
+                    &db_name,
+                    &query,
+                    &result,
+                    &mut test_manager,
+                );
             }
 
-            execute_query_and_update_tests_file(&context_name, &db_name, &query, &result);
+            execute_query_and_update_tests_file(
+                &context_name,
+                &db_name,
+                &query,
+                &result,
+                &mut test_manager,
+            );
         }
     }
 }
 
 fn run_tests() {
-    let tests = read_tests(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
 
-    for (index, test) in tests.iter().enumerate() {
+    for (index, test) in test_manager.get_tests().iter().enumerate() {
         let linq_query_builder = LinqQueryBuilder::new(
             Path::new(constants::EF_MODELS_DIR)
                 .join(&test.db_name)
@@ -303,8 +325,8 @@ fn main() {
     // run_queries_bulk();
 
     // debug_query(
-    //     "manufacturer",
-    //     r#"SELECT Market_Rate , name FROM furniture WHERE Furniture_ID NOT IN (SELECT Furniture_ID FROM furniture_manufacte)"#,
+    //     "manufactory_1",
+    //     r#"SELECT code , name , min(price) FROM products GROUP BY name"#,
     //     true,
     // );
 }
