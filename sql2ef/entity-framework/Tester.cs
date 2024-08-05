@@ -142,6 +142,7 @@ class Tester
 
     private static void CompareResults(List<Dictionary<string, object>> linqResults, List<Dictionary<string, object>> sqlResults)
     {
+        // TODO: this might not be needed anymore because we now have indexes for column names anyways
         // there is this one case where we only compare one field. in this case,
         // we will compare the values directly
         if (linqResults.Count > 0 && linqResults[0].Count == 1)
@@ -202,19 +203,19 @@ class Tester
         // Imagine when you have a VARCHAR(7) in sql, which is translated to a Decimal / int in linq.
         // I know this is stupid, but when you scaffold the model, this is how it's generated :/
 
-        Console.WriteLine("SQL Results:");
-        for (int i = 0; i < sqlResults.Count; i++)
-        {
-            var row = sqlResults[i];
-            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        }
+        // Console.WriteLine("SQL Results:");
+        // for (int i = 0; i < sqlResults.Count; i++)
+        // {
+        //     var row = sqlResults[i];
+        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        // }
 
-        Console.WriteLine("LINQ Results:");
-        for (int i = 0; i < linqResults.Count; i++)
-        {
-            var row = linqResults[i];
-            Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
-        }
+        // Console.WriteLine("LINQ Results:");
+        // for (int i = 0; i < linqResults.Count; i++)
+        // {
+        //     var row = linqResults[i];
+        //     Console.WriteLine($"Row {i + 1}: {string.Join(", ", row.Select(kv => $"{kv.Key}={kv.Value}"))}");
+        // }
 
         // if (sqlResults.Count != linqResults.Count)
         // {
@@ -246,7 +247,7 @@ class Tester
                     // Console.WriteLine($"LINQ Value: {linqValue}");
 
                     /*
-                        Also, this is incredible too. When running in Rust, you can get this:
+                        Also, this is incredible too. When running from Rust, you can get this:
 
                          "SQL Results:\nRow 1: 0=7, 1=495.063\nRow 2: 0=61, 1=930.14\nRow 3: 0=98, 1=6035.84\nRow 4: 0=136, 1=199.52\nRow 5: 0=164, 1=12223.93\nRow 6: 0=209, 1=11130.23\nRow 7: 0=211, 1=1230.454\nRow 8: 0=240, 1=6352.31\nRow 9: 0=262, 1=147.96\nRow 10: 0=280, 1=187.14\nRow 11: 0=321, 1=745.817\nRow 12: 0=346, 1=127.9\nRow 13: 0=414, 1=25.41\nRow 14: 0=427, 1=1168.32\nRow 15: 0=451, 1=658.26\n
                          LINQ Results:\nRow 1: 0=7, 1=495,063\nRow 2: 0=61, 1=930,14\nRow 3: 0=98, 1=6035,84\nRow 4: 0=136, 1=199,52\nRow 5: 0=164, 1=12223,93\nRow 6: 0=209, 1=11130,23\nRow 7: 0=211, 1=1230,454\nRow 8: 0=240, 1=6352,31\nRow 9: 0=262, 1=147,96\nRow 10: 0=280, 1=187,14\nRow 11: 0=321, 1=745,817\nRow 12: 0=346, 1=127,9\nRow 13: 0=414, 1=25,41\nRow 14: 0=427, 1=1168,32\nRow 15: 0=451, 1=658,26\n"

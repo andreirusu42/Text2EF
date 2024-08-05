@@ -210,30 +210,13 @@ fn run_queries_sequentially() {
         let context_name = linq_query_builder.get_context_name();
 
         for (index, query) in queries.iter().enumerate() {
-            let lowercase_query = query.to_lowercase();
-
-            let blacklist: Vec<&str> = vec![
-                // "join route", // 1-m relationships
-                // "t2.actid = t2.actid",                           // activity_1
-                // "t1.booking_start_date , t1.booking_start_date", // apartment_rentals
-                // "t2.allergytype",                                // allergy_1
-                // "ref_company_types",                             // assets_maintenance
-                // "tourist_attraction_features",                   // TODO: m2m tables
-                // "circulation_history",                           // TODO: m2m tables
-                // "active_to_date - active_from_date", // customers_and_addresses - TODO: date diff when averaging
-                // "order_date",                        // customers_and_addresses TODO just now ;D
-            ];
-
-            if blacklist.iter().any(|key| lowercase_query.contains(key)) {
-                continue;
-            }
-
             println!("Processing query {} for {} - {}", index, db_name, query);
 
             let result = if let Ok(res) = catch_unwind(|| linq_query_builder.build_query(query)) {
                 res
             } else {
                 println!("Failed to build query for {}", query);
+                panic!("Why?");
                 continue;
             };
 
@@ -324,9 +307,5 @@ fn main() {
     run_queries_sequentially();
     // run_queries_bulk();
 
-    // debug_query(
-    //     "manufactory_1",
-    //     r#"SELECT code , name , min(price) FROM products GROUP BY name"#,
-    //     true,
-    // );
+    // debug_query("hr_1", r#"SELECT count(*) FROM scientists"#, false);
 }

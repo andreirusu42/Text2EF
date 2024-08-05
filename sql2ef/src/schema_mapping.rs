@@ -78,6 +78,8 @@ fn column_type_to_enum(column_type: &str) -> ColumnType {
         "bit" => ColumnType::Bool,
         "numeric" => ColumnType::Decimal,
         "boolean" => ColumnType::Bool,
+        "double" => ColumnType::Double,
+        "date" => ColumnType::Datetime,
         _ => ColumnType::None,
     };
 
