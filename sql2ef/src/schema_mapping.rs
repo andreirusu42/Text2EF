@@ -14,6 +14,18 @@ pub enum FieldType {
     Long,
 }
 
+impl FieldType {
+    pub fn is_numeric(&self) -> bool {
+        match self {
+            FieldType::Int => true,
+            FieldType::Double => true,
+            FieldType::Decimal => true,
+            FieldType::Long => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColumnType {
     Varchar,

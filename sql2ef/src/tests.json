@@ -43,10 +43,10 @@
   },
   {
     "query": "SELECT T1.name FROM browser AS T1 JOIN accelerator_compatible_browser AS T2 ON T1.id = T2.browser_id JOIN web_client_accelerator AS T3 ON T2.accelerator_id = T3.id WHERE T3.name = 'CProxy' AND T2.compatible_since_year > 1998",
-    "result": "context.Browsers.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.BrowserId, (T1, T2) => new { T1, T2 }).Join(context.WebClientAccelerators, joined => joined.T2.AcceleratorId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.Name == \"CProxy\" && row.T2.CompatibleSinceYear > 1998).Select(row => new { row.T1.Name }).ToList();",
+    "result": "context.Browsers.Join(context.AcceleratorCompatibleBrowsers, T1 => T1.Id, T2 => T2.BrowserId, (T1, T2) => new { T1, T2 }).Join(context.WebClientAccelerators, joined => joined.T2.AcceleratorId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.Name == \"CProxy\" && row.T2.CompatibleSinceYear > 1998).Where(row => row.T1.Name.HasValue).Select(row => new { row.T1.Name }).ToList();",
     "db_name": "browser_web",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,368): error CS1061: 'string' does not contain a definition for 'HasValue' and no accessible extension method 'HasValue' accepting a first argument of type 'string' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.29"
   },
   {
     "query": "SELECT T1.id , T1.Name FROM web_client_accelerator AS T1 JOIN accelerator_compatible_browser AS T2 ON T2.accelerator_id = T1.id GROUP BY T1.id HAVING count(*) >= 2",
@@ -505,10 +505,10 @@
   },
   {
     "query": "SELECT name , average_attendance , total_attendance FROM stadium EXCEPT SELECT T2.name , T2.average_attendance , T2.total_attendance FROM game AS T1 JOIN stadium AS T2 ON T1.stadium_id = T2.id JOIN injury_accident AS T3 ON T1.id = T3.game_id",
-    "result": "context.Stadia.Select(row => new { row.Name, row.AverageAttendance, row.TotalAttendance }).Except(context.Games.Join(context.Stadia, T1 => T1.StadiumId, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Join(context.InjuryAccidents, joined => joined.T1.Id, T3 => T3.GameId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Select(row => new { row.T2.Name, row.T2.AverageAttendance, row.T2.TotalAttendance })).ToList();",
+    "result": "context.Stadia.Where(row => row.AverageAttendance.HasValue && row.TotalAttendance.HasValue).Select(row => new { row.Name, row.AverageAttendance.Value, row.TotalAttendance.Value }).Except(context.Games.Join(context.Stadia, T1 => T1.StadiumId, T2 => T2.Id, (T1, T2) => new { T1, T2 }).Join(context.InjuryAccidents, joined => joined.T1.Id, T3 => T3.GameId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Select(row => new { row.T2.Name, row.T2.AverageAttendance, row.T2.TotalAttendance })).ToList();",
     "db_name": "game_injury",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,163): error CS0833: An anonymous type cannot have multiple properties with the same name [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    148 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.42"
   },
   {
     "query": "SELECT name FROM stadium WHERE name LIKE \"%Bank%\"",
@@ -2535,10 +2535,10 @@
   },
   {
     "query": "SELECT name FROM station WHERE city = \"Palo Alto\" EXCEPT SELECT end_station_name FROM trip GROUP BY end_station_name HAVING count(*) > 100",
-    "result": "context.Stations.Where(row => row.City == \"Palo Alto\").Select(row => row.Name).Except(context.Trips.GroupBy(row => new { row.EndStationName }).Where(group => group.Count() > 100).Select(group => group.Key.EndStationName)).ToList();",
+    "result": "context.Stations.Where(row => row.City == \"Palo Alto\").Select(row => row.Name).Except(context.Trips.GroupBy(row => new { row.EndStationName }).Where(group => group.Count() > 100).Where(group => group.Key.EndStationName.HasValue).Select(group => group.Key.EndStationName.Value)).ToList();",
     "db_name": "bike_1",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,231): error CS1061: 'string' does not contain a definition for 'HasValue' and no accessible extension method 'HasValue' accepting a first argument of type 'string' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.45"
   },
   {
     "query": "SELECT count(*) FROM station AS T1 JOIN trip AS T2 JOIN station AS T3 JOIN trip AS T4 ON T1.id = T2.start_station_id AND T2.id = T4.id AND T3.id = T4.end_station_id WHERE T1.city = \"Mountain View\" AND T3.city = \"Palo Alto\"",
@@ -4341,10 +4341,10 @@
   },
   {
     "query": "SELECT avg(price) FROM wine WHERE Appelation NOT IN (SELECT T1.Appelation FROM APPELLATIONS AS T1 JOIN WINE AS T2 ON T1.Appelation = T2.Appelation WHERE T1.County = 'Sonoma')",
-    "result": "context.Wines.Where(row => !context.Appellations.Join(context.Wines, T1 => T1.Appelation, T2 => T2.Appelation, (T1, T2) => new { T1, T2 }).Where(row => row.T1.County == \"Sonoma\").Select(row => row.T1.Appelation).Contains(row.Appelation)).Select(row => row.Price).Average();",
+    "result": "context.Wines.Where(row => row.Appelation.HasValue && !context.Appellations.Join(context.Wines, T1 => T1.Appelation, T2 => T2.Appelation, (T1, T2) => new { T1, T2 }).Where(row => row.T1.County == \"Sonoma\").Select(row => row.T1.Appelation).Contains(row.Appelation.Value)).Select(row => row.Price).Average();",
     "db_name": "wine_1",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,275): error CS1061: 'string' does not contain a definition for 'Value' and no accessible extension method 'Value' accepting a first argument of type 'string' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    2 Error(s)\n\nTime Elapsed 00:00:01.38"
   },
   {
     "query": "SELECT T1.County FROM APPELLATIONS AS T1 JOIN WINE AS T2 ON T1.Appelation = T2.Appelation WHERE T2.Score > 90 GROUP BY T1.County ORDER BY count(*) DESC LIMIT 1",
@@ -4656,7 +4656,7 @@
   },
   {
     "query": "SELECT T1.name , T1.age FROM Person AS T1 JOIN PersonFriend AS T2 ON T1.name = T2.name WHERE T2.friend = 'Dan' INTERSECT SELECT T1.name , T1.age FROM Person AS T1 JOIN PersonFriend AS T2 ON T1.name = T2.name WHERE T2.friend = 'Alice'",
-    "result": "context.People.Join(context.PersonFriends, T1 => T1.Name, T2 => T2.Name, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Friend == \"Dan\").Select(row => new { row.T1.Name, row.T1.Age }).Intersect(context.People.Join(context.PersonFriends, T1 => T1.Name, T2 => T2.Name, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Friend == \"Alice\").Select(row => new { row.T1.Name, row.T1.Age })).ToList();",
+    "result": "context.People.Join(context.PersonFriends, T1 => T1.Name, T2 => T2.Name, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Friend == \"Dan\").Where(row => row.T1.Age.HasValue).Select(row => new { row.T1.Name, row.T1.Age.Value }).Intersect(context.People.Join(context.PersonFriends, T1 => T1.Name, T2 => T2.Name, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Friend == \"Alice\").Where(row => row.T1.Age.HasValue).Select(row => new { row.T1.Name, row.T1.Age.Value })).ToList();",
     "db_name": "network_2",
     "status": "Passed",
     "error": null
@@ -5604,28 +5604,28 @@
     "result": "context.Trains.Join(context.Route, t1 => t1.Id, t2 => t2.TrainId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.TrainId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().t1.Name }).Take(1).ToList();",
     "db_name": "station_weather",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,40): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.43"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,40): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.40"
   },
   {
     "query": "SELECT count(*) , t1.network_name , t1.services FROM station AS t1 JOIN route AS t2 ON t1.id = t2.station_id GROUP BY t2.station_id",
     "result": "context.Stations.Join(context.Route, t1 => t1.Id, t2 => t2.StationId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.StationId }).Select(group => new { Count = group.Count(), group.First().t1.NetworkName, group.First().t1.Services }).ToList();",
     "db_name": "station_weather",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.42"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.28"
   },
   {
     "query": "SELECT t3.name , t3.time FROM station AS t1 JOIN route AS t2 ON t1.id = t2.station_id JOIN train AS t3 ON t2.train_id = t3.id WHERE t1.local_authority = \"Chiltern\"",
     "result": "context.Stations.Join(context.Route, t1 => t1.Id, t2 => t2.StationId, (t1, t2) => new { t1, t2 }).Join(context.Trains, joined => joined.t2.TrainId, t3 => t3.Id, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.LocalAuthority == \"Chiltern\").Select(row => new { row.t3.Name, row.t3.Time }).ToList();",
     "db_name": "station_weather",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.50"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.47"
   },
   {
     "query": "SELECT * FROM products AS T1 JOIN Manufacturers AS T2 ON T1.manufacturer = T2.code",
-    "result": "context.Products.Join(context.Manufacturers, T1 => T1.Manufacturer, T2 => T2.Code, (T1, T2) => new { T1, T2 }).Select(row => new { T1Code = row.T1.Code, T1Name = row.T1.Name, row.T1.Price, row.T1.Manufacturer, T2Code = row.T2.Code, T2Name = row.T2.Name, row.T2.Headquarter, row.T2.Founder, row.T2.Revenue }).ToList();",
+    "result": "context.Products.Join(context.Manufacturers, T1 => T1.Manufacturer, T2 => T2.Code, (T1, T2) => new { T1, T2 }).Select(row => new { T1Code = rowT1..Code, T1Name = rowT1..Name, rowT1..Price, rowT1..Manufacturer, T2Code = rowT2..Code, T2Name = rowT2..Name, rowT2..Headquarter, rowT2..Founder, rowT2..Revenue }).ToList();",
     "db_name": "manufactory_1",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,309): error CS0103: The name 'Revenue' does not exist in the current context [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    23 Error(s)\n\nTime Elapsed 00:00:01.26"
   },
   {
     "query": "SELECT T1.Name , max(T1.Price) , T2.name FROM products AS T1 JOIN Manufacturers AS T2 ON T1.manufacturer = T2.code GROUP BY T2.name",
@@ -5671,10 +5671,10 @@
   },
   {
     "query": "SELECT id FROM station WHERE city = \"San Francisco\" INTERSECT SELECT station_id FROM status GROUP BY station_id HAVING avg(bikes_available) > 10",
-    "result": "context.Stations.Where(row => row.City == \"San Francisco\").Select(row => row.Id).Intersect(context.Statuses.GroupBy(row => new { row.StationId }).Where(group => group.Average(row => row.BikesAvailable) > 10).Select(group => group.Key.StationId)).ToList();",
+    "result": "context.Stations.Where(row => row.City == \"San Francisco\").Select(row => row.Id).Intersect(context.Statuses.GroupBy(row => new { row.StationId }).Where(group => group.Average(row => row.BikesAvailable) > 10).Where(group => group.Key.StationId.HasValue).Select(group => group.Key.StationId.Value)).ToList();",
     "db_name": "bike_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Intersect' and the best extension method overload 'ParallelEnumerable.Intersect<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.33"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT zip_code FROM weather GROUP BY zip_code ORDER BY avg(mean_sea_level_pressure_inches) LIMIT 1",
@@ -5685,10 +5685,10 @@
   },
   {
     "query": "SELECT avg(bikes_available) FROM status WHERE station_id NOT IN (SELECT id FROM station WHERE city = \"Palo Alto\")",
-    "result": "context.Statuses.Where(row => !context.Stations.Where(row => row.City == \"Palo Alto\").Select(row => row.Id).Contains(row.StationId)).Select(row => row.BikesAvailable).Average();",
+    "result": "context.Statuses.Where(row => row.StationId.HasValue && !context.Stations.Where(row => row.City == \"Palo Alto\").Select(row => row.Id).Contains(row.StationId.Value)).Select(row => row.BikesAvailable).Average();",
     "db_name": "bike_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,43): error CS1929: 'IQueryable<int>' does not contain a definition for 'Contains' and the best extension method overload 'MemoryExtensions.Contains<int?>(ReadOnlySpan<int?>, int?)' requires a receiver of type 'System.ReadOnlySpan<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.33"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT date , zip_code FROM weather WHERE max_temperature_f >= 80",
@@ -5720,10 +5720,10 @@
   },
   {
     "query": "SELECT id FROM station WHERE lat > 37.4 EXCEPT SELECT station_id FROM status GROUP BY station_id HAVING min(bikes_available) < 7",
-    "result": "context.Stations.Where(row => row.Lat > 37.4).Select(row => row.Id).Except(context.Statuses.GroupBy(row => new { row.StationId }).Where(group => group.Min(row => row.BikesAvailable) < 7).Select(group => group.Key.StationId)).ToList();",
+    "result": "context.Stations.Where(row => row.Lat > 37.4).Select(row => row.Id).Except(context.Statuses.GroupBy(row => new { row.StationId }).Where(group => group.Min(row => row.BikesAvailable) < 7).Where(group => group.Key.StationId.HasValue).Select(group => group.Key.StationId.Value)).ToList();",
     "db_name": "bike_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.44"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT zip_code FROM weather GROUP BY zip_code HAVING avg(mean_visibility_miles) < 10",
@@ -5853,10 +5853,10 @@
   },
   {
     "query": "SELECT organization_id FROM organizations EXCEPT SELECT parent_organization_id FROM organizations",
-    "result": "context.Organizations.Select(row => row.OrganizationId).Except(context.Organizations.Select(row => row.ParentOrganizationId)).ToList();",
+    "result": "context.Organizations.Select(row => row.OrganizationId).Except(context.Organizations.Where(row => row.ParentOrganizationId.HasValue).Select(row => row.ParentOrganizationId.Value)).ToList();",
     "db_name": "local_govt_and_lot",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.43"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT Name FROM WINE WHERE YEAR = \"2008\"",
@@ -9255,10 +9255,10 @@
   },
   {
     "query": "SELECT employee_id FROM Employees EXCEPT SELECT Destruction_Authorised_by_Employee_ID FROM Documents_to_be_destroyed",
-    "result": "context.Employees.Select(row => row.EmployeeId).Except(context.DocumentsToBeDestroyeds.Select(row => row.DestructionAuthorisedByEmployeeId)).ToList();",
+    "result": "context.Employees.Select(row => row.EmployeeId).Except(context.DocumentsToBeDestroyeds.Where(row => row.DestructionAuthorisedByEmployeeId.HasValue).Select(row => row.DestructionAuthorisedByEmployeeId.Value)).ToList();",
     "db_name": "cre_Doc_Tracking_DB",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.46"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT DISTINCT Destruction_Authorised_by_Employee_ID FROM Documents_to_be_destroyed",
@@ -9276,14 +9276,14 @@
   },
   {
     "query": "SELECT employee_id FROM Employees EXCEPT SELECT Destroyed_by_Employee_ID FROM Documents_to_be_destroyed",
-    "result": "context.Employees.Select(row => row.EmployeeId).Except(context.DocumentsToBeDestroyeds.Select(row => row.DestroyedByEmployeeId)).ToList();",
+    "result": "context.Employees.Select(row => row.EmployeeId).Except(context.DocumentsToBeDestroyeds.Where(row => row.DestroyedByEmployeeId.HasValue).Select(row => row.DestroyedByEmployeeId.Value)).ToList();",
     "db_name": "cre_Doc_Tracking_DB",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.47"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT Destroyed_by_Employee_ID FROM Documents_to_be_destroyed UNION SELECT Destruction_Authorised_by_Employee_ID FROM Documents_to_be_destroyed",
-    "result": "context.DocumentsToBeDestroyeds.Select(row => row.DestroyedByEmployeeId).Union(context.DocumentsToBeDestroyeds.Select(row => row.DestructionAuthorisedByEmployeeId)).ToList();",
+    "result": "context.DocumentsToBeDestroyeds.Where(row => row.DestroyedByEmployeeId.HasValue).Select(row => row.DestroyedByEmployeeId.Value).Union(context.DocumentsToBeDestroyeds.Where(row => row.DestructionAuthorisedByEmployeeId.HasValue).Select(row => row.DestructionAuthorisedByEmployeeId.Value)).ToList();",
     "db_name": "cre_Doc_Tracking_DB",
     "status": "Passed",
     "error": null
@@ -9437,7 +9437,7 @@
   },
   {
     "query": "SELECT YEAR FROM festival_detail WHERE LOCATION = 'United States' INTERSECT SELECT YEAR FROM festival_detail WHERE LOCATION != 'United States'",
-    "result": "context.FestivalDetails.Where(row => row.Location == \"United States\").Select(row => row.Year).Intersect(context.FestivalDetails.Where(row => row.Location != \"United States\").Select(row => row.Year)).ToList();",
+    "result": "context.FestivalDetails.Where(row => row.Location == \"United States\").Where(row => row.Year.HasValue).Select(row => row.Year.Value).Intersect(context.FestivalDetails.Where(row => row.Location != \"United States\").Where(row => row.Year.HasValue).Select(row => row.Year.Value)).ToList();",
     "db_name": "entertainment_awards",
     "status": "Passed",
     "error": null
@@ -10228,7 +10228,7 @@
   },
   {
     "query": "SELECT date , theme , sales FROM journal EXCEPT SELECT T1.date , T1.theme , T1.sales FROM journal AS T1 JOIN journal_committee AS T2 ON T1.journal_ID = T2.journal_ID",
-    "result": "context.Journals.Select(row => new { row.Date, row.Theme, row.Sales }).Except(context.Journals.Join(context.JournalCommittees, T1 => T1.JournalId, T2 => T2.JournalId, (T1, T2) => new { T1, T2 }).Select(row => new { row.T1.Date, row.T1.Theme, row.T1.Sales })).ToList();",
+    "result": "context.Journals.Where(row => row.Sales.HasValue).Select(row => new { row.Date, row.Theme, row.Sales.Value }).Except(context.Journals.Join(context.JournalCommittees, T1 => T1.JournalId, T2 => T2.JournalId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Sales.HasValue).Select(row => new { row.T1.Date, row.T1.Theme, row.T1.Sales.Value })).ToList();",
     "db_name": "journal_committee",
     "status": "Passed",
     "error": null
@@ -11187,10 +11187,10 @@
   },
   {
     "query": "SELECT StuID FROM Student EXCEPT SELECT StuID FROM Has_allergy",
-    "result": "context.Students.Select(row => row.StuId).Except(context.HasAllergies.Select(row => row.StuId)).ToList();",
+    "result": "context.Students.Select(row => row.StuId).Except(context.HasAllergies.Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "allergy_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.21"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT count(*) FROM has_allergy AS T1 JOIN Student AS T2 ON T1.StuID = T2.StuID WHERE T2.sex = \"F\" AND T1.allergy = \"Milk\" OR T1.allergy = \"Eggs\"",
@@ -11229,7 +11229,7 @@
   },
   {
     "query": "SELECT lname , age FROM Student WHERE StuID IN (SELECT StuID FROM Has_allergy WHERE Allergy = \"Milk\" INTERSECT SELECT StuID FROM Has_allergy WHERE Allergy = \"Cat\")",
-    "result": "context.Students.Where(row => context.HasAllergies.Where(row => row.Allergy == \"Milk\").Select(row => row.StuId).Intersect(context.HasAllergies.Where(row => row.Allergy == \"Cat\").Select(row => row.StuId)).Contains(row.StuId)).Select(row => new { row.Lname, row.Age }).ToList();",
+    "result": "context.Students.Where(row => context.HasAllergies.Where(row => row.Allergy == \"Milk\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value).Intersect(context.HasAllergies.Where(row => row.Allergy == \"Cat\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).Contains(row.StuId)).Select(row => new { row.Lname, row.Age }).ToList();",
     "db_name": "allergy_1",
     "status": "Passed",
     "error": null
@@ -11243,14 +11243,14 @@
   },
   {
     "query": "SELECT fname , sex FROM Student WHERE StuID IN (SELECT StuID FROM Has_allergy WHERE Allergy = \"Milk\" EXCEPT SELECT StuID FROM Has_allergy WHERE Allergy = \"Cat\")",
-    "result": "context.Students.Where(row => context.HasAllergies.Where(row => row.Allergy == \"Milk\").Select(row => row.StuId).Except(context.HasAllergies.Where(row => row.Allergy == \"Cat\").Select(row => row.StuId)).Contains(row.StuId)).Select(row => new { row.Fname, row.Sex }).ToList();",
+    "result": "context.Students.Where(row => context.HasAllergies.Where(row => row.Allergy == \"Milk\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value).Except(context.HasAllergies.Where(row => row.Allergy == \"Cat\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).Contains(row.StuId)).Select(row => new { row.Fname, row.Sex }).ToList();",
     "db_name": "allergy_1",
     "status": "Passed",
     "error": null
   },
   {
     "query": "SELECT avg(age) FROM Student WHERE StuID IN ( SELECT T1.StuID FROM Has_allergy AS T1 JOIN Allergy_Type AS T2 ON T1.Allergy = T2.Allergy WHERE T2.allergytype = \"food\" INTERSECT SELECT T1.StuID FROM Has_allergy AS T1 JOIN Allergy_Type AS T2 ON T1.Allergy = T2.Allergy WHERE T2.allergytype = \"animal\")",
-    "result": "context.Students.Where(row => context.HasAllergies.Join(context.AllergyTypes, T1 => T1.Allergy, T2 => T2.Allergy, (T1, T2) => new { T1, T2 }).Where(row => row.T2.AllergyType1 == \"food\").Select(row => row.T1.StuId).Intersect(context.HasAllergies.Join(context.AllergyTypes, T1 => T1.Allergy, T2 => T2.Allergy, (T1, T2) => new { T1, T2 }).Where(row => row.T2.AllergyType1 == \"animal\").Select(row => row.T1.StuId)).Contains(row.StuId)).Select(row => row.Age).Average();",
+    "result": "context.Students.Where(row => context.HasAllergies.Join(context.AllergyTypes, T1 => T1.Allergy, T2 => T2.Allergy, (T1, T2) => new { T1, T2 }).Where(row => row.T2.AllergyType1 == \"food\").Where(row => row.T1.StuId.HasValue).Select(row => row.T1.StuId.Value).Intersect(context.HasAllergies.Join(context.AllergyTypes, T1 => T1.Allergy, T2 => T2.Allergy, (T1, T2) => new { T1, T2 }).Where(row => row.T2.AllergyType1 == \"animal\").Where(row => row.T1.StuId.HasValue).Select(row => row.T1.StuId.Value)).Contains(row.StuId)).Select(row => row.Age).Average();",
     "db_name": "allergy_1",
     "status": "Passed",
     "error": null
@@ -12034,10 +12034,10 @@
   },
   {
     "query": "SELECT max(Account_details) FROM Accounts UNION SELECT Account_details FROM Accounts WHERE Account_details LIKE \"%5%\"",
-    "result": "new List<string> { context.Accounts.Select(row => row.AccountDetails.ToString()).Max() }.Union(context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails.ToString(), \"%5%\")).Select(row => row.AccountDetails.ToString())).ToList();",
+    "result": "new List<string> { context.Accounts.Select(row => row.AccountDetails.ToString()).Max() }.Union(context.Accounts.Where(row => EF.Functions.Like(row.AccountDetails.ToString(), \"%5%\")).Where(row => row.AccountDetails.HasValue).Select(row => row.AccountDetails.Value)).ToList();",
     "db_name": "cre_Docs_and_Epenses",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'List<string>' does not contain a definition for 'Union' and the best extension method overload 'ParallelEnumerable.Union<decimal>(ParallelQuery<decimal>, IEnumerable<decimal>)' requires a receiver of type 'System.Linq.ParallelQuery<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    148 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.32"
   },
   {
     "query": "SELECT customer_details FROM customers ORDER BY customer_details",
@@ -12265,10 +12265,10 @@
   },
   {
     "query": "SELECT count(*) FROM city WHERE county_ID IN (SELECT county_ID FROM county_public_safety WHERE population > 20000)",
-    "result": "context.Cities.Where(row => context.CountyPublicSafeties.Where(row => row.Population > 20000).Select(row => row.CountyId).Contains(row.CountyId)).Count();",
+    "result": "context.Cities.Where(row => row.CountyId.HasValue && context.CountyPublicSafeties.Where(row => row.Population > 20000).Select(row => row.CountyId).Contains(row.CountyId.Value)).Count();",
     "db_name": "county_public_safety",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,40): error CS1929: 'IQueryable<int>' does not contain a definition for 'Contains' and the best extension method overload 'MemoryExtensions.Contains<int?>(ReadOnlySpan<int?>, int?)' requires a receiver of type 'System.ReadOnlySpan<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.57"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT T2.Crime_rate FROM city AS T1 JOIN county_public_safety AS T2 ON T1.County_ID = T2.County_ID WHERE T1.White > 90",
@@ -12307,10 +12307,10 @@
   },
   {
     "query": "SELECT name FROM city WHERE county_id IN (SELECT county_id FROM county_public_safety WHERE Crime_rate < 100)",
-    "result": "context.Cities.Where(row => context.CountyPublicSafeties.Where(row => row.CrimeRate < 100).Select(row => row.CountyId).Contains(row.CountyId)).Select(row => new { row.Name }).ToList();",
+    "result": "context.Cities.Where(row => row.CountyId.HasValue && context.CountyPublicSafeties.Where(row => row.CrimeRate < 100).Select(row => row.CountyId).Contains(row.CountyId.Value)).Select(row => new { row.Name }).ToList();",
     "db_name": "county_public_safety",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,40): error CS1929: 'IQueryable<int>' does not contain a definition for 'Contains' and the best extension method overload 'MemoryExtensions.Contains<int?>(ReadOnlySpan<int?>, int?)' requires a receiver of type 'System.ReadOnlySpan<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.60"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT Case_burden FROM county_public_safety ORDER BY Population DESC",
@@ -12475,10 +12475,10 @@
   },
   {
     "query": "SELECT count(*) FROM ( SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_winner = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' UNION SELECT * FROM postseason AS T1 JOIN team AS T2 ON T1.team_id_loser = T2.team_id_br WHERE T2.name = 'Boston Red Stockings' );",
-    "result": "context.Postseasons.Join(context.Teams, T1 => T1.TeamIdWinner, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Boston Red Stockings\").Select(row => new { T1Year = row.T1.Year, row.T1.Round, row.T1.TeamIdWinner, row.T1.LeagueIdWinner, row.T1.TeamIdLoser, row.T1.LeagueIdLoser, row.T1.Wins, row.T1.Losses, row.T1.Ties, T2Year = row.T2.Year, row.T2.LeagueId, row.T2.TeamId, row.T2.FranchiseId, row.T2.DivId, row.T2.Rank, row.T2.G, row.T2.Ghome, row.T2.W, row.T2.L, row.T2.DivWin, row.T2.WcWin, row.T2.LgWin, row.T2.WsWin, row.T2.R, row.T2.Ab, row.T2.H, row.T2.Double, row.T2.Triple, row.T2.Hr, row.T2.Bb, row.T2.So, row.T2.Sb, row.T2.Cs, row.T2.Hbp, row.T2.Sf, row.T2.Ra, row.T2.Er, row.T2.Era, row.T2.Cg, row.T2.Sho, row.T2.Sv, row.T2.Ipouts, row.T2.Ha, row.T2.Hra, row.T2.Bba, row.T2.Soa, row.T2.E, row.T2.Dp, row.T2.Fp, row.T2.Name, row.T2.Park, row.T2.Attendance, row.T2.Bpf, row.T2.Ppf, row.T2.TeamIdBr, row.T2.TeamIdLahman45, row.T2.TeamIdRetro }).Union(context.Postseasons.Join(context.Teams, T1 => T1.TeamIdLoser, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Boston Red Stockings\").Select(row => new { T1Year = row.T1.Year, row.T1.Round, row.T1.TeamIdWinner, row.T1.LeagueIdWinner, row.T1.TeamIdLoser, row.T1.LeagueIdLoser, row.T1.Wins, row.T1.Losses, row.T1.Ties, T2Year = row.T2.Year, row.T2.LeagueId, row.T2.TeamId, row.T2.FranchiseId, row.T2.DivId, row.T2.Rank, row.T2.G, row.T2.Ghome, row.T2.W, row.T2.L, row.T2.DivWin, row.T2.WcWin, row.T2.LgWin, row.T2.WsWin, row.T2.R, row.T2.Ab, row.T2.H, row.T2.Double, row.T2.Triple, row.T2.Hr, row.T2.Bb, row.T2.So, row.T2.Sb, row.T2.Cs, row.T2.Hbp, row.T2.Sf, row.T2.Ra, row.T2.Er, row.T2.Era, row.T2.Cg, row.T2.Sho, row.T2.Sv, row.T2.Ipouts, row.T2.Ha, row.T2.Hra, row.T2.Bba, row.T2.Soa, row.T2.E, row.T2.Dp, row.T2.Fp, row.T2.Name, row.T2.Park, row.T2.Attendance, row.T2.Bpf, row.T2.Ppf, row.T2.TeamIdBr, row.T2.TeamIdLahman45, row.T2.TeamIdRetro })).Count();",
+    "result": "context.Postseasons.Join(context.Teams, T1 => T1.TeamIdWinner, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Boston Red Stockings\").Select(row => new { T1Year = rowT1..Year, rowT1..Round, rowT1..TeamIdWinner, rowT1..LeagueIdWinner, rowT1..TeamIdLoser, rowT1..LeagueIdLoser, rowT1..Wins, rowT1..Losses, rowT1..Ties, T2Year = rowT2..Year, rowT2..LeagueId, rowT2..TeamId, rowT2..FranchiseId, rowT2..DivId, rowT2..Rank, rowT2..G, rowT2..Ghome, rowT2..W, rowT2..L, rowT2..DivWin, rowT2..WcWin, rowT2..LgWin, rowT2..WsWin, rowT2..R, rowT2..Ab, rowT2..H, rowT2..Double, rowT2..Triple, rowT2..Hr, rowT2..Bb, rowT2..So, rowT2..Sb, rowT2..Cs, rowT2..Hbp, rowT2..Sf, rowT2..Ra, rowT2..Er, rowT2..Era, rowT2..Cg, rowT2..Sho, rowT2..Sv, rowT2..Ipouts, rowT2..Ha, rowT2..Hra, rowT2..Bba, rowT2..Soa, rowT2..E, rowT2..Dp, rowT2..Fp, rowT2..Name, rowT2..Park, rowT2..Attendance, rowT2..Bpf, rowT2..Ppf, rowT2..TeamIdBr, rowT2..TeamIdLahman45, rowT2..TeamIdRetro }).Union(context.Postseasons.Join(context.Teams, T1 => T1.TeamIdLoser, T2 => T2.TeamIdBr, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Boston Red Stockings\").Select(row => new { T1Year = rowT1..Year, rowT1..Round, rowT1..TeamIdWinner, rowT1..LeagueIdWinner, rowT1..TeamIdLoser, rowT1..LeagueIdLoser, rowT1..Wins, rowT1..Losses, rowT1..Ties, T2Year = rowT2..Year, rowT2..LeagueId, rowT2..TeamId, rowT2..FranchiseId, rowT2..DivId, rowT2..Rank, rowT2..G, rowT2..Ghome, rowT2..W, rowT2..L, rowT2..DivWin, rowT2..WcWin, rowT2..LgWin, rowT2..WsWin, rowT2..R, rowT2..Ab, rowT2..H, rowT2..Double, rowT2..Triple, rowT2..Hr, rowT2..Bb, rowT2..So, rowT2..Sb, rowT2..Cs, rowT2..Hbp, rowT2..Sf, rowT2..Ra, rowT2..Er, rowT2..Era, rowT2..Cg, rowT2..Sho, rowT2..Sv, rowT2..Ipouts, rowT2..Ha, rowT2..Hra, rowT2..Bba, rowT2..Soa, rowT2..E, rowT2..Dp, rowT2..Fp, rowT2..Name, rowT2..Park, rowT2..Attendance, rowT2..Bpf, rowT2..Ppf, rowT2..TeamIdBr, rowT2..TeamIdLahman45, rowT2..TeamIdRetro })).Count();",
     "db_name": "baseball_1",
-    "status": "Passed",
-    "error": null
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,1960): error CS0103: The name 'TeamIdRetro' does not exist in the current context [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    338 Error(s)\n\nTime Elapsed 00:00:01.40"
   },
   {
     "query": "SELECT count(*) FROM postseason WHERE YEAR = 1885 AND ties = 1;",
@@ -12510,7 +12510,7 @@
   },
   {
     "query": "SELECT salary FROM salary WHERE YEAR = 2010 UNION SELECT salary FROM salary WHERE YEAR = 2001",
-    "result": "context.Salaries.Where(row => row.Year == 2010).Select(row => row.Salary1).Union(context.Salaries.Where(row => row.Year == 2001).Select(row => row.Salary1)).ToList();",
+    "result": "context.Salaries.Where(row => row.Year == 2010).Where(row => row.Salary1.HasValue).Select(row => row.Salary1.Value).Union(context.Salaries.Where(row => row.Year == 2001).Where(row => row.Salary1.HasValue).Select(row => row.Salary1.Value)).ToList();",
     "db_name": "baseball_1",
     "status": "Passed",
     "error": null
@@ -14018,7 +14018,7 @@
     "result": "context.Customers.Join(context.CustomerOrders, t1 => t1.CustomerId, t2 => t2.CustomerId, (t1, t2) => new { t1, t2 }).Join(context.OrderItems, joined => joined.t2.OrderId, t3 => t3.OrderId, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.CustomerName == \"Rodrick Heaney\").Select(row => row.t3.OrderQuantity).Sum();",
     "db_name": "customers_and_addresses",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.56"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.23"
   },
   {
     "query": "SELECT count(DISTINCT customer_id) FROM customer_orders WHERE order_status = \"Cancelled\"",
@@ -14046,7 +14046,7 @@
     "result": "context.CustomerOrders.Join(context.OrderItems, t1 => t1.OrderId, t2 => t2.OrderId, (t1, t2) => new { t1, t2 }).Where(row => row.t1.OrderStatus == \"Cancelled\").Select(row => row.t2.OrderQuantity).Sum();",
     "db_name": "customers_and_addresses",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.22"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.31"
   },
   {
     "query": "SELECT sum(t2.order_quantity) FROM customer_orders AS t1 JOIN order_items AS t2 ON t1.order_id = t2.order_id WHERE t1.order_date < \"2018-03-17 07:13:53\"",
@@ -14151,7 +14151,7 @@
     "result": "context.Transactions.Select(row => row.ShareCount).Sum();",
     "db_name": "tracking_share_transactions",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.90"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.29"
   },
   {
     "query": "SELECT transaction_id FROM TRANSACTIONS WHERE transaction_type_code = 'PUR'",
@@ -14582,31 +14582,31 @@
   },
   {
     "query": "SELECT StuID FROM Student EXCEPT SELECT StuID FROM Sportsinfo",
-    "result": "context.Students.Select(row => row.StuId).Except(context.SportsInfos.Select(row => row.StuId)).ToList();",
+    "result": "context.Students.Select(row => row.StuId).Except(context.SportsInfos.Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "game_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.49"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT StuID FROM Student WHERE major = 600 INTERSECT SELECT StuID FROM Sportsinfo WHERE onscholarship = 'Y'",
-    "result": "context.Students.Where(row => row.Major == 600).Select(row => row.StuId).Intersect(context.SportsInfos.Where(row => row.OnScholarship == \"Y\").Select(row => row.StuId)).ToList();",
+    "result": "context.Students.Where(row => row.Major == 600).Select(row => row.StuId).Intersect(context.SportsInfos.Where(row => row.OnScholarship == \"Y\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "game_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Intersect' and the best extension method overload 'ParallelEnumerable.Intersect<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.25"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT StuID FROM Student WHERE sex = 'F' INTERSECT SELECT StuID FROM Sportsinfo WHERE sportname = \"Football\"",
-    "result": "context.Students.Where(row => row.Sex == \"F\").Select(row => row.StuId).Intersect(context.SportsInfos.Where(row => row.SportName == \"Football\").Select(row => row.StuId)).ToList();",
+    "result": "context.Students.Where(row => row.Sex == \"F\").Select(row => row.StuId).Intersect(context.SportsInfos.Where(row => row.SportName == \"Football\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "game_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Intersect' and the best extension method overload 'ParallelEnumerable.Intersect<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.03"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT StuID FROM Student WHERE sex = 'M' EXCEPT SELECT StuID FROM Sportsinfo WHERE sportname = \"Football\"",
-    "result": "context.Students.Where(row => row.Sex == \"M\").Select(row => row.StuId).Except(context.SportsInfos.Where(row => row.SportName == \"Football\").Select(row => row.StuId)).ToList();",
+    "result": "context.Students.Where(row => row.Sex == \"M\").Select(row => row.StuId).Except(context.SportsInfos.Where(row => row.SportName == \"Football\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "game_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.74"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT sum(hoursperweek) , sum(gamesplayed) FROM Sportsinfo AS T1 JOIN Student AS T2 ON T1.StuID = T2.StuID WHERE T2.Fname = \"David\" AND T2.Lname = \"Shieber\"",
@@ -14631,14 +14631,14 @@
   },
   {
     "query": "SELECT StuID FROM Student EXCEPT SELECT StuID FROM Plays_games",
-    "result": "context.Students.Select(row => row.StuId).Except(context.PlaysGames.Select(row => row.StuId)).ToList();",
+    "result": "context.Students.Select(row => row.StuId).Except(context.PlaysGames.Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "game_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.02"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT StuID FROM Sportsinfo INTERSECT SELECT StuID FROM Plays_games",
-    "result": "context.SportsInfos.Select(row => row.StuId).Intersect(context.PlaysGames.Select(row => row.StuId)).ToList();",
+    "result": "context.SportsInfos.Where(row => row.StuId.HasValue).Select(row => row.StuId.Value).Intersect(context.PlaysGames.Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).ToList();",
     "db_name": "game_1",
     "status": "Passed",
     "error": null
@@ -14687,14 +14687,14 @@
   },
   {
     "query": "SELECT fname , age FROM Student WHERE StuID IN (SELECT StuID FROM Sportsinfo WHERE SportName = \"Football\" INTERSECT SELECT StuID FROM Sportsinfo WHERE SportName = \"Lacrosse\")",
-    "result": "context.Students.Where(row => context.SportsInfos.Where(row => row.SportName == \"Football\").Select(row => row.StuId).Intersect(context.SportsInfos.Where(row => row.SportName == \"Lacrosse\").Select(row => row.StuId)).Contains(row.StuId)).Select(row => new { row.Fname, row.Age }).ToList();",
+    "result": "context.Students.Where(row => context.SportsInfos.Where(row => row.SportName == \"Football\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value).Intersect(context.SportsInfos.Where(row => row.SportName == \"Lacrosse\").Where(row => row.StuId.HasValue).Select(row => row.StuId.Value)).Contains(row.StuId)).Select(row => new { row.Fname, row.Age }).ToList();",
     "db_name": "game_1",
     "status": "Passed",
     "error": null
   },
   {
     "query": "SELECT lname , sex FROM Student WHERE StuID IN (SELECT T1.StuID FROM Plays_games AS T1 JOIN Video_games AS T2 ON T1.GameID = T2.GameID WHERE T2.Gname = \"Call of Destiny\" INTERSECT SELECT T1.StuID FROM Plays_games AS T1 JOIN Video_games AS T2 ON T1.GameID = T2.GameID WHERE T2.Gname = \"Works of Widenius\")",
-    "result": "context.Students.Where(row => context.PlaysGames.Join(context.VideoGames, T1 => T1.GameId, T2 => T2.GameId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Gname == \"Call of Destiny\").Select(row => row.T1.StuId).Intersect(context.PlaysGames.Join(context.VideoGames, T1 => T1.GameId, T2 => T2.GameId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Gname == \"Works of Widenius\").Select(row => row.T1.StuId)).Contains(row.StuId)).Select(row => new { row.Lname, row.Sex }).ToList();",
+    "result": "context.Students.Where(row => context.PlaysGames.Join(context.VideoGames, T1 => T1.GameId, T2 => T2.GameId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Gname == \"Call of Destiny\").Where(row => row.T1.StuId.HasValue).Select(row => row.T1.StuId.Value).Intersect(context.PlaysGames.Join(context.VideoGames, T1 => T1.GameId, T2 => T2.GameId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Gname == \"Works of Widenius\").Where(row => row.T1.StuId.HasValue).Select(row => row.T1.StuId.Value)).Contains(row.StuId)).Select(row => new { row.Lname, row.Sex }).ToList();",
     "db_name": "game_1",
     "status": "Passed",
     "error": null
@@ -16255,10 +16255,10 @@
   },
   {
     "query": "SELECT FacID FROM Faculty EXCEPT SELECT advisor FROM Student",
-    "result": "context.Faculties.Select(row => row.FacId).Except(context.Students.Select(row => row.Advisor)).ToList();",
+    "result": "context.Faculties.Select(row => row.FacId).Except(context.Students.Where(row => row.Advisor.HasValue).Select(row => row.Advisor.Value)).ToList();",
     "db_name": "activity_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.26"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT activity_name FROM Activity",
@@ -16283,14 +16283,14 @@
   },
   {
     "query": "SELECT FacID FROM Faculty EXCEPT SELECT FacID FROM Faculty_participates_in",
-    "result": "context.Faculties.Select(row => row.FacId).Except(context.FacultyParticipatesIns.Select(row => row.FacId)).ToList();",
+    "result": "context.Faculties.Select(row => row.FacId).Except(context.FacultyParticipatesIns.Where(row => row.FacId.HasValue).Select(row => row.FacId.Value)).ToList();",
     "db_name": "activity_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.40"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT FacID FROM Faculty_participates_in INTERSECT SELECT advisor FROM Student",
-    "result": "context.FacultyParticipatesIns.Select(row => row.FacId).Intersect(context.Students.Select(row => row.Advisor)).ToList();",
+    "result": "context.FacultyParticipatesIns.Where(row => row.FacId.HasValue).Select(row => row.FacId.Value).Intersect(context.Students.Where(row => row.Advisor.HasValue).Select(row => row.Advisor.Value)).ToList();",
     "db_name": "activity_1",
     "status": "Passed",
     "error": null
@@ -16339,17 +16339,17 @@
   },
   {
     "query": "SELECT StuID FROM Student EXCEPT SELECT StuID FROM Participates_in",
-    "result": "context.Students.Select(row => row.StuId).Except(context.ParticipatesIns.Select(row => row.Stuid)).ToList();",
+    "result": "context.Students.Select(row => row.StuId).Except(context.ParticipatesIns.Where(row => row.Stuid.HasValue).Select(row => row.Stuid.Value)).ToList();",
     "db_name": "activity_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Except' and the best extension method overload 'ParallelEnumerable.Except<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.20"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT StuID FROM Participates_in INTERSECT SELECT StuID FROM Student WHERE age < 20",
-    "result": "context.ParticipatesIns.Select(row => row.Stuid).Intersect(context.Students.Where(row => row.Age < 20).Select(row => row.StuId)).ToList();",
+    "result": "context.ParticipatesIns.Where(row => row.Stuid.HasValue).Select(row => row.Stuid.Value).Intersect(context.Students.Where(row => row.Age < 20).Select(row => row.StuId)).ToList();",
     "db_name": "activity_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int?>' does not contain a definition for 'Intersect' and the best extension method overload 'ParallelEnumerable.Intersect<int>(ParallelQuery<int>, IEnumerable<int>)' requires a receiver of type 'System.Linq.ParallelQuery<int>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.83"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT T1.fname , T1.lname FROM Student AS T1 JOIN Participates_in AS T2 ON T1.StuID = T2.StuID GROUP BY T1.StuID ORDER BY count(*) DESC LIMIT 1",
@@ -16699,14 +16699,14 @@
     "result": "context.ApartmentFacilities.Join(context.Apartments, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.FacilityCode == \"Gym\").Select(row => row.T2.RoomCount).Sum();",
     "db_name": "apartment_rentals",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.73"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.36"
   },
   {
     "query": "SELECT sum(T2.room_count) FROM Apartment_Buildings AS T1 JOIN Apartments AS T2 ON T1.building_id = T2.building_id WHERE T1.building_short_name = \"Columbus Square\"",
     "result": "context.ApartmentBuildings.Join(context.Apartments, T1 => T1.BuildingId, T2 => T2.BuildingId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.BuildingShortName == \"Columbus Square\").Select(row => row.T2.RoomCount).Sum();",
     "db_name": "apartment_rentals",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.26"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.42"
   },
   {
     "query": "SELECT T1.building_address FROM Apartment_Buildings AS T1 JOIN Apartments AS T2 ON T1.building_id = T2.building_id WHERE T2.bathroom_count > 2",
@@ -18481,14 +18481,14 @@
   },
   {
     "query": "SELECT T1.fname , T1.lname FROM student AS T1 JOIN lives_in AS T2 ON T1.stuid = T2.stuid WHERE T2.dormid IN (SELECT T3.dormid FROM has_amenity AS T3 JOIN dorm_amenity AS T4 ON T3.amenid = T4.amenid WHERE T4.amenity_name = 'TV Lounge')",
-    "result": "context.Students.Join(context.LivesIns, T1 => T1.StuId, T2 => T2.Stuid, (T1, T2) => new { T1, T2 }).Where(row => context.HasAmenities.Join(context.DormAmenities, T3 => T3.Amenid, T4 => T4.Amenid, (T3, T4) => new { T3, T4 }).Where(row => row.T4.AmenityName == \"TV Lounge\").Select(row => row.T3.Dormid).Contains(row.T2.Dormid)).Select(row => new { row.T1.Fname, row.T1.Lname }).ToList();",
+    "result": "context.Students.Join(context.LivesIns, T1 => T1.StuId, T2 => T2.Stuid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Dormid.HasValue && context.HasAmenities.Join(context.DormAmenities, T3 => T3.Amenid, T4 => T4.Amenid, (T3, T4) => new { T3, T4 }).Where(row => row.T4.AmenityName == \"TV Lounge\").Select(row => row.T3.Dormid).Contains(row.T2.Dormid.Value)).Select(row => new { row.T1.Fname, row.T1.Lname }).ToList();",
     "db_name": "dorm_1",
     "status": "Passed",
     "error": null
   },
   {
     "query": "SELECT T1.fname , T1.age FROM student AS T1 JOIN lives_in AS T2 ON T1.stuid = T2.stuid WHERE T2.dormid NOT IN (SELECT T3.dormid FROM has_amenity AS T3 JOIN dorm_amenity AS T4 ON T3.amenid = T4.amenid WHERE T4.amenity_name = 'TV Lounge')",
-    "result": "context.Students.Join(context.LivesIns, T1 => T1.StuId, T2 => T2.Stuid, (T1, T2) => new { T1, T2 }).Where(row => !context.HasAmenities.Join(context.DormAmenities, T3 => T3.Amenid, T4 => T4.Amenid, (T3, T4) => new { T3, T4 }).Where(row => row.T4.AmenityName == \"TV Lounge\").Select(row => row.T3.Dormid).Contains(row.T2.Dormid)).Select(row => new { row.T1.Fname, row.T1.Age }).ToList();",
+    "result": "context.Students.Join(context.LivesIns, T1 => T1.StuId, T2 => T2.Stuid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Dormid.HasValue && !context.HasAmenities.Join(context.DormAmenities, T3 => T3.Amenid, T4 => T4.Amenid, (T3, T4) => new { T3, T4 }).Where(row => row.T4.AmenityName == \"TV Lounge\").Select(row => row.T3.Dormid).Contains(row.T2.Dormid.Value)).Select(row => new { row.T1.Fname, row.T1.Age }).ToList();",
     "db_name": "dorm_1",
     "status": "Passed",
     "error": null
@@ -19587,7 +19587,7 @@
   },
   {
     "query": "SELECT name , prominence FROM mountain EXCEPT SELECT T1.name , T1.prominence FROM mountain AS T1 JOIN photos AS T2 ON T1.id = T2.mountain_id JOIN camera_lens AS T3 ON T2.camera_lens_id = T3.id WHERE T3.brand = 'Sigma'",
-    "result": "context.Mountains.Select(row => new { row.Name, row.Prominence }).Except(context.Mountains.Join(context.Photos, T1 => T1.Id, T2 => T2.MountainId, (T1, T2) => new { T1, T2 }).Join(context.CameraLens, joined => joined.T2.CameraLensId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.Brand == \"Sigma\").Select(row => new { row.T1.Name, row.T1.Prominence })).ToList();",
+    "result": "context.Mountains.Where(row => row.Prominence.HasValue).Select(row => new { row.Name, row.Prominence.Value }).Except(context.Mountains.Join(context.Photos, T1 => T1.Id, T2 => T2.MountainId, (T1, T2) => new { T1, T2 }).Join(context.CameraLens, joined => joined.T2.CameraLensId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.Brand == \"Sigma\").Where(row => row.T1.Prominence.HasValue).Select(row => new { row.T1.Name, row.T1.Prominence.Value })).ToList();",
     "db_name": "mountain_photos",
     "status": "Passed",
     "error": null
@@ -21662,21 +21662,21 @@
     "result": "context.Certificate.Select(row => row.Eid).Distinct().Count();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,20): error CS1061: 'Flight1Context' does not contain a definition for 'Certificate' and no accessible extension method 'Certificate' accepting a first argument of type 'Flight1Context' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.50"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,20): error CS1061: 'Flight1Context' does not contain a definition for 'Certificate' and no accessible extension method 'Certificate' accepting a first argument of type 'Flight1Context' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.21"
   },
   {
     "query": "SELECT eid FROM Employee EXCEPT SELECT eid FROM Certificate",
     "result": "context.Employees.Select(row => row.Eid).Except(context.Certificate.Select(row => row.Eid)).ToList();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,68): error CS1061: 'Flight1Context' does not contain a definition for 'Certificate' and no accessible extension method 'Certificate' accepting a first argument of type 'Flight1Context' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.84"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,68): error CS1061: 'Flight1Context' does not contain a definition for 'Certificate' and no accessible extension method 'Certificate' accepting a first argument of type 'Flight1Context' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.30"
   },
   {
     "query": "SELECT T3.name FROM Employee AS T1 JOIN Certificate AS T2 ON T1.eid = T2.eid JOIN Aircraft AS T3 ON T3.aid = T2.aid WHERE T1.name = \"John Williams\"",
     "result": "context.Employees.Join(context.Certificate, T1 => T1.Eid, T2 => T2.Eid, (T1, T2) => new { T1, T2 }).Join(context.Aircraft, joined => joined.T2.Aid, T3 => T3.Aid, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T1.Name == \"John Williams\").Select(row => new { row.T3.Name }).ToList();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,43): error CS1061: 'Flight1Context' does not contain a definition for 'Certificate' and no accessible extension method 'Certificate' accepting a first argument of type 'Flight1Context' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.79"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,43): error CS1061: 'Flight1Context' does not contain a definition for 'Certificate' and no accessible extension method 'Certificate' accepting a first argument of type 'Flight1Context' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.42"
   },
   {
     "query": "SELECT T1.name FROM Employee AS T1 JOIN Certificate AS T2 ON T1.eid = T2.eid JOIN Aircraft AS T3 ON T3.aid = T2.aid WHERE T3.name = \"Boeing 737-800\"",
@@ -21820,10 +21820,10 @@
   },
   {
     "query": "SELECT f_id FROM files WHERE formats = \"mp4\" INTERSECT SELECT f_id FROM song WHERE resolution < 1000",
-    "result": "context.Files.Where(row => row.Formats == \"mp4\").Select(row => row.FId).Intersect(context.Songs.Where(row => row.Resolution < 1000).Select(row => row.FId)).ToList();",
+    "result": "context.Files.Where(row => row.Formats == \"mp4\").Select(row => row.FId).Intersect(context.Songs.Where(row => row.Resolution < 1000).Where(row => row.FId.HasValue).Select(row => row.FId.Value)).ToList();",
     "db_name": "music_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Intersect' and the best extension method overload 'ParallelEnumerable.Intersect<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.69"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT T1.country FROM artist AS T1 JOIN song AS T2 ON T1.artist_name = T2.artist_name WHERE T1.gender = \"Female\" AND T2.languages = \"bangla\"",
@@ -21911,10 +21911,10 @@
   },
   {
     "query": "SELECT f_id FROM files WHERE formats = \"mp4\" UNION SELECT f_id FROM song WHERE resolution > 720",
-    "result": "context.Files.Where(row => row.Formats == \"mp4\").Select(row => row.FId).Union(context.Songs.Where(row => row.Resolution > 720).Select(row => row.FId)).ToList();",
+    "result": "context.Files.Where(row => row.Formats == \"mp4\").Select(row => row.FId).Union(context.Songs.Where(row => row.Resolution > 720).Where(row => row.FId.HasValue).Select(row => row.FId.Value)).ToList();",
     "db_name": "music_1",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<int>' does not contain a definition for 'Union' and the best extension method overload 'ParallelEnumerable.Union<int?>(ParallelQuery<int?>, IEnumerable<int?>)' requires a receiver of type 'System.Linq.ParallelQuery<int?>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.62"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT T2.song_name FROM files AS T1 JOIN song AS T2 ON T1.f_id = T2.f_id WHERE T1.duration LIKE \"4:%\" UNION SELECT song_name FROM song WHERE languages = \"english\"",
@@ -22667,14 +22667,14 @@
   },
   {
     "query": "SELECT employee_id , first_name , last_name FROM employees WHERE department_id IN ( SELECT department_id FROM employees WHERE first_name LIKE '%T%' )",
-    "result": "context.Employees.Where(row => context.Employees.Where(row => EF.Functions.Like(row.FirstName, \"%T%\")).Select(row => row.DepartmentId).Contains(row.DepartmentId)).Select(row => new { row.EmployeeId, row.FirstName, row.LastName }).ToList();",
+    "result": "context.Employees.Where(row => row.DepartmentId.HasValue && context.Employees.Where(row => EF.Functions.Like(row.FirstName, \"%T%\")).Select(row => row.DepartmentId).Contains(row.DepartmentId.Value)).Select(row => new { row.EmployeeId, row.FirstName, row.LastName }).ToList();",
     "db_name": "hr_1",
     "status": "Passed",
     "error": null
   },
   {
     "query": "SELECT employee_id , first_name , last_name , salary FROM employees WHERE salary > ( SELECT AVG (salary) FROM employees ) AND department_id IN ( SELECT department_id FROM employees WHERE first_name LIKE '%J%')",
-    "result": "context.Employees.Where(row => row.Salary > context.Employees.Select(row => row.Salary).Average() && context.Employees.Where(row => EF.Functions.Like(row.FirstName, \"%J%\")).Select(row => row.DepartmentId).Contains(row.DepartmentId)).Select(row => new { row.EmployeeId, row.FirstName, row.LastName, row.Salary }).ToList();",
+    "result": "context.Employees.Where(row => row.Salary > context.Employees.Select(row => row.Salary).Average() && row.DepartmentId.HasValue && context.Employees.Where(row => EF.Functions.Like(row.FirstName, \"%J%\")).Select(row => row.DepartmentId).Contains(row.DepartmentId.Value)).Select(row => new { row.EmployeeId, row.FirstName, row.LastName, row.Salary }).ToList();",
     "db_name": "hr_1",
     "status": "Passed",
     "error": null
@@ -24564,14 +24564,14 @@
   },
   {
     "query": "SELECT mID , avg(stars) FROM Rating WHERE mID NOT IN (SELECT T1.mID FROM Rating AS T1 JOIN Reviewer AS T2 ON T1.rID = T2.rID WHERE T2.name = \"Brittany Harris\") GROUP BY mID",
-    "result": "context.Ratings.Where(row => !context.Ratings.Join(context.Reviewers, T1 => T1.RId, T2 => T2.RId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Brittany Harris\").Select(row => row.T1.MId).Contains(row.MId)).GroupBy(row => new { row.MId }).Select(group => new { group.Key.MId, AverageStars = group.Select(row => row.Stars).Average() }).ToList();",
+    "result": "context.Ratings.Where(row => row.MId.HasValue && !context.Ratings.Join(context.Reviewers, T1 => T1.RId, T2 => T2.RId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Brittany Harris\").Select(row => row.T1.MId).Contains(row.MId.Value)).GroupBy(row => new { row.MId }).Select(group => new { group.Key.MId, AverageStars = group.Select(row => row.Stars).Average() }).ToList();",
     "db_name": "movie_1",
     "status": "Passed",
     "error": null
   },
   {
     "query": "SELECT mID FROM Rating EXCEPT SELECT T1.mID FROM Rating AS T1 JOIN Reviewer AS T2 ON T1.rID = T2.rID WHERE T2.name = \"Brittany Harris\"",
-    "result": "context.Ratings.Select(row => row.MId).Except(context.Ratings.Join(context.Reviewers, T1 => T1.RId, T2 => T2.RId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Brittany Harris\").Select(row => row.T1.MId)).ToList();",
+    "result": "context.Ratings.Where(row => row.MId.HasValue).Select(row => row.MId.Value).Except(context.Ratings.Join(context.Reviewers, T1 => T1.RId, T2 => T2.RId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Brittany Harris\").Where(row => row.T1.MId.HasValue).Select(row => row.T1.MId.Value)).ToList();",
     "db_name": "movie_1",
     "status": "Passed",
     "error": null
@@ -24585,7 +24585,7 @@
   },
   {
     "query": "SELECT rID FROM Rating EXCEPT SELECT rID FROM Rating WHERE stars = 4",
-    "result": "context.Ratings.Select(row => row.RId).Except(context.Ratings.Where(row => row.Stars == 4).Select(row => row.RId)).ToList();",
+    "result": "context.Ratings.Where(row => row.RId.HasValue).Select(row => row.RId.Value).Except(context.Ratings.Where(row => row.Stars == 4).Where(row => row.RId.HasValue).Select(row => row.RId.Value)).ToList();",
     "db_name": "movie_1",
     "status": "Passed",
     "error": null
@@ -25099,7 +25099,7 @@
     "result": "context.Lessons.Join(context.Customers, T1 => T1.CustomerId, T2 => T2.CustomerId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.FirstName == \"Rylan\" && row.T2.LastName == \"Goodwin\").Select(row => row.T1.LessonTime).Sum();",
     "db_name": "driving_school",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.36"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.18"
   },
   {
     "query": "SELECT T1.zip_postcode FROM Addresses AS T1 JOIN Staff AS T2 ON T1.address_id = T2.staff_address_id WHERE T2.first_name = \"Janessa\" AND T2.last_name = \"Sawayn\";",
@@ -25302,7 +25302,7 @@
     "result": "context.Lessons.Join(context.Staff, T1 => T1.StaffId, T2 => T2.StaffId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.FirstName == \"Janessa\" && row.T2.LastName == \"Sawayn\").Select(row => row.T1.LessonTime).Sum();",
     "db_name": "driving_school",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.35"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.30"
   },
   {
     "query": "SELECT avg(price) FROM Lessons AS T1 JOIN Staff AS T2 ON T1.staff_id = T2.staff_id WHERE T2.first_name = \"Janessa\" AND T2.last_name = \"Sawayn\";",

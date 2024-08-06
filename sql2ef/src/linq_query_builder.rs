@@ -535,7 +535,10 @@ impl LinqQueryBuilder {
                     ""
                 };
 
-                let suffix = if mapped_column.is_optional && should_check_for_value_if_optional {
+                let suffix = if mapped_column.is_optional
+                    && mapped_column.field_type.is_numeric()
+                    && should_check_for_value_if_optional
+                {
                     ".Value"
                 } else {
                     ""
@@ -553,30 +556,65 @@ impl LinqQueryBuilder {
 
                             select_fields.push(format!("{}{}", field_name, suffix));
                         } else {
-                            select_fields.push(format!(
-                                "{}.First().{}{}",
-                                selector, mapped_column.name, suffix
-                            ));
+                            let field_name = format!("{}.First().{}", selector, mapped_column.name);
+
+                            if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name)
+                            {
+                                fields_to_test_for_value.push(field_name.clone());
+                            }
+
+                            select_fields.push(format!("{}{}", field_name, suffix));
                         }
                     } else {
-                        select_fields
-                            .push(format!("{}.{}{}", selector, mapped_column.name, stringify));
+                        let field_name = format!("{}.{}", selector, mapped_column.name);
+
+                        if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name) {
+                            fields_to_test_for_value.push(field_name.clone());
+                        }
+
+                        if suffix.is_empty() {
+                            select_fields.push(format!("{}{}", field_name, stringify));
+                        } else {
+                            select_fields.push(format!("{}{}", field_name, suffix));
+                        }
                     }
                 } else {
                     if has_group_by {
                         if group_by_fields.contains(&mapped_column.name) {
-                            select_fields.push(format!("{}.Key.{}", selector, mapped_column.name));
+                            let field_name = format!("{}.Key.{}", selector, mapped_column.name);
+
+                            if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name)
+                            {
+                                fields_to_test_for_value.push(field_name.clone());
+                            }
+
+                            select_fields.push(format!("{}{}", field_name, suffix));
                         } else {
-                            select_fields.push(format!(
+                            let field_name = format!(
                                 "{}.First().{}.{}",
                                 selector, table.mapped_alias, mapped_column.name
-                            ));
+                            );
+
+                            if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name)
+                            {
+                                fields_to_test_for_value.push(field_name.clone());
+                            }
+
+                            select_fields.push(format!("{}{}", field_name, suffix));
                         }
                     } else {
-                        select_fields.push(format!(
-                            "{}.{}.{}",
-                            selector, table.mapped_alias, mapped_column.name
-                        ));
+                        let field_name =
+                            format!("{}.{}.{}", selector, table.mapped_alias, mapped_column.name);
+
+                        if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name) {
+                            fields_to_test_for_value.push(field_name.clone());
+                        }
+
+                        if suffix.is_empty() {
+                            select_fields.push(format!("{}{}", field_name, stringify));
+                        } else {
+                            select_fields.push(format!("{}{}", field_name, suffix));
+                        }
                     }
                 }
             } else if let Expr::CompoundIdentifier(identifier) = expr {
@@ -585,12 +623,12 @@ impl LinqQueryBuilder {
 
                 let table = alias_to_table_map.get(&table_alias).unwrap();
 
-                let mapped_column_name = self
+                let mapped_column = self
                     .schema_mapping
-                    .get_column_name(&table.name, &column_name)
+                    .get_column(&table.name, &column_name)
                     .unwrap();
 
-                let is_duplicated = fields_with_same_name.contains(mapped_column_name);
+                let is_duplicated = fields_with_same_name.contains(&mapped_column.name);
 
                 /*
                    There's an amazing case. If you aggregate data by min/max, SQL will automatically sort the fields by that field too.
@@ -600,9 +638,18 @@ impl LinqQueryBuilder {
                    I think it'd be a good idea to have a double select
                 */
 
+                let suffix = if mapped_column.is_optional
+                    && mapped_column.field_type.is_numeric()
+                    && should_check_for_value_if_optional
+                {
+                    ".Value"
+                } else {
+                    ""
+                };
+
                 if has_group_by {
-                    if group_by_fields.contains(&mapped_column_name) {
-                        select_fields.push(format!("{}.Key.{}", selector, mapped_column_name));
+                    if group_by_fields.contains(&mapped_column.name) {
+                        select_fields.push(format!("{}.Key.{}", selector, mapped_column.name));
                     } else {
                         if let Some(last_aggregate_function) = last_aggregate_function {
                             let aggregation_type = last_aggregate_function.name.to_string();
@@ -683,28 +730,32 @@ impl LinqQueryBuilder {
                                 order_by_table.mapped_alias,
                                 order_by_mapped_column_name,
                                 table.mapped_alias,
-                                mapped_column_name
+                                mapped_column.name
                             ));
                         } else {
                             select_fields.push(format!(
                                 "{}.First().{}.{}",
-                                selector, table.mapped_alias, mapped_column_name
+                                selector, table.mapped_alias, mapped_column.name
                             ));
                         }
                     }
                 } else {
                     if is_duplicated {
-                        let field_name = format!("{}{}", table.mapped_alias, mapped_column_name);
+                        let field_name = format!("{}{}", table.mapped_alias, mapped_column.name);
 
                         select_fields.push(format!(
                             "{} = {}.{}.{}",
-                            field_name, selector, table.mapped_alias, mapped_column_name
+                            field_name, selector, table.mapped_alias, mapped_column.name
                         ));
                     } else {
-                        select_fields.push(format!(
-                            "{}.{}.{}",
-                            selector, table.mapped_alias, mapped_column_name
-                        ));
+                        let field_name =
+                            format!("{}.{}.{}", selector, table.mapped_alias, mapped_column.name);
+
+                        if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name) {
+                            fields_to_test_for_value.push(field_name.clone());
+                        }
+
+                        select_fields.push(format!("{}{}", field_name, suffix));
                     }
                 }
             } else if let Expr::Function(function) = expr {
@@ -1181,9 +1232,9 @@ impl LinqQueryBuilder {
                 }
 
                 let table = alias_to_table_map.get(&table_alias).unwrap();
-                let mapped_column_name = self
+                let mapped_column = self
                     .schema_mapping
-                    .get_column_name(&table.name, &column_name)
+                    .get_column(&table.name, &column_name)
                     .unwrap();
 
                 let operator = if *negated { "!" } else { "" };
@@ -1194,13 +1245,29 @@ impl LinqQueryBuilder {
                     format!("{}.", table_alias)
                 };
 
+                let should_have_value =
+                    mapped_column.is_optional && mapped_column.field_type.is_numeric();
+
+                let suffix = if should_have_value { ".Value" } else { "" };
+
+                let where_prefix = if should_have_value {
+                    format!(
+                        "{}.{}{}.HasValue && ",
+                        self.row_selector, table_alias_string, mapped_column.name
+                    )
+                } else {
+                    "".to_string()
+                };
+
                 return format!(
-                    "{}{}.Contains({}.{}{})",
+                    "{}{}{}.Contains({}.{}{}{})",
+                    where_prefix,
                     operator,
                     built_subquery,
                     self.row_selector,
                     table_alias_string,
-                    mapped_column_name,
+                    mapped_column.name,
+                    suffix
                 );
             }
             Expr::Between {
@@ -2501,6 +2568,7 @@ impl LinqQueryBuilder {
             let left_select: HashMap<String, String>;
             let right_select: HashMap<String, String>;
 
+            // TODO: If both left and right have optional fields, then you can simply not put .Value on both
             if let SetExpr::Select(select) = &**left {
                 left_select = self.build_select(select, false, true, true).linq_query;
             } else {

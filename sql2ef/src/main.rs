@@ -227,13 +227,23 @@ fn run_queries_sequentially() {
 
                 if test.status != TestStatus::Passed {
                     println!("Query already exists in the tests file, but it's not passed.");
-                    execute_query_and_update_tests_file(
-                        &context_name,
-                        &db_name,
-                        &query,
-                        &result,
-                        &mut test_manager,
-                    );
+
+                    if let Some(error) = &test.error {
+                        if !error.contains("CS1929: 'IQueryable") {
+                            continue;
+                        }
+
+                        println!("This is the thing I fixed");
+
+                        execute_query_and_update_tests_file(
+                            &context_name,
+                            &db_name,
+                            &query,
+                            &result,
+                            &mut test_manager,
+                        );
+                    }
+
                     continue;
                 }
 
@@ -245,6 +255,7 @@ fn run_queries_sequentially() {
                     &result,
                     &mut test_manager,
                 );
+                continue;
             }
 
             execute_query_and_update_tests_file(
@@ -314,8 +325,8 @@ fn main() {
     // run_queries_bulk();
 
     // debug_query(
-    //     "bike_1",
-    //     r#"SELECT id FROM station WHERE city = "San Francisco" INTERSECT SELECT station_id FROM status GROUP BY station_id HAVING avg(bikes_available) > 10"#,
+    //     "browser_web",
+    //     r#"SELECT T1.name FROM browser AS T1 JOIN accelerator_compatible_browser AS T2 ON T1.id = T2.browser_id JOIN web_client_accelerator AS T3 ON T2.accelerator_id = T3.id WHERE T3.name = 'CProxy' AND T2.compatible_since_year > 1998"#,
     //     true,
     // );
 }

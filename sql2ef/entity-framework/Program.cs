@@ -1,12 +1,12 @@
-using entity_framework.Models.bike_1; 
+using entity_framework.Models.mountain_photos; 
 using Microsoft.EntityFrameworkCore;
 
 class Program {
 public static void Main() {
-var context = new Bike1Context();
+var context = new MountainPhotosContext();
 
-var sql = "SELECT id FROM station WHERE city = \"San Francisco\" INTERSECT SELECT station_id FROM status GROUP BY station_id HAVING avg(bikes_available) > 10";
-var linq = context.Stations.Where(row => row.City == "San Francisco").Select(row => row.Id).Intersect(context.Statuses.GroupBy(row => new { row.StationId }).Where(group => group.Average(row => row.BikesAvailable) > 10).Where(group => group.Key.StationId.HasValue).Select(group => group.Key.StationId.Value)).ToList();
+var sql = "SELECT name , prominence FROM mountain EXCEPT SELECT T1.name , T1.prominence FROM mountain AS T1 JOIN photos AS T2 ON T1.id = T2.mountain_id JOIN camera_lens AS T3 ON T2.camera_lens_id = T3.id WHERE T3.brand = \'Sigma\'";
+var linq = context.Mountains.Where(row => row.Prominence.HasValue).Select(row => new { row.Name, row.Prominence.Value }).Except(context.Mountains.Join(context.Photos, T1 => T1.Id, T2 => T2.MountainId, (T1, T2) => new { T1, T2 }).Join(context.CameraLens, joined => joined.T2.CameraLensId, T3 => T3.Id, (joined, T3) => new { joined.T1, joined.T2, T3 }).Where(row => row.T3.Brand == "Sigma").Where(row => row.T1.Prominence.HasValue).Select(row => new { row.T1.Name, row.T1.Prominence.Value })).ToList();
 
 Tester.Test(linq, sql, context);
 }
