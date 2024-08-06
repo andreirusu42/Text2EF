@@ -74,6 +74,7 @@ fn execute_query_and_update_tests_file(
                         result: result.to_string(),
                         error: None,
                         status: TestStatus::Passed,
+                        should_retest: false,
                     };
 
                     test_manager.write_test_or_update(test).unwrap();
@@ -88,6 +89,7 @@ fn execute_query_and_update_tests_file(
                         result: result.to_string(),
                         error: Some(format!("{:?}", exception_details)),
                         status: TestStatus::CodeFailed,
+                        should_retest: false,
                     };
 
                     test_manager.write_test_or_update(test).unwrap();
@@ -103,6 +105,7 @@ fn execute_query_and_update_tests_file(
                 result: result.to_string(),
                 error: Some(error_message),
                 status: TestStatus::BuildFailed,
+                should_retest: false,
             };
             test_manager.write_test_or_update(test).unwrap();
         }
@@ -226,14 +229,8 @@ fn run_queries_sequentially() {
                 }
 
                 if test.status != TestStatus::Passed {
-                    println!("Query already exists in the tests file, but it's not passed.");
-
-                    if let Some(error) = &test.error {
-                        if !error.contains("CS1929: 'IQueryable") {
-                            continue;
-                        }
-
-                        println!("This is the thing I fixed");
+                    if true || test.should_retest {
+                        println!("Query already exists in the tests file, but it's not passed. Retesting...");
 
                         execute_query_and_update_tests_file(
                             &context_name,
@@ -242,20 +239,30 @@ fn run_queries_sequentially() {
                             &result,
                             &mut test_manager,
                         );
-                    }
 
-                    continue;
+                        continue;
+                    } else {
+                        println!("Query already exists in the tests file, but it's not passed and should not be retested.");
+                        continue;
+                    }
                 }
 
-                println!("Query already exists in the tests file, but the result is different.");
-                execute_query_and_update_tests_file(
-                    &context_name,
-                    &db_name,
-                    &query,
-                    &result,
-                    &mut test_manager,
-                );
-                continue;
+                if true || test.should_retest {
+                    println!(
+                        "Query already exists in the tests file, but the result is different."
+                    );
+                    execute_query_and_update_tests_file(
+                        &context_name,
+                        &db_name,
+                        &query,
+                        &result,
+                        &mut test_manager,
+                    );
+                    continue;
+                } else {
+                    println!("Query already exists in the tests file, but the result is different and should not be retested.");
+                    continue;
+                }
             }
 
             execute_query_and_update_tests_file(
@@ -325,8 +332,8 @@ fn main() {
     // run_queries_bulk();
 
     // debug_query(
-    //     "driving_school",
-    //     r#"SELECT sum(lesson_time) FROM Lessons AS T1 JOIN Staff AS T2 ON T1.staff_id = T2.staff_id WHERE T2.first_name = "Janessa" AND T2.last_name = "Sawayn";"#,
-    //     false,
+    //     "college_2",
+    //     r#"SELECT avg(T1.salary) , count(*) FROM instructor AS T1 JOIN department AS T2 ON T1.dept_name = T2.dept_name ORDER BY T2.budget DESC LIMIT 1"#,
+    //     true,
     // );
 }

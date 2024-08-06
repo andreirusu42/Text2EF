@@ -43,6 +43,11 @@ pub struct ProjectionResult {
 }
 
 #[derive(Debug)]
+pub struct OrderByResult {
+    pub result: String,
+    pub has_used_aggregated_field: bool,
+}
+#[derive(Debug)]
 pub struct ProjectionSingleFunctionResult {
     pub result: String,
     pub field_type: String,
@@ -508,6 +513,8 @@ impl LinqQueryBuilder {
             }
         }
 
+        let mut count_for_each_selected_field: HashMap<String, i32> = HashMap::new();
+
         for expr in &expressions {
             if let Expr::Identifier(identifier) = expr {
                 let column_name = identifier.to_string();
@@ -542,9 +549,17 @@ impl LinqQueryBuilder {
                     ""
                 };
 
+                let prefix = if should_use_new && suffix.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("{} = ", mapped_column.name)
+                };
+
+                let group_by_field_name = format!("{}.{}", table.mapped_alias, mapped_column.name);
+
                 if table_alias.is_empty() {
                     if has_group_by {
-                        if group_by_fields.contains(&mapped_column.name) {
+                        if group_by_fields.contains(&group_by_field_name) {
                             let field_name = format!("{}.Key.{}", selector, mapped_column.name);
 
                             if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name)
@@ -573,12 +588,12 @@ impl LinqQueryBuilder {
                         if suffix.is_empty() {
                             select_fields.push(format!("{}{}", field_name, stringify));
                         } else {
-                            select_fields.push(format!("{}{}", field_name, suffix));
+                            select_fields.push(format!("{}{}{}", prefix, field_name, suffix));
                         }
                     }
                 } else {
                     if has_group_by {
-                        if group_by_fields.contains(&mapped_column.name) {
+                        if group_by_fields.contains(&group_by_field_name) {
                             let field_name = format!("{}.Key.{}", selector, mapped_column.name);
 
                             if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name)
@@ -598,7 +613,7 @@ impl LinqQueryBuilder {
                                 fields_to_test_for_value.push(field_name.clone());
                             }
 
-                            select_fields.push(format!("{}{}", field_name, suffix));
+                            select_fields.push(format!("{}{}{}", prefix, field_name, suffix));
                         }
                     } else {
                         let field_name =
@@ -645,9 +660,32 @@ impl LinqQueryBuilder {
                     ""
                 };
 
+                let field_name = format!("{}{}", table.mapped_alias, mapped_column.name);
+
+                let prefix = if suffix.is_empty() && !is_duplicated {
+                    "".to_string()
+                } else {
+                    let variable_suffix =
+                        if let Some(count) = count_for_each_selected_field.get_mut(&field_name) {
+                            *count += 1;
+                            format!("{}", *count)
+                        } else {
+                            count_for_each_selected_field.insert(field_name.clone(), 1);
+                            "".to_string()
+                        };
+
+                    format!(
+                        "{}{}{} = ",
+                        table.mapped_alias, mapped_column.name, variable_suffix
+                    )
+                };
+
+                let group_by_field_name = format!("{}.{}", table.mapped_alias, mapped_column.name);
+
                 if has_group_by {
-                    if group_by_fields.contains(&mapped_column.name) {
-                        select_fields.push(format!("{}.Key.{}", selector, mapped_column.name));
+                    if group_by_fields.contains(&group_by_field_name) {
+                        select_fields
+                            .push(format!("{}{}.Key.{}", prefix, selector, mapped_column.name));
                     } else {
                         if let Some(last_aggregate_function) = last_aggregate_function {
                             let aggregation_type = last_aggregate_function.name.to_string();
@@ -720,7 +758,8 @@ impl LinqQueryBuilder {
                                 alias_to_table_map.get(&order_by_table_alias).unwrap();
 
                             select_fields.push(format!(
-                                "{}.{}({} => {}.{}.{}).First().{}.{}",
+                                "{}{}.{}({} => {}.{}.{}).First().{}.{}",
+                                prefix,
                                 selector,
                                 order_by_type,
                                 self.row_selector,
@@ -738,23 +777,14 @@ impl LinqQueryBuilder {
                         }
                     }
                 } else {
-                    if is_duplicated {
-                        let field_name = format!("{}{}", table.mapped_alias, mapped_column.name);
+                    let field_name =
+                        format!("{}.{}.{}", selector, table.mapped_alias, mapped_column.name);
 
-                        select_fields.push(format!(
-                            "{} = {}.{}.{}",
-                            field_name, selector, table.mapped_alias, mapped_column.name
-                        ));
-                    } else {
-                        let field_name =
-                            format!("{}.{}.{}", selector, table.mapped_alias, mapped_column.name);
-
-                        if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name) {
-                            fields_to_test_for_value.push(field_name.clone());
-                        }
-
-                        select_fields.push(format!("{}{}", field_name, suffix));
+                    if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name) {
+                        fields_to_test_for_value.push(field_name.clone());
                     }
+
+                    select_fields.push(format!("{}{}{}", prefix, field_name, suffix));
                 }
             } else if let Expr::Function(function) = expr {
                 let function_name = function.name.to_string().to_lowercase();
@@ -1001,7 +1031,8 @@ impl LinqQueryBuilder {
                         ));
                     }
 
-                    raw_group_by_fields.push(mapped_column_name.to_string());
+                    raw_group_by_fields
+                        .push(format!("{}.{}", table.mapped_alias, mapped_column_name));
                 } else if let Expr::CompoundIdentifier(identifiers) = expr {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
@@ -1017,7 +1048,8 @@ impl LinqQueryBuilder {
                         "{}.{}.{}",
                         self.row_selector, table.mapped_alias, mapped_column_name
                     ));
-                    raw_group_by_fields.push(mapped_column_name.to_string());
+                    raw_group_by_fields
+                        .push(format!("{}.{}", table.mapped_alias, mapped_column_name));
                 } else {
                     panic!("Unknown expression type");
                 }
@@ -1998,16 +2030,20 @@ impl LinqQueryBuilder {
         let mut keywords: HashMap<String, String> = HashMap::new();
 
         if query.order_by.len() > 0 {
+            let order_by_result = self.build_order_by(
+                query,
+                selector,
+                alias_to_table_map,
+                group_by_fields,
+                calculated_fields,
+                aggregated_fields,
+            );
+
+            keywords.insert("order_by".to_string(), order_by_result.result);
+
             keywords.insert(
-                "order_by".to_string(),
-                self.build_order_by(
-                    query,
-                    selector,
-                    alias_to_table_map,
-                    group_by_fields,
-                    calculated_fields,
-                    aggregated_fields,
-                ),
+                "order_by_has_used_aggregated_field".to_string(),
+                order_by_result.has_used_aggregated_field.to_string(),
             );
         }
 
@@ -2043,9 +2079,10 @@ impl LinqQueryBuilder {
         group_by_fields: &Vec<String>,
         calculated_fields: &HashMap<String, String>,
         aggregated_fields: &HashMap<String, String>,
-    ) -> String {
+    ) -> OrderByResult {
         let mut linq_query = String::new();
         let mut has_ordered_one_so_far = false;
+        let mut has_used_aggregated_field = false;
 
         for order_by in &query.order_by {
             let is_ordering_asc = if let Some(is_ordering_asc) = order_by.asc {
@@ -2111,6 +2148,7 @@ impl LinqQueryBuilder {
                     let aggregated_field = aggregated_fields.get(&aggregated_field_expr);
 
                     if let Some(aggregated_field) = aggregated_field {
+                        has_used_aggregated_field = true;
                         linq_query.push_str(&format!(
                             "{} => {}.{}",
                             selector, selector, aggregated_field
@@ -2160,6 +2198,7 @@ impl LinqQueryBuilder {
                     let aggregated_field = aggregated_fields.get(&aggregated_field_expr);
 
                     if let Some(aggregated_field) = aggregated_field {
+                        has_used_aggregated_field = true;
                         linq_query.push_str(&format!(
                             "{} => {}.{}",
                             selector, selector, aggregated_field
@@ -2308,7 +2347,10 @@ impl LinqQueryBuilder {
             linq_query.push_str(")");
         }
 
-        return linq_query;
+        return OrderByResult {
+            result: linq_query,
+            has_used_aggregated_field,
+        };
     }
 
     fn build_select(
@@ -2664,8 +2706,14 @@ impl LinqQueryBuilder {
             &aggregated_fields,
         );
 
+        let order_by_has_used_aggregated_field = keywords_result
+            .get("order_by_has_used_aggregated_field")
+            .unwrap_or(&"false".to_string())
+            .parse::<bool>()
+            .unwrap();
+
         let should_have_order_by_after_select =
-            calculated_fields.len() > 0 || aggregated_fields.len() > 0;
+            calculated_fields.len() > 0 || order_by_has_used_aggregated_field;
         let should_have_having_after_select =
             linq_query.contains_key("having_where_is_using_aggregated_fields");
 

@@ -19,6 +19,7 @@ pub struct Test {
     pub db_name: String,
     pub status: TestStatus,
     pub error: Option<String>,
+    pub should_retest: bool,
 }
 
 pub struct TestManager {
