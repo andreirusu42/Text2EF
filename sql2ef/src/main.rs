@@ -216,7 +216,6 @@ fn run_queries_sequentially() {
                 res
             } else {
                 println!("Failed to build query for {}", query);
-                panic!("Why?");
                 continue;
             };
 
@@ -228,6 +227,13 @@ fn run_queries_sequentially() {
 
                 if test.status != TestStatus::Passed {
                     println!("Query already exists in the tests file, but it's not passed.");
+                    execute_query_and_update_tests_file(
+                        &context_name,
+                        &db_name,
+                        &query,
+                        &result,
+                        &mut test_manager,
+                    );
                     continue;
                 }
 
@@ -307,5 +313,9 @@ fn main() {
     run_queries_sequentially();
     // run_queries_bulk();
 
-    // debug_query("hr_1", r#"SELECT count(*) FROM scientists"#, false);
+    // debug_query(
+    //     "bike_1",
+    //     r#"SELECT id FROM station WHERE city = "San Francisco" INTERSECT SELECT station_id FROM status GROUP BY station_id HAVING avg(bikes_available) > 10"#,
+    //     true,
+    // );
 }

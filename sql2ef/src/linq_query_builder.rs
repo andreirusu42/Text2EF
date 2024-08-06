@@ -37,6 +37,7 @@ pub struct JoinOn {
 pub struct ProjectionResult {
     pub select_result: String,
     pub group_by_result: String,
+    pub additional_where_result: String,
     pub calculated_fields: HashMap<String, String>,
     pub aggregated_fields: HashMap<String, String>,
 }
@@ -315,9 +316,15 @@ impl LinqQueryBuilder {
                     "".to_string()
                 };
 
+                let alias_prefix = if table.mapped_alias.is_empty() {
+                    "".to_string()
+                } else {
+                    format!("{}.", table.mapped_alias)
+                };
+
                 select_fields.push(format!(
-                    "{}{}.{}.{}",
-                    prefix, self.row_selector, table.mapped_alias, column.name
+                    "{}{}{}.{}",
+                    prefix, self.row_selector, alias_prefix, column.name
                 ));
             }
         }
@@ -337,11 +344,13 @@ impl LinqQueryBuilder {
         group_by_fields: &Vec<String>,
         use_new_object_for_select_when_single_field: bool,
         should_stringify_single_select: bool,
+        should_check_for_value_if_optional: bool,
     ) -> ProjectionResult {
         let mut select_result = String::new();
         let mut group_by_result = String::new();
         let mut calculated_fields: HashMap<String, String> = HashMap::new();
         let mut aggregated_fields: HashMap<String, String> = HashMap::new();
+        let mut fields_to_test_for_value: Vec<String> = Vec::new();
 
         let mut selector = if has_group_by {
             &self.group_selector
@@ -526,13 +535,28 @@ impl LinqQueryBuilder {
                     ""
                 };
 
+                let suffix = if mapped_column.is_optional && should_check_for_value_if_optional {
+                    ".Value"
+                } else {
+                    ""
+                };
+
                 if table_alias.is_empty() {
                     if has_group_by {
                         if group_by_fields.contains(&mapped_column.name) {
-                            select_fields.push(format!("{}.Key.{}", selector, mapped_column.name));
+                            let field_name = format!("{}.Key.{}", selector, mapped_column.name);
+
+                            if !suffix.is_empty() && !fields_to_test_for_value.contains(&field_name)
+                            {
+                                fields_to_test_for_value.push(field_name.clone());
+                            }
+
+                            select_fields.push(format!("{}{}", field_name, suffix));
                         } else {
-                            select_fields
-                                .push(format!("{}.First().{}", selector, mapped_column.name));
+                            select_fields.push(format!(
+                                "{}.First().{}{}",
+                                selector, mapped_column.name, suffix
+                            ));
                         }
                     } else {
                         select_fields
@@ -856,8 +880,24 @@ impl LinqQueryBuilder {
             select_result.push_str(")");
         }
 
+        let mut additional_where_result = String::new();
+
+        if fields_to_test_for_value.len() > 0 {
+            let fields_to_test_for_value: Vec<String> = fields_to_test_for_value
+                .iter()
+                .map(|x| format!("{}.HasValue", x))
+                .collect();
+
+            additional_where_result.push_str(&format!(
+                ".Where({} => {})",
+                selector,
+                fields_to_test_for_value.join(" && ")
+            ));
+        }
+
         return ProjectionResult {
             select_result,
+            additional_where_result,
             group_by_result,
             calculated_fields,
             aggregated_fields,
@@ -1222,6 +1262,28 @@ impl LinqQueryBuilder {
         };
 
         match &**expr {
+            Expr::BinaryOp { left, op, right } => {
+                let left_condition = self.build_where_expr(
+                    left,
+                    alias_to_table_map,
+                    is_having,
+                    root_expr,
+                    aggregated_fields,
+                );
+                let right_condition = self.build_where_expr(
+                    right,
+                    alias_to_table_map,
+                    is_having,
+                    root_expr,
+                    aggregated_fields,
+                );
+                let operator = match op {
+                    BinaryOperator::Minus => " - ",
+                    _ => panic!("Unknown comparison operator"),
+                };
+
+                return format!("{}{}{}", left_condition, operator, right_condition);
+            }
             Expr::CompoundIdentifier(ident) => {
                 let alias = ident[0].to_string();
                 let field = ident[1].to_string();
@@ -2189,6 +2251,7 @@ impl LinqQueryBuilder {
         select: &Box<Select>,
         use_new_object_for_select: bool,
         should_stringify_single_select: bool,
+        should_check_for_value_if_optional: bool,
     ) -> SelectResult {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
@@ -2324,10 +2387,16 @@ impl LinqQueryBuilder {
                     &group_by_fields,
                     use_new_object_for_select,
                     should_stringify_single_select,
+                    should_check_for_value_if_optional,
                 );
 
                 calculated_fields = projection_result.calculated_fields;
                 aggregated_fields = projection_result.aggregated_fields;
+
+                if !projection_result.additional_where_result.is_empty() {
+                    current_linq_query.push_str(&projection_result.additional_where_result);
+                }
+
                 current_linq_query.push_str(&projection_result.select_result);
 
                 if !has_group_by {
@@ -2433,13 +2502,13 @@ impl LinqQueryBuilder {
             let right_select: HashMap<String, String>;
 
             if let SetExpr::Select(select) = &**left {
-                left_select = self.build_select(select, false, true).linq_query;
+                left_select = self.build_select(select, false, true, true).linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
 
             if let SetExpr::Select(select) = &**right {
-                right_select = self.build_select(select, false, true).linq_query;
+                right_select = self.build_select(select, false, true, true).linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
@@ -2508,6 +2577,7 @@ impl LinqQueryBuilder {
             select,
             should_use_new_object_for_select,
             should_stringify_single_select,
+            false,
         );
 
         let SelectResult {

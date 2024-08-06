@@ -5604,21 +5604,21 @@
     "result": "context.Trains.Join(context.Route, t1 => t1.Id, t2 => t2.TrainId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.TrainId }).OrderByDescending(group => group.Count()).Select(group => new { group.First().t1.Name }).Take(1).ToList();",
     "db_name": "station_weather",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,40): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.45"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,40): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.43"
   },
   {
     "query": "SELECT count(*) , t1.network_name , t1.services FROM station AS t1 JOIN route AS t2 ON t1.id = t2.station_id GROUP BY t2.station_id",
     "result": "context.Stations.Join(context.Route, t1 => t1.Id, t2 => t2.StationId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.StationId }).Select(group => new { Count = group.Count(), group.First().t1.NetworkName, group.First().t1.Services }).ToList();",
     "db_name": "station_weather",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.26"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.42"
   },
   {
     "query": "SELECT t3.name , t3.time FROM station AS t1 JOIN route AS t2 ON t1.id = t2.station_id JOIN train AS t3 ON t2.train_id = t3.id WHERE t1.local_authority = \"Chiltern\"",
     "result": "context.Stations.Join(context.Route, t1 => t1.Id, t2 => t2.StationId, (t1, t2) => new { t1, t2 }).Join(context.Trains, joined => joined.t2.TrainId, t3 => t3.Id, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.LocalAuthority == \"Chiltern\").Select(row => new { row.t3.Name, row.t3.Time }).ToList();",
     "db_name": "station_weather",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.24"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,42): error CS1061: 'StationWeatherContext' does not contain a definition for 'Route' and no accessible extension method 'Route' accepting a first argument of type 'StationWeatherContext' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.50"
   },
   {
     "query": "SELECT * FROM products AS T1 JOIN Manufacturers AS T2 ON T1.manufacturer = T2.code",
@@ -25800,5 +25800,19 @@
     "db_name": "insurance_fnol",
     "status": "CodeFailed",
     "error": "ExceptionDetails { sql_results: \"[{0: 2017-01-09, 1: 2018-03-08}, {0: 2016-06-24, 1: 2018-02-22}]\", linq_results: \"[{0: 09.01.2017, 1: 08.03.2018}, {0: 24.06.2016, 1: 22.02.2018}]\" }"
+  },
+  {
+    "query": "SELECT job_id FROM job_history WHERE end_date - start_date > 300 GROUP BY job_id HAVING COUNT(*) >= 2",
+    "result": "context.JobHistories.Where(row => row.EndDate - row.StartDate > 300).GroupBy(row => new { row.JobId }).Where(group => group.Count() >= 2).Select(group => new { group.Key.JobId }).ToList();",
+    "db_name": "hr_1",
+    "status": "BuildFailed",
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,46): error CS0019: Operator '-' cannot be applied to operands of type 'DateOnly' and 'DateOnly' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.33"
+  },
+  {
+    "query": "SELECT T1.firstname , T1.lastname FROM Reservations AS T1 JOIN Rooms AS T2 ON T1.Room = T2.RoomId WHERE T1.Rate - T2.basePrice > 0",
+    "result": "context.Reservations.Join(context.Rooms, T1 => T1.Room, T2 => T2.RoomId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.Rate - row.T2.BasePrice > 0).Select(row => new { row.T1.FirstName, row.T1.LastName }).ToList();",
+    "db_name": "inn_1",
+    "status": "Passed",
+    "error": null
   }
 ]
