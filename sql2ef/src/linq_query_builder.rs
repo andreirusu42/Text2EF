@@ -249,11 +249,9 @@ impl LinqQueryBuilder {
                             // This is the only way to do this afaik
                             if cast.is_empty()
                                 && mapped_column.field_type == FieldType::String
-                                && function_name == "avg"
+                                && ["sum", "avg"].contains(&function_name.as_str())
                             {
-                                result.push_str(
-                                    ".ToList().Select(value => double.Parse(value)).ToList()",
-                                );
+                                result.push_str(".ToList().Select(value => double.Parse(value))");
                             }
                         } else {
                             panic!("Invalid function argument");

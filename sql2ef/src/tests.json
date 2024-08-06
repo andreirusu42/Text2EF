@@ -71,10 +71,10 @@
   },
   {
     "query": "SELECT count(DISTINCT client) FROM web_client_accelerator",
-    "result": "context.WebClientAccelerators.Select(row => row.Client).Distinct().Count();",
+    "result": "context.WebClientAccelerators.Select(row => row.Client).ToList().Select(value => double.Parse(value)).Distinct().Count();",
     "db_name": "browser_web",
-    "status": "Passed",
-    "error": null
+    "status": "CodeFailed",
+    "error": "ExceptionDetails { sql_results: \"\", linq_results: \"\" }"
   },
   {
     "query": "SELECT count(*) FROM web_client_accelerator WHERE id NOT IN ( SELECT accelerator_id FROM accelerator_compatible_browser );",
@@ -13833,7 +13833,7 @@
   },
   {
     "query": "SELECT avg(order_quantity) FROM order_items",
-    "result": "context.OrderItems.Select(row => row.OrderQuantity).ToList().Select(value => double.Parse(value)).ToList().Average();",
+    "result": "context.OrderItems.Select(row => row.OrderQuantity).ToList().Select(value => double.Parse(value)).Average();",
     "db_name": "customers_and_addresses",
     "status": "Passed",
     "error": null
@@ -14015,10 +14015,10 @@
   },
   {
     "query": "SELECT sum(t3.order_quantity) FROM customers AS t1 JOIN customer_orders AS t2 ON t1.customer_id = t2.customer_id JOIN order_items AS t3 ON t2.order_id = t3.order_id WHERE t1.customer_name = \"Rodrick Heaney\"",
-    "result": "context.Customers.Join(context.CustomerOrders, t1 => t1.CustomerId, t2 => t2.CustomerId, (t1, t2) => new { t1, t2 }).Join(context.OrderItems, joined => joined.t2.OrderId, t3 => t3.OrderId, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.CustomerName == \"Rodrick Heaney\").Select(row => row.t3.OrderQuantity).Sum();",
+    "result": "context.Customers.Join(context.CustomerOrders, t1 => t1.CustomerId, t2 => t2.CustomerId, (t1, t2) => new { t1, t2 }).Join(context.OrderItems, joined => joined.t2.OrderId, t3 => t3.OrderId, (joined, t3) => new { joined.t1, joined.t2, t3 }).Where(row => row.t1.CustomerName == \"Rodrick Heaney\").Select(row => row.t3.OrderQuantity).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "customers_and_addresses",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.23"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT count(DISTINCT customer_id) FROM customer_orders WHERE order_status = \"Cancelled\"",
@@ -14043,10 +14043,10 @@
   },
   {
     "query": "SELECT sum(t2.order_quantity) FROM customer_orders AS t1 JOIN order_items AS t2 ON t1.order_id = t2.order_id WHERE t1.order_status = \"Cancelled\"",
-    "result": "context.CustomerOrders.Join(context.OrderItems, t1 => t1.OrderId, t2 => t2.OrderId, (t1, t2) => new { t1, t2 }).Where(row => row.t1.OrderStatus == \"Cancelled\").Select(row => row.t2.OrderQuantity).Sum();",
+    "result": "context.CustomerOrders.Join(context.OrderItems, t1 => t1.OrderId, t2 => t2.OrderId, (t1, t2) => new { t1, t2 }).Where(row => row.t1.OrderStatus == \"Cancelled\").Select(row => row.t2.OrderQuantity).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "customers_and_addresses",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.31"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT sum(t2.order_quantity) FROM customer_orders AS t1 JOIN order_items AS t2 ON t1.order_id = t2.order_id WHERE t1.order_date < \"2018-03-17 07:13:53\"",
@@ -14148,10 +14148,10 @@
   },
   {
     "query": "SELECT sum(share_count) FROM TRANSACTIONS",
-    "result": "context.Transactions.Select(row => row.ShareCount).Sum();",
+    "result": "context.Transactions.Select(row => row.ShareCount).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "tracking_share_transactions",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.29"
+    "status": "CodeFailed",
+    "error": "ExceptionDetails { sql_results: \"\", linq_results: \"\" }"
   },
   {
     "query": "SELECT transaction_id FROM TRANSACTIONS WHERE transaction_type_code = 'PUR'",
@@ -16598,7 +16598,7 @@
   },
   {
     "query": "SELECT avg(room_count) FROM Apartments WHERE apt_type_code = \"Studio\"",
-    "result": "context.Apartments.Where(row => row.AptTypeCode == \"Studio\").Select(row => row.RoomCount).ToList().Select(value => double.Parse(value)).ToList().Average();",
+    "result": "context.Apartments.Where(row => row.AptTypeCode == \"Studio\").Select(row => row.RoomCount).ToList().Select(value => double.Parse(value)).Average();",
     "db_name": "apartment_rentals",
     "status": "Passed",
     "error": null
@@ -16661,7 +16661,7 @@
   },
   {
     "query": "SELECT avg(room_count) FROM Apartment_Bookings AS T1 JOIN Apartments AS T2 ON T1.apt_id = T2.apt_id WHERE T1.booking_status_code = \"Provisional\"",
-    "result": "context.ApartmentBookings.Join(context.Apartments, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.BookingStatusCode == \"Provisional\").Select(row => row.T2.RoomCount).ToList().Select(value => double.Parse(value)).ToList().Average();",
+    "result": "context.ApartmentBookings.Join(context.Apartments, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.BookingStatusCode == \"Provisional\").Select(row => row.T2.RoomCount).ToList().Select(value => double.Parse(value)).Average();",
     "db_name": "apartment_rentals",
     "status": "Passed",
     "error": null
@@ -16696,17 +16696,17 @@
   },
   {
     "query": "SELECT sum(T2.room_count) FROM Apartment_Facilities AS T1 JOIN Apartments AS T2 ON T1.apt_id = T2.apt_id WHERE T1.facility_code = \"Gym\"",
-    "result": "context.ApartmentFacilities.Join(context.Apartments, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.FacilityCode == \"Gym\").Select(row => row.T2.RoomCount).Sum();",
+    "result": "context.ApartmentFacilities.Join(context.Apartments, T1 => T1.AptId, T2 => T2.AptId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.FacilityCode == \"Gym\").Select(row => row.T2.RoomCount).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "apartment_rentals",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.36"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT sum(T2.room_count) FROM Apartment_Buildings AS T1 JOIN Apartments AS T2 ON T1.building_id = T2.building_id WHERE T1.building_short_name = \"Columbus Square\"",
-    "result": "context.ApartmentBuildings.Join(context.Apartments, T1 => T1.BuildingId, T2 => T2.BuildingId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.BuildingShortName == \"Columbus Square\").Select(row => row.T2.RoomCount).Sum();",
+    "result": "context.ApartmentBuildings.Join(context.Apartments, T1 => T1.BuildingId, T2 => T2.BuildingId, (T1, T2) => new { T1, T2 }).Where(row => row.T1.BuildingShortName == \"Columbus Square\").Select(row => row.T2.RoomCount).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "apartment_rentals",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.42"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT T1.building_address FROM Apartment_Buildings AS T1 JOIN Apartments AS T2 ON T1.building_id = T2.building_id WHERE T2.bathroom_count > 2",
@@ -25096,10 +25096,10 @@
   },
   {
     "query": "SELECT sum(T1.lesson_time) FROM Lessons AS T1 JOIN Customers AS T2 ON T1.customer_id = T2.customer_id WHERE T2.first_name = \"Rylan\" AND T2.last_name = \"Goodwin\";",
-    "result": "context.Lessons.Join(context.Customers, T1 => T1.CustomerId, T2 => T2.CustomerId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.FirstName == \"Rylan\" && row.T2.LastName == \"Goodwin\").Select(row => row.T1.LessonTime).Sum();",
+    "result": "context.Lessons.Join(context.Customers, T1 => T1.CustomerId, T2 => T2.CustomerId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.FirstName == \"Rylan\" && row.T2.LastName == \"Goodwin\").Select(row => row.T1.LessonTime).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "driving_school",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.18"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT T1.zip_postcode FROM Addresses AS T1 JOIN Staff AS T2 ON T1.address_id = T2.staff_address_id WHERE T2.first_name = \"Janessa\" AND T2.last_name = \"Sawayn\";",
@@ -25299,10 +25299,10 @@
   },
   {
     "query": "SELECT sum(lesson_time) FROM Lessons AS T1 JOIN Staff AS T2 ON T1.staff_id = T2.staff_id WHERE T2.first_name = \"Janessa\" AND T2.last_name = \"Sawayn\";",
-    "result": "context.Lessons.Join(context.Staff, T1 => T1.StaffId, T2 => T2.StaffId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.FirstName == \"Janessa\" && row.T2.LastName == \"Sawayn\").Select(row => row.T1.LessonTime).Sum();",
+    "result": "context.Lessons.Join(context.Staff, T1 => T1.StaffId, T2 => T2.StaffId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.FirstName == \"Janessa\" && row.T2.LastName == \"Sawayn\").Select(row => row.T1.LessonTime).ToList().Select(value => double.Parse(value)).Sum();",
     "db_name": "driving_school",
-    "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/Program.cs(9,12): error CS1929: 'IQueryable<string>' does not contain a definition for 'Sum' and the best extension method overload 'Enumerable.Sum(IEnumerable<decimal>)' requires a receiver of type 'System.Collections.Generic.IEnumerable<decimal>' [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/sql2ef/entity-framework/entity-framework.csproj]\n    146 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.30"
+    "status": "Passed",
+    "error": null
   },
   {
     "query": "SELECT avg(price) FROM Lessons AS T1 JOIN Staff AS T2 ON T1.staff_id = T2.staff_id WHERE T2.first_name = \"Janessa\" AND T2.last_name = \"Sawayn\";",

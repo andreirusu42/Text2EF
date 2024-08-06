@@ -325,8 +325,8 @@ fn main() {
     // run_queries_bulk();
 
     // debug_query(
-    //     "browser_web",
-    //     r#"SELECT T1.name FROM browser AS T1 JOIN accelerator_compatible_browser AS T2 ON T1.id = T2.browser_id JOIN web_client_accelerator AS T3 ON T2.accelerator_id = T3.id WHERE T3.name = 'CProxy' AND T2.compatible_since_year > 1998"#,
-    //     true,
+    //     "driving_school",
+    //     r#"SELECT sum(lesson_time) FROM Lessons AS T1 JOIN Staff AS T2 ON T1.staff_id = T2.staff_id WHERE T2.first_name = "Janessa" AND T2.last_name = "Sawayn";"#,
+    //     false,
     // );
 }
