@@ -10,6 +10,13 @@ pub enum TestStatus {
     Passed,
     BuildFailed,
     CodeFailed,
+    QueryBuildFailed,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
+pub enum SplitType {
+    Train,
+    Dev,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
@@ -20,7 +27,7 @@ pub struct Test {
     pub status: TestStatus,
     pub error: Option<String>,
     pub should_retest: bool,
-    pub split: String,
+    pub split: SplitType,
 }
 
 pub struct TestManager {

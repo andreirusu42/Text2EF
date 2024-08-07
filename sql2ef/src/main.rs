@@ -20,7 +20,7 @@ use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
 use schema_mapping::extract_context_and_models;
-use test_manager::{Test, TestManager, TestStatus};
+use test_manager::{SplitType, Test, TestManager, TestStatus};
 
 fn create_code_execution_code(
     context_name: &str,
@@ -57,7 +57,7 @@ fn execute_query_and_update_tests_file(
     db_name: &str,
     query: &str,
     result: &str,
-    split: &str,
+    split: &SplitType,
     test_manager: &mut TestManager,
 ) {
     let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
@@ -79,7 +79,7 @@ fn execute_query_and_update_tests_file(
                         error: None,
                         status: TestStatus::Passed,
                         should_retest: false,
-                        split: split.to_string(),
+                        split: split.clone(),
                     };
 
                     test_manager.write_test_or_update(test).unwrap();
@@ -95,7 +95,7 @@ fn execute_query_and_update_tests_file(
                         error: Some(format!("{:?}", exception_details)),
                         status: TestStatus::CodeFailed,
                         should_retest: false,
-                        split: split.to_string(),
+                        split: split.clone(),
                     };
 
                     test_manager.write_test_or_update(test).unwrap();
@@ -112,7 +112,7 @@ fn execute_query_and_update_tests_file(
                 error: Some(error_message),
                 status: TestStatus::BuildFailed,
                 should_retest: false,
-                split: split.to_string(),
+                split: split.clone(),
             };
             test_manager.write_test_or_update(test).unwrap();
         }
@@ -192,13 +192,13 @@ fn run_queries_bulk() {
         .expect("Unable to write data");
 }
 
-fn run_queries_sequentially(split: &str) {
-    let dataset_file_path = if split == "train" {
+fn run_queries_sequentially(split: SplitType) {
+    let dataset_file_path = if split == SplitType::Train {
         constants::TRAIN_GOLD_DATASET_FILE_PATH
-    } else if split == "dev" {
+    } else if split == SplitType::Dev {
         constants::DEV_GOLD_DATASET_FILE_PATH
     } else {
-        panic!("Invalid split: {}", split);
+        panic!("Invalid split: {:?}", split);
     };
 
     let dataset = extract_queries(constants::EF_MODELS_DIR, dataset_file_path);
@@ -230,24 +230,38 @@ fn run_queries_sequentially(split: &str) {
         for (index, query) in queries.iter().enumerate() {
             println!("Processing query {} for {} - {}", index, db_name, query);
 
-            let result = if let Ok(res) = catch_unwind(|| linq_query_builder.build_query(query)) {
+            let build_query_result = catch_unwind(|| linq_query_builder.build_query(query));
+
+            let result = if let Ok(res) = build_query_result {
                 res
             } else {
-                println!("Failed to build query for {}", query);
+                if let Err(err) = build_query_result {
+                    println!("Failed to build query for {}", query);
 
-                test_manager
-                    .write_test_or_update(Test {
-                        db_name: db_name.to_string(),
-                        query: query.to_string(),
-                        result: "".to_string(),
-                        error: Some("Failed to build query".to_string()),
-                        status: TestStatus::BuildFailed,
-                        should_retest: false,
-                        split: split.to_string(),
-                    })
-                    .unwrap();
+                    let error_message = if let Some(s) = err.downcast_ref::<&str>() {
+                        s.to_string()
+                    } else if let Some(s) = err.downcast_ref::<String>() {
+                        s.clone()
+                    } else {
+                        "Unknown panic".to_string()
+                    };
 
-                continue;
+                    test_manager
+                        .write_test_or_update(Test {
+                            db_name: db_name.to_string(),
+                            query: query.to_string(),
+                            result: "".to_string(),
+                            error: Some(error_message),
+                            status: TestStatus::QueryBuildFailed,
+                            should_retest: false,
+                            split: split.clone(),
+                        })
+                        .unwrap();
+
+                    continue;
+                } else {
+                    panic!("Hm");
+                }
             };
 
             if let Some(test) = test_manager.get_test(query, db_name) {
@@ -265,7 +279,7 @@ fn run_queries_sequentially(split: &str) {
                             &db_name,
                             &query,
                             &result,
-                            split,
+                            &split,
                             &mut test_manager,
                         );
 
@@ -285,7 +299,7 @@ fn run_queries_sequentially(split: &str) {
                         &db_name,
                         &query,
                         &result,
-                        split,
+                        &split,
                         &mut test_manager,
                     );
                     continue;
@@ -300,7 +314,7 @@ fn run_queries_sequentially(split: &str) {
                 &db_name,
                 &query,
                 &result,
-                split,
+                &split,
                 &mut test_manager,
             );
         }
@@ -359,10 +373,10 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    // run_queries_sequentially();
+    run_queries_sequentially(SplitType::Train);
     // run_queries_bulk();
 
-    extract_context_for_databases();
+    // extract_context_for_databases();
 
     // debug_query(
     //     "college_2",
