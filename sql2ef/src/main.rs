@@ -7,8 +7,8 @@ mod dataset;
 mod determine_join_order;
 mod linq_query_builder;
 mod manual_tests;
+mod query_manager;
 mod schema_mapping;
-mod test_manager;
 
 use std::fs::File;
 use std::panic::catch_unwind;
@@ -19,8 +19,8 @@ use context_creator::extract_context_for_databases;
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
+use query_manager::{Query, QueryManager, SplitType, TestStatus};
 use schema_mapping::extract_context_and_models;
-use test_manager::{SplitType, Test, TestManager, TestStatus};
 
 fn create_code_execution_code(
     context_name: &str,
@@ -58,7 +58,7 @@ fn execute_query_and_update_tests_file(
     query: &str,
     result: &str,
     split: &SplitType,
-    test_manager: &mut TestManager,
+    test_manager: &mut QueryManager,
 ) {
     let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
 
@@ -72,10 +72,10 @@ fn execute_query_and_update_tests_file(
                 CodeResultStatus::OK => {
                     println!("Query executed successfully");
 
-                    let test = Test {
+                    let test = Query {
                         db_name: db_name.to_string(),
-                        query: query.to_string(),
-                        result: result.to_string(),
+                        sql: query.to_string(),
+                        linq: result.to_string(),
                         error: None,
                         status: TestStatus::Passed,
                         should_retest: false,
@@ -88,10 +88,10 @@ fn execute_query_and_update_tests_file(
                 CodeResultStatus::Fail(exception_details) => {
                     println!("Query execution failed: {:?}", exception_details);
 
-                    let test = Test {
+                    let test = Query {
                         db_name: db_name.to_string(),
-                        query: query.to_string(),
-                        result: result.to_string(),
+                        sql: query.to_string(),
+                        linq: result.to_string(),
                         error: Some(format!("{:?}", exception_details)),
                         status: TestStatus::CodeFailed,
                         should_retest: false,
@@ -105,10 +105,10 @@ fn execute_query_and_update_tests_file(
         BuildResultStatus::Fail(error_message) => {
             println!("Build failed: {}", error_message);
 
-            let test = Test {
+            let test = Query {
                 db_name: db_name.to_string(),
-                query: query.to_string(),
-                result: result.to_string(),
+                sql: query.to_string(),
+                linq: result.to_string(),
                 error: Some(error_message),
                 status: TestStatus::BuildFailed,
                 should_retest: false,
@@ -121,13 +121,13 @@ fn execute_query_and_update_tests_file(
 
 // This is being used for when I modify something in the logic of testing the queries (in C#).
 fn run_queries_bulk() {
-    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let test_manager = QueryManager::new(constants::QUERIES_JSON_FILE_PATH).unwrap();
 
     let mut c_sharp_code = String::new();
     let mut main_code = String::new();
 
     let db_names: HashSet<String> = test_manager
-        .get_tests()
+        .get_queries()
         .iter()
         .map(|test| test.db_name.clone())
         .collect();
@@ -159,10 +159,10 @@ fn run_queries_bulk() {
         ));
 
         let sql_and_results: Vec<(&str, &str)> = test_manager
-            .get_tests()
+            .get_queries()
             .iter()
             .filter(|test| test.db_name == *db_name && test.status == TestStatus::Passed)
-            .map(|test| (test.query.as_str(), test.result.as_str()))
+            .map(|test| (test.sql.as_str(), test.linq.as_str()))
             .collect();
 
         let result = sql_and_results
@@ -202,7 +202,7 @@ fn run_queries_sequentially(split: SplitType) {
     };
 
     let dataset = extract_queries(constants::EF_MODELS_DIR, dataset_file_path);
-    let mut test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let mut query_manager = QueryManager::new(constants::QUERIES_JSON_FILE_PATH).unwrap();
 
     for db_name in &dataset.db_names {
         let queries = if let Some(queries) = dataset.queries.get(db_name.as_str()) {
@@ -246,11 +246,11 @@ fn run_queries_sequentially(split: SplitType) {
                         "Unknown panic".to_string()
                     };
 
-                    test_manager
-                        .write_test_or_update(Test {
+                    query_manager
+                        .write_test_or_update(Query {
                             db_name: db_name.to_string(),
-                            query: query.to_string(),
-                            result: "".to_string(),
+                            sql: query.to_string(),
+                            linq: "".to_string(),
                             error: Some(error_message),
                             status: TestStatus::QueryBuildFailed,
                             should_retest: false,
@@ -264,8 +264,8 @@ fn run_queries_sequentially(split: SplitType) {
                 }
             };
 
-            if let Some(test) = test_manager.get_test(query, db_name) {
-                if test.result == result && test.status == TestStatus::Passed {
+            if let Some(test) = query_manager.get_query(query, db_name) {
+                if test.linq == result && test.status == TestStatus::Passed {
                     println!("Query already exists in the tests file and it's passed.");
                     continue;
                 }
@@ -280,7 +280,7 @@ fn run_queries_sequentially(split: SplitType) {
                             &query,
                             &result,
                             &split,
-                            &mut test_manager,
+                            &mut query_manager,
                         );
 
                         continue;
@@ -300,7 +300,7 @@ fn run_queries_sequentially(split: SplitType) {
                         &query,
                         &result,
                         &split,
-                        &mut test_manager,
+                        &mut query_manager,
                     );
                     continue;
                 } else {
@@ -315,16 +315,16 @@ fn run_queries_sequentially(split: SplitType) {
                 &query,
                 &result,
                 &split,
-                &mut test_manager,
+                &mut query_manager,
             );
         }
     }
 }
 
 fn run_tests() {
-    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let test_manager = QueryManager::new(constants::QUERIES_JSON_FILE_PATH).unwrap();
 
-    for (index, test) in test_manager.get_tests().iter().enumerate() {
+    for (index, test) in test_manager.get_queries().iter().enumerate() {
         let linq_query_builder = LinqQueryBuilder::new(
             Path::new(constants::EF_MODELS_DIR)
                 .join(&test.db_name)
@@ -332,11 +332,11 @@ fn run_tests() {
                 .unwrap(),
         );
 
-        let result = linq_query_builder.build_query(&test.query);
+        let result = linq_query_builder.build_query(&test.sql);
 
-        if result != test.result {
-            println!("Test {} failed: {}", index, test.query);
-            println!("Expected: {}", test.result);
+        if result != test.linq {
+            println!("Test {} failed: {}", index, test.sql);
+            println!("Expected: {}", test.linq);
             println!("Got:      {}", result);
         } else {
             println!("Test {} passed", index);

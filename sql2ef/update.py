@@ -1,11 +1,19 @@
 import re
 import json
 
-with open('src/tests_dev.json') as f:
+with open('src/tests.json') as f:
     data = json.load(f)
 
+
+def uppercase_only_first_letter(s):
+    return s[0].upper() + s[1:]
+
+
 for entry in data:
-    entry['split'] = 'dev'
+    entry['sql'] = entry['query']
+    del entry['query']
+    entry['linq'] = entry['result']
+    del entry['result']
     continue
 
     err = entry.get('error')
@@ -22,5 +30,5 @@ for entry in data:
     # else:
     #     entry['should_retest'] = False
 
-with open('src/tests_dev.json', 'w') as f:
+with open('src/tests.json', 'w') as f:
     json.dump(data, f, indent=4)
