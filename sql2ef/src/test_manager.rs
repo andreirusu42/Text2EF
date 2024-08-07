@@ -20,6 +20,7 @@ pub struct Test {
     pub status: TestStatus,
     pub error: Option<String>,
     pub should_retest: bool,
+    pub split: String,
 }
 
 pub struct TestManager {

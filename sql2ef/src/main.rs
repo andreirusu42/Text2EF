@@ -57,6 +57,7 @@ fn execute_query_and_update_tests_file(
     db_name: &str,
     query: &str,
     result: &str,
+    split: &str,
     test_manager: &mut TestManager,
 ) {
     let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
@@ -78,6 +79,7 @@ fn execute_query_and_update_tests_file(
                         error: None,
                         status: TestStatus::Passed,
                         should_retest: false,
+                        split: split.to_string(),
                     };
 
                     test_manager.write_test_or_update(test).unwrap();
@@ -93,6 +95,7 @@ fn execute_query_and_update_tests_file(
                         error: Some(format!("{:?}", exception_details)),
                         status: TestStatus::CodeFailed,
                         should_retest: false,
+                        split: split.to_string(),
                     };
 
                     test_manager.write_test_or_update(test).unwrap();
@@ -109,6 +112,7 @@ fn execute_query_and_update_tests_file(
                 error: Some(error_message),
                 status: TestStatus::BuildFailed,
                 should_retest: false,
+                split: split.to_string(),
             };
             test_manager.write_test_or_update(test).unwrap();
         }
@@ -117,9 +121,7 @@ fn execute_query_and_update_tests_file(
 
 // This is being used for when I modify something in the logic of testing the queries (in C#).
 fn run_queries_bulk() {
-    let (dataset_file_path, tests_json_file_path) = constants::DEV_DATASET;
-
-    let test_manager = TestManager::new(tests_json_file_path).unwrap();
+    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
 
     let mut c_sharp_code = String::new();
     let mut main_code = String::new();
@@ -190,11 +192,17 @@ fn run_queries_bulk() {
         .expect("Unable to write data");
 }
 
-fn run_queries_sequentially() {
-    let (dataset_file_path, tests_json_file_path) = constants::DEV_DATASET;
+fn run_queries_sequentially(split: &str) {
+    let dataset_file_path = if split == "train" {
+        constants::TRAIN_GOLD_DATASET_FILE_PATH
+    } else if split == "dev" {
+        constants::DEV_GOLD_DATASET_FILE_PATH
+    } else {
+        panic!("Invalid split: {}", split);
+    };
 
     let dataset = extract_queries(constants::EF_MODELS_DIR, dataset_file_path);
-    let mut test_manager = TestManager::new(tests_json_file_path).unwrap();
+    let mut test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
 
     for db_name in &dataset.db_names {
         let queries = if let Some(queries) = dataset.queries.get(db_name.as_str()) {
@@ -235,6 +243,7 @@ fn run_queries_sequentially() {
                         error: Some("Failed to build query".to_string()),
                         status: TestStatus::BuildFailed,
                         should_retest: false,
+                        split: split.to_string(),
                     })
                     .unwrap();
 
@@ -256,6 +265,7 @@ fn run_queries_sequentially() {
                             &db_name,
                             &query,
                             &result,
+                            split,
                             &mut test_manager,
                         );
 
@@ -275,6 +285,7 @@ fn run_queries_sequentially() {
                         &db_name,
                         &query,
                         &result,
+                        split,
                         &mut test_manager,
                     );
                     continue;
@@ -289,6 +300,7 @@ fn run_queries_sequentially() {
                 &db_name,
                 &query,
                 &result,
+                split,
                 &mut test_manager,
             );
         }
@@ -296,7 +308,7 @@ fn run_queries_sequentially() {
 }
 
 fn run_tests() {
-    let test_manager = TestManager::new(constants::TRAIN_TESTS_JSON_FILE_PATH).unwrap();
+    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
 
     for (index, test) in test_manager.get_tests().iter().enumerate() {
         let linq_query_builder = LinqQueryBuilder::new(
