@@ -1,12 +1,12 @@
-using entity_framework.Models.station_weather; 
+using entity_framework.Models.student_transcripts_tracking; 
 using Microsoft.EntityFrameworkCore;
 
 class Program {
 public static void Main() {
-var context = new StationWeatherContext();
+var context = new StudentTranscriptsTrackingContext();
 
-var sql = "SELECT count(*) , t1.network_name , t1.services FROM station AS t1 JOIN route AS t2 ON t1.id = t2.station_id GROUP BY t2.station_id";
-var linq = context.Stations.Join(context.Route, t1 => t1.Id, t2 => t2.StationId, (t1, t2) => new { t1, t2 }).GroupBy(row => new { row.t2.StationId }).Select(group => new { Count = group.Count(), group.First().t1.NetworkName, group.First().t1.Services }).ToList();
+var sql = "select t1.first_name from students as t1 join addresses as t2 on t1.permanent_address_id = t2.address_id where t2.country = \'haiti\' or t1.cell_mobile_number = \'09700166582\'";
+var linq = context.Students.Join(context.Addresses, t1 => t1.PermanentAddressId, t2 => t2.AddressId, (t1, t2) => new { t1, t2 }).Where(row => row.t2.Country == "haiti" || row.t1.CellMobileNumber == "09700166582").Select(row => new { row.t1.FirstName }).ToList();
 
 Tester.Test(linq, sql, context);
 }

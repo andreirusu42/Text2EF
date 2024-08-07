@@ -1,23 +1,26 @@
 mod case_insensitive_hashset;
 mod case_insensitive_indexmap;
 mod constants;
+mod context_creator;
 mod csharp;
 mod dataset;
 mod determine_join_order;
 mod linq_query_builder;
 mod manual_tests;
 mod schema_mapping;
-mod tests;
+mod test_manager;
 
 use std::fs::File;
 use std::panic::catch_unwind;
 use std::path::Path;
 use std::{collections::HashSet, io::Write};
 
+use context_creator::extract_context_for_databases;
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
 use dataset::extract_queries;
 use linq_query_builder::LinqQueryBuilder;
-use tests::{Test, TestManager, TestStatus};
+use schema_mapping::extract_context_and_models;
+use test_manager::{Test, TestManager, TestStatus};
 
 fn create_code_execution_code(
     context_name: &str,
@@ -114,7 +117,9 @@ fn execute_query_and_update_tests_file(
 
 // This is being used for when I modify something in the logic of testing the queries (in C#).
 fn run_queries_bulk() {
-    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let (dataset_file_path, tests_json_file_path) = constants::DEV_DATASET;
+
+    let test_manager = TestManager::new(tests_json_file_path).unwrap();
 
     let mut c_sharp_code = String::new();
     let mut main_code = String::new();
@@ -186,8 +191,10 @@ fn run_queries_bulk() {
 }
 
 fn run_queries_sequentially() {
-    let dataset = extract_queries(constants::EF_MODELS_DIR, constants::GOLD_DATASET_FILE_PATH);
-    let mut test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let (dataset_file_path, tests_json_file_path) = constants::DEV_DATASET;
+
+    let dataset = extract_queries(constants::EF_MODELS_DIR, dataset_file_path);
+    let mut test_manager = TestManager::new(tests_json_file_path).unwrap();
 
     for db_name in &dataset.db_names {
         let queries = if let Some(queries) = dataset.queries.get(db_name.as_str()) {
@@ -219,6 +226,18 @@ fn run_queries_sequentially() {
                 res
             } else {
                 println!("Failed to build query for {}", query);
+
+                test_manager
+                    .write_test_or_update(Test {
+                        db_name: db_name.to_string(),
+                        query: query.to_string(),
+                        result: "".to_string(),
+                        error: Some("Failed to build query".to_string()),
+                        status: TestStatus::BuildFailed,
+                        should_retest: false,
+                    })
+                    .unwrap();
+
                 continue;
             };
 
@@ -229,7 +248,7 @@ fn run_queries_sequentially() {
                 }
 
                 if test.status != TestStatus::Passed {
-                    if true || test.should_retest {
+                    if test.should_retest {
                         println!("Query already exists in the tests file, but it's not passed. Retesting...");
 
                         execute_query_and_update_tests_file(
@@ -247,7 +266,7 @@ fn run_queries_sequentially() {
                     }
                 }
 
-                if true || test.should_retest {
+                if test.should_retest {
                     println!(
                         "Query already exists in the tests file, but the result is different."
                     );
@@ -277,7 +296,7 @@ fn run_queries_sequentially() {
 }
 
 fn run_tests() {
-    let test_manager = TestManager::new(constants::TESTS_JSON_FILE_PATH).unwrap();
+    let test_manager = TestManager::new(constants::TRAIN_TESTS_JSON_FILE_PATH).unwrap();
 
     for (index, test) in test_manager.get_tests().iter().enumerate() {
         let linq_query_builder = LinqQueryBuilder::new(
@@ -328,12 +347,14 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    run_queries_sequentially();
+    // run_queries_sequentially();
     // run_queries_bulk();
+
+    extract_context_for_databases();
 
     // debug_query(
     //     "college_2",
     //     r#"SELECT avg(T1.salary) , count(*) FROM instructor AS T1 JOIN department AS T2 ON T1.dept_name = T2.dept_name ORDER BY T2.budget DESC LIMIT 1"#,
-    //     true,
+    //     false,
     // );
 }

@@ -200,6 +200,35 @@ fn find_context_cs_file(folder_path: &str) -> Option<String> {
     None
 }
 
+pub fn extract_context_and_models(model_folder_path: &str) -> (String, Vec<String>) {
+    let context_file_path = find_context_cs_file(model_folder_path).expect(&format!(
+        "Context file not found for the model {}",
+        model_folder_path
+    ));
+
+    let context_content =
+        fs::read_to_string(context_file_path).expect("Failed to read the context file");
+
+    let entity_regex = regex::Regex::new(
+        r"modelBuilder\.Entity<(\w+)>\(\s*entity\s*=>\s*\{((?:\{[^{}]*\}|[^{}])*)\}\);",
+    )
+    .unwrap();
+
+    let mut models: Vec<String> = Vec::new();
+
+    for cap in entity_regex.captures_iter(&context_content) {
+        let entity_name = &cap[1];
+
+        let model_file_path = format!("{}/{}.cs", model_folder_path, entity_name);
+        let model_content =
+            fs::read_to_string(model_file_path).expect("Failed to read the model file");
+
+        models.push(model_content);
+    }
+
+    return (context_content, models);
+}
+
 pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let context_file_path = find_context_cs_file(model_folder_path).expect(&format!(
         "Context file not found for the model {}",
