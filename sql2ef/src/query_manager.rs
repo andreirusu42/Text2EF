@@ -1,9 +1,25 @@
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256, Sha512};
 use std::fs::{self};
 use std::io::{self, Read};
 use std::path::Path;
 
 use crate::constants;
+
+fn sha256_hash_string(input: &str) -> String {
+    let mut hasher = Sha256::new();
+
+    hasher.update(input);
+
+    let result = hasher.finalize();
+
+    format!("{:x}", result)
+}
+
+fn generate_id(sql: &str, db_name: &str) -> String {
+    let input = format!("{} {}", sql, db_name);
+    sha256_hash_string(&input).clone()
+}
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub enum TestStatus {
@@ -21,6 +37,7 @@ pub enum SplitType {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Query {
+    pub id: String,
     pub sql: String,
     pub linq: String,
     pub db_name: String,
@@ -28,6 +45,31 @@ pub struct Query {
     pub error: Option<String>,
     pub should_retest: bool,
     pub split: SplitType,
+}
+
+impl Query {
+    pub fn new(
+        db_name: &str,
+        sql: &str,
+        linq: &str,
+        error: Option<String>,
+        status: TestStatus,
+        should_retest: bool,
+        split: SplitType,
+    ) -> Self {
+        let id = generate_id(sql, db_name);
+
+        Self {
+            id,
+            sql: sql.to_string(),
+            linq: linq.to_string(),
+            db_name: db_name.to_string(),
+            status,
+            error,
+            should_retest,
+            split,
+        }
+    }
 }
 
 pub struct QueryManager {

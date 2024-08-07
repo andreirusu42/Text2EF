@@ -58,7 +58,7 @@ fn execute_query_and_update_tests_file(
     query: &str,
     result: &str,
     split: &SplitType,
-    test_manager: &mut QueryManager,
+    query_manager: &mut QueryManager,
 ) {
     let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
 
@@ -72,49 +72,50 @@ fn execute_query_and_update_tests_file(
                 CodeResultStatus::OK => {
                     println!("Query executed successfully");
 
-                    let test = Query {
-                        db_name: db_name.to_string(),
-                        sql: query.to_string(),
-                        linq: result.to_string(),
-                        error: None,
-                        status: TestStatus::Passed,
-                        should_retest: false,
-                        split: split.clone(),
-                    };
+                    let test = Query::new(
+                        db_name,
+                        query,
+                        result,
+                        None,
+                        TestStatus::Passed,
+                        false,
+                        split.clone(),
+                    );
 
-                    test_manager.write_test_or_update(test).unwrap();
+                    query_manager.write_test_or_update(test).unwrap();
                 }
 
                 CodeResultStatus::Fail(exception_details) => {
                     println!("Query execution failed: {:?}", exception_details);
 
-                    let test = Query {
-                        db_name: db_name.to_string(),
-                        sql: query.to_string(),
-                        linq: result.to_string(),
-                        error: Some(format!("{:?}", exception_details)),
-                        status: TestStatus::CodeFailed,
-                        should_retest: false,
-                        split: split.clone(),
-                    };
+                    let test = Query::new(
+                        db_name,
+                        query,
+                        result,
+                        Some(format!("{:?}", exception_details)),
+                        TestStatus::CodeFailed,
+                        false,
+                        split.clone(),
+                    );
 
-                    test_manager.write_test_or_update(test).unwrap();
+                    query_manager.write_test_or_update(test).unwrap();
                 }
             }
         }
         BuildResultStatus::Fail(error_message) => {
             println!("Build failed: {}", error_message);
 
-            let test = Query {
-                db_name: db_name.to_string(),
-                sql: query.to_string(),
-                linq: result.to_string(),
-                error: Some(error_message),
-                status: TestStatus::BuildFailed,
-                should_retest: false,
-                split: split.clone(),
-            };
-            test_manager.write_test_or_update(test).unwrap();
+            let test = Query::new(
+                db_name,
+                query,
+                result,
+                Some(error_message),
+                TestStatus::BuildFailed,
+                false,
+                split.clone(),
+            );
+
+            query_manager.write_test_or_update(test).unwrap();
         }
     }
 }
@@ -247,15 +248,15 @@ fn run_queries_sequentially(split: SplitType) {
                     };
 
                     query_manager
-                        .write_test_or_update(Query {
-                            db_name: db_name.to_string(),
-                            sql: query.to_string(),
-                            linq: "".to_string(),
-                            error: Some(error_message),
-                            status: TestStatus::QueryBuildFailed,
-                            should_retest: false,
-                            split: split.clone(),
-                        })
+                        .write_test_or_update(Query::new(
+                            db_name,
+                            query,
+                            "",
+                            Some(error_message),
+                            TestStatus::QueryBuildFailed,
+                            false,
+                            split.clone(),
+                        ))
                         .unwrap();
 
                     continue;
@@ -373,7 +374,7 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    run_queries_sequentially(SplitType::Train);
+    run_queries_sequentially(SplitType::Dev);
     // run_queries_bulk();
 
     // extract_context_for_databases();
