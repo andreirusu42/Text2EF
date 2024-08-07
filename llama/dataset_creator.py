@@ -44,7 +44,7 @@ train_data = []
 test_data = []
 
 
-def generate_prompt(sql: str, context_file_data: str, models_data: list[str], linq: str | None = None) -> str:
+def generate_prompt(sql: str, context_file_data: str, models_data: list[str], linq: str = "") -> str:
     models_data = "\n\n".join(models_data)
 
     return f"""Below is an instruction that describes the task of generating, given a database schema for context and an SQL query, the associated Entity Framework code in C#, using Method Syntax. Your response should be the code, without any other text, and everything should be in one single line. For example:
@@ -81,7 +81,9 @@ for db_name in db_names:
 
     for test in train_tests:
         prompt = generate_prompt(test['sql'], context_info['context'], context_info['models'], test['linq'])
-        train_data.append(prompt)
+        train_data.append({
+            "prompt": prompt,
+        })
 
     for test in test_tests:
         prompt = generate_prompt(test['sql'], context_info['context'], context_info['models'])
