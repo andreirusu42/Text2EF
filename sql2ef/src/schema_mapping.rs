@@ -223,7 +223,15 @@ pub fn extract_context_and_models(model_folder_path: &str) -> (String, Vec<Strin
         let model_content =
             fs::read_to_string(model_file_path).expect("Failed to read the model file");
 
-        models.push(model_content);
+        let re = regex::Regex::new(r"public\s+partial\s+class\s+\w+\s*\{(?:[^{}]*|\{[^{}]*\})*\}")
+            .unwrap();
+
+        if let Some(mat) = re.find(&model_content) {
+            let content = &model_content[mat.start()..mat.end()];
+            models.push(content.to_string());
+        } else {
+            panic!("Failed to find the model content");
+        }
     }
 
     return (context_content, models);

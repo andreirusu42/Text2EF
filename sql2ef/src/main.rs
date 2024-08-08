@@ -374,10 +374,10 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    run_queries_sequentially(SplitType::Dev);
+    // run_queries_sequentially(SplitType::Dev);
     // run_queries_bulk();
 
-    // extract_context_for_databases();
+    extract_context_for_databases();
 
     // debug_query(
     //     "college_2",
