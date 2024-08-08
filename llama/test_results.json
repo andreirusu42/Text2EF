@@ -114,5 +114,153 @@
     {
         "id": "ff44934796624024fc6f3ec70cdd483c657d09b701804429e8fadc1c86f8ef73",
         "linq": "context.Stations.GroupBy(s => s.Location).Where(g => g.Count() == 1).Select(g => g.Key).ToList();"
+    },
+    {
+        "id": "4be64796fb4ad4649606b83f122c29ad00d1af5bfcf517020ac1812b4da572e7",
+        "linq": "context.Stations.OrderBy(s => s.AnnualEntryExit).ThenBy(s => s.AnnualInterchanges).Select(s => new { s.Name, s.Location }).ToList();"
+    },
+    {
+        "id": "21b593a9c7c72cffbbe6aa813619013bb35daeaf94d263e2629a1fd5925eb5e5",
+        "linq": "context.Students\n   .GroupBy(e => e.DeptCode)\n   .OrderByDescending(g => g.Count())\n   .Select(g => new { g.Key, g.Count() })\n   .First()\n   .ToList();"
+    },
+    {
+        "id": "90f609e0b28feb2f5e4f53b0da9329f89a1f76a4cb290726e169947973a9dcaf",
+        "linq": "context.Students.GroupBy(s => s.DeptCode).OrderByDescending(g => g.Count()).Select(g => new { g.Key, Count = g.Count() }).Take(3).ToList();"
+    },
+    {
+        "id": "d37e333930f58b8440590513c24fbde7af99291a8bc4e546f155afcf9a0d6212",
+        "linq": "context.Employees.Join(context.Professors, e => e.EmpNum, p => p.EmpNum, (e, p) => new { e.EmpFname, p.ProfOffice })\n.Join(context.Departments, d => d.DeptCode, p => p.DeptCode, (d, p) => new { e.EmpFname, p.ProfOffice })\n.Where(d => d.DeptName == \"History\" && d.ProfHighDegree == \"Ph.D.\")\n.Select(d => new { d.EmpFname, d.ProfOffice })\n.ToList();"
+    },
+    {
+        "id": "6384c5f9c6dde1d18b86cb719d0b5f0b48cdead294fd686ae3660c334055bf10",
+        "linq": "context.Classes.Join(context.Employees, e => e.ProfNum, p => p.EmpNum, (e, p) => new { e.CrsCode, p.EmpFname }).Select(x => new { x.CrsCode, x.EmpFname }).ToList();"
+    },
+    {
+        "id": "ebdefa5b37127864ce18d59ba52809eb6f12538079f49401d3a87f2c11d94c18",
+        "linq": "context.Students.Select(s => s.EmpFname).ToList();"
+    },
+    {
+        "id": "73ef25c14288d35b4de96d9afbca2f10e9734b0dd0a8806a73ed4d7acd543a26",
+        "linq": "context.Students.Join(context.Departments, s => s.DeptCode, d => d.DeptCode, (s, d) => new { s.StuFname, d.DeptName })\n   .Join(context.Employees, s => s.StuNum, e => e.EmpNum, (s, e) => new { s.StuFname, e.EmpFname })\n   .Join(context.Classes, s => s.StuNum, c => c.StuNum, (s, c) => new { s.StuFname, c.ClassRoom })\n   .Join(context.Professors, s => s.StuNum, p => p.EmpNum, (s, p) => new { s.StuFname, p.ProfOffice })\n   .Join(context.Courses, s => s.StuNum, c => c.StuNum, (s, c) => new { s.StuFname, c.CrsDescription })\n   .ToList();"
+    },
+    {
+        "id": "cfbcb94e33e1132487842ac5df2bb871f07f1218012cab067e8a51502ea8fb58",
+        "linq": "context.Classes.Join(e => e.ProfNumNavigation, p => p.EmpNum).Join(e => e.CrsCodeNavigation, c => c.DeptCodeNavigation, d => d.DeptCode).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e => e.ProfNumNavigation).SelectMany(e => e.CrsCodeNavigation).SelectMany(e => e.DeptCodeNavigation).SelectMany(e =>"
+    },
+    {
+        "id": "8b2b109e42ee8dbfffa0f59a804a722763c270d931467624f332582968230389",
+        "linq": "context.Students.Join(context.Enrolls, s => s.StuNum, e => e.StuNum, (s, e) => new { s, e })\n   .Join(context.Classes, e => e.e.ClassCode, c => c.ClassCode, (e, c) => new { e, c })\n   .Join(context.Courses, c => c.c.CrsCode, crs => crs.CrsCode, (c, crs) => new { c, crs })\n   .Select(e => new { e.c.s.StuFname, e.c.s.StuLname, crs.CrsDescription })\n   .ToList();"
+    },
+    {
+        "id": "2b972e2e15677269e4fcad26968f1eb2057a02850791fb1b9220721f8008840d",
+        "linq": "context.Students\n   .Join(context.Enrolls, student => student.StuNum, enroll => enroll.StuNum, (student, enroll) => new { student.StuFname, student.StuLname, enroll.EnrollGrade })\n   .Where(enroll => enroll.EnrollGrade == \"C\" || enroll.EnrollGrade == \"A\")\n   .Select(enroll => new { student.StuFname, student.StuLname })\n   .ToList();"
+    },
+    {
+        "id": "d44b7ef4710a6b36f35d180c54ae2f9ce12526d86fed20261db166fef69263a3",
+        "linq": "context.Employees.Where(e => e.EmpNum == 1).Select(e => e.EmpFname).ToList();"
+    },
+    {
+        "id": "88eafe7b6c186bbc7238354d690734a12ddd0643c29df64256015113367caa75",
+        "linq": "context.Employees.Select(e => e.EmpFname).Distinct().ToList();"
+    },
+    {
+        "id": "735dc4839e527421f753eb3e8c2e71a7f68016e7962e0f68dc09449381df6b44",
+        "linq": "context.Students.Where(s => s.StuNum == 10018).Select(s => s.StuLname).ToList();"
+    },
+    {
+        "id": "e15f734d8086703bff29325c2ad715436b4a7ef864444c80680b8b063d9110c6",
+        "linq": "context.Students\n   .Where(s => s.DeptCode == \"History\")\n   .Select(s => new { s.StuFname, s.StuLname, s.StuInit, s.StuDob, s.StuHrs, s.StuClass, s.StuGpa, s.StuPhone, s.StuTransfer, s.ProfNum, s.DeptCode, s.StuClass, s.StuInit, s.StuFname, s.StuLname, s.StuDob, s.StuHrs, s.StuGpa, s.StuTransfer, s.StuPhone, s.ProfNum, s.DeptCode, s.StuClass, s.StuInit, s.StuFname, s.StuLname, s.StuDob, s.StuHrs, s.StuGpa, s.StuTransfer, s.StuPhone, s.ProfNum, s.DeptCode, s.StuClass, s.StuInit, s.StuFname, s.StuLname, s.StuDob, s.StuHrs, s.StuGpa, s.StuTransfer, s.StuPhone, s.ProfNum,"
+    },
+    {
+        "id": "49d76d4f37689932260468dadd77ddf79925c8f1c290d1a1e675b0697fc08b42",
+        "linq": "context.Employees.GroupBy(e => e.EmpNum).Where(g => g.Count() > 1).Select(g => g.Key).SelectMany(k => k.Employees).Select(e => e.EmpFname).Distinct().ToList();"
+    },
+    {
+        "id": "5beb2608d0721815ace3685c4e1858794dee9f9bad9717ff1c9b8f9fce335daa",
+        "linq": "context.Students.Select(s => s.StuFname).Where(s => s.Count() == 1).ToList();"
+    },
+    {
+        "id": "7ba33f485c867894f2523176d38ced51160bdebaa5f0d3f53da580434b527e67",
+        "linq": "context.Courses.Join(context.Departments, c => c.DeptCode, d => d.DeptCode, (c, d) => new { c, d }).Where(e => e.c.CrsDescription.Contains(\"Statistics\")).Select(e => e.d.DeptName).ToList();"
+    },
+    {
+        "id": "6177e896a2854c906d1e1ccec6bb2493bbaf4d4c60b836c02f098aca2d022928",
+        "linq": "context.Students\n   .Join(context.Enrolls, s => s.StuNum, e => e.StuNum, (s, e) => new { s, e })\n   .Join(context.Classes, se => se.e.ClassCode, c => c.ClassCode, (se, c) => new { se, c })\n   .Where(sc => sc.c.CrsCode == \"ACCT-211\" && sc.se.s.StuLname.StartsWith(\"S\"))\n   .Select(sc => sc.se.s.StuFname)\n   .ToList();"
+    },
+    {
+        "id": "dc5b414c8db68ce1ceefc4670c5c8a94754c2ffb6974d46073f2f862c4789d11",
+        "linq": "context.Employees\n   .GroupBy(e => e.DepartmentId)\n   .Where(g => g.Count() >= 2)\n   .Select(g => new { g.Key, TotalSalary = g.Sum(e => e.Salary) })\n   .ToList();"
+    },
+    {
+        "id": "a39cc81b6a3fa03212b22825fc9882b9fdfeeae4404560f7ef894756d012fe15",
+        "linq": "context.Employees\n   .Join(context.Departments, e => e.DepartmentId, d => d.DepartmentId, (e, d) => new { e, d })\n   .Join(context.Locations, (e, d) => new { e, d }, l => l.LocationId, (e, d, l) => new { e, d, l })\n   .Select(e => new\n    {\n        FirstName = e.e.FirstName,\n        LastName = e.e.LastName,\n        DepartmentName = e.d.DepartmentName,\n        City = e.l.City,\n        StateProvince = e.l.StateProvince\n    })\n   .ToList();"
+    },
+    {
+        "id": "e28079c617c7a61e298acf6b1a33bdbc3e500caf32e06a7abb5d815b14e1d2c7",
+        "linq": "context.Employees\n.Join(context.Departments, e => e.DepartmentId, d => d.DepartmentId, (e, d) => new { e, d })\n.Join(context.Locations, (e, d) => new { e, d }, l => l.LocationId, e => e.DepartmentId, (e, l) => new { e, l })\n.Where(e => e.e.first_name.Contains('z'))\n.Select(e => new { e.e.first_name, e.e.last_name, e.l.city })\n.ToList();"
+    },
+    {
+        "id": "af7c395f8c61539dcdf8386ab0235e8bce93ffb51939a4d0f9687c2d283f38ef",
+        "linq": "context.Departments.Join(context.Locations, T1 => T1.LocationId, T2 => T2.LocationId, (T1, T2) => new { T1.department_name, T2.city, T2.state_province }).Select(x => new { x.department_name, x.city, x.state_province }).ToList();"
+    },
+    {
+        "id": "4d6e04af4cd5a61ff8ef800a073cdd899f76c15cfbad80b6502b14617173d6d5",
+        "linq": "context.Employees.Join(context.Departments, e => e.DepartmentId, d => d.DepartmentId, (e, d) => new { e, d })\n   .Join(context.Locations, j => j.d.LocationId, l => l.LocationId, (j, l) => new { j, l })\n   .Join(context.Countries, j => j.l.CountryId, c => c.CountryId, (j, c) => new { j, c })\n   .Select(x => new\n    {\n        x.j.e.FirstName,\n        x.j.e.LastName,\n        x.j.e.EmployeeId,\n        x.c.CountryName\n    })\n   .ToList();"
+    },
+    {
+        "id": "1e262dd0af5f1b640f4efdc38bb9ac02a4dd1274841590ec266df0f2099016d3",
+        "linq": "context.Employees.GroupBy(e => e.Department.DepartmentName).Select(g => new { g.Key, Count = g.Count() }).ToList();"
+    },
+    {
+        "id": "f381c744eb77bbe9b33f2bb6c83f72faa38498410a5547c444a3e8cd0697c977",
+        "linq": "context.Employees\n   .Join(context.Departments, e => e.DepartmentId, d => d.DepartmentId, (e, d) => new { e, d })\n   .Join(context.Locations, e => e.d.LocationId, l => l.LocationId, (e, l) => new { e, l })\n   .Where(e => e.l.City == \"London\")\n   .Select(e => new { e.e.FirstName, e.e.LastName, e.e.Salary })\n   .ToList();"
+    },
+    {
+        "id": "19823612ac6956f30e82c72101ea8d2e3cc2634035d24170e58a493e4ecf6ca8",
+        "linq": "context.Students\n   .GroupBy(s => s.StuId)\n   .Select(g => new\n    {\n        Count = g.Count(),\n        StuId = g.Key\n    })\n   .ToList();"
+    },
+    {
+        "id": "1972de18467b1a6535f3c40bf6f8ef473d9ed4b9b3a0afb3ad48c6230a3fee22",
+        "linq": "context.Students.Select(s => new { Count = context.HasPets.Count(h => h.StuId == s.StuId), StudentId = s.StuId }).ToList();"
+    },
+    {
+        "id": "0010b88d3e59f79e090346244c72fc31f88fa1fb92f0c5ea4b4e0a28a57b6acc",
+        "linq": "context.Student.Join(context.HasPet, t1 => t1.StuId, t2 => t2.StuId, (t1, t2) => new { t1.Fname, t1.Sex }).GroupBy(x => x.StuId).Where(g => g.Count() > 1).SelectMany(x => x).ToList();"
+    },
+    {
+        "id": "f37c5add7ed3a4aa3e60288597d926d4b8ea7a77b6dd839d0dbf9bf696986036",
+        "linq": "context.Students\n   .Join(context.HasPets, s => s.StuId, hp => hp.StuId, (s, hp) => new { Student = s, HasPet = hp })\n   .Join(context.Pets, h => h.HasPet.PetId, p => p.PetId, (h, p) => new { Student = h.Student, HasPet = h.HasPet, Pet = p })\n   .Where((e) => e.Pet.PetAge == 3 && e.Pet.PetType == \"cat\")\n   .Select(e => e.Student.Lname)\n   .ToList();"
+    },
+    {
+        "id": "ca88acbeb9ce3f09ba6cdbeda963bb9e254b5c08ab0ce48417978c555639a2b2",
+        "linq": "context.Students.Average(s => s.Age).Where(s =>!context.HasPets.Any(h => h.StuId == s.StuId)).ToList();"
+    },
+    {
+        "id": "c6c73e4a20346c83e9e02e05ab4caad45991bd5ae458ddfb64a0796ec560fe22",
+        "linq": "context.RollerCoasters.GroupBy(r => r.Country.Name).Where(g => g.Count() > 1).Select(g => g.Key).ToList();"
+    },
+    {
+        "id": "01406ba008dd700884c46baa534b0385ac95a547a626fcce5abf9299e873ab06",
+        "linq": "context.Set<Country>().Include(c => c.RollerCoasters).Where(c => c.CountryId == context.Set<RollerCoaster>().Select(r => r.CountryId).First()).Select(c => new { Name = c.Name, Population = c.Population }).OrderByDescending(c => c.Height).Take(1).ToList();"
+    },
+    {
+        "id": "eadfeee63dcd0b479d8755eb29c33a3a25e1c5e929e1813c79d08ca6d6c7d429",
+        "linq": "context.RollerCoasters.Count(e => e.Length > 3000).ToList();"
+    },
+    {
+        "id": "6a7b3d6367b2228495890653057240b0f970b6e0b57e7e00922d0ee53d8c9f72",
+        "linq": "context.MedicineEnzymeInteractions.Where(m => m.InteractionType == \"inhibitor\").SelectMany(m => m.Medicine).Select(m => new { m.Name, m.TradeName }).ToList();"
+    },
+    {
+        "id": "f8d7549c34699c40ed73e5f323f808ef61ff90bb75b324522f7beb97c8ec9196",
+        "linq": "context.Medicines\n   .Except(\n        context.MedicineEnzymeInteractions\n           .Join(\n                context.Medicines,\n                t2 => t2.MedicineId,\n                t1 => t1.Id,\n                (t2, t1) => new { t2, t1 })\n           .Join(\n                context.Enzymes,\n                t3 => t3.t2.EnzymeId,\n                t4 => t4.Id,\n                (t3, t4) => new { t3, t4 })\n           .Where(t5 => t5.t4.Product == \"Protoporphyrinogen IX\")\n           .Select(t6 => new { t6.t5.t1.Name, t6.t5.t1.TradeName }))\n   .ToList();"
+    },
+    {
+        "id": "fde8b69d3fa74d35d9c26c2f00249fb0a345a3a90bb42dd6e350111fef386c05",
+        "linq": "context.Medicines.Count(e => e.FdaApproved == true).ToList();"
+    },
+    {
+        "id": "6858f69c37e244d5eec9ce975cedaf9d21ed36ddf0e68a19bc4d01307f871076",
+        "linq": "context.Enzymes.Where(e => e.Name.Contains(\"ALA\")).Select(e => e.Name).ToList();"
     }
 ]
