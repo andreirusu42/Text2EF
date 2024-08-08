@@ -1,0 +1,118 @@
+[
+    {
+        "id": "31e0b6995b1944590a27586b0970cdea24dfe4419721c8a3a7d186175f8808bd",
+        "linq": "context.People.Select(p => p.BirthPlace).Distinct().Count();"
+    },
+    {
+        "id": "eb6c91d414de92da6b85b94c1475aea48660a5435551095e959b559d49a1d80b",
+        "linq": "context.People.Count(p =>!context.BodyBuilders.Any(bb => bb.PeopleId == p.PeopleId));"
+    },
+    {
+        "id": "45dc41b0bd6268900ab3ec532febe5b2608a1b27003dd8ff25e6252456df6286",
+        "linq": "context.BodyBuilders\n   .Include(b => b.People)\n   .Where(b => b.Snatch > 140 || b.People.Height > 200)\n   .Select(b => b.People.Weight)\n   .ToList();"
+    },
+    {
+        "id": "7b30b26548b3398edd8036a21b8e59ebf5a23a29eccede9ecac731b0b97de6f1",
+        "linq": "context.BodyBuilders.Join(context.People, b => b.PeopleId, p => p.PeopleId, (b, p) => new { b.Total, p.BirthDate }).Where(x => x.BirthDate.Contains(\"January\")).Select(x => x.Total).ToList();"
+    },
+    {
+        "id": "554d200951eac5fbd1f623eb524121e73a892018aa56bd626e63fcc099d68d74",
+        "linq": "context.BodyBuilders.Select(x => x.Snatch).Min();"
+    },
+    {
+        "id": "a74936f51df91b526fb493767ae63a7f90952011bd796e7a89e1ad28338bb078",
+        "linq": "context.Members.Where(m => m.Rounds.Any(r => r.RankInRound > 3)).Select(m => m.Name).ToList();"
+    },
+    {
+        "id": "2b4b1adb5d4890a17b13c505598499668cb8e6ca21751585a937083368eb8542",
+        "linq": "context.Members.Join(context.Rounds, m => m.MemberId, r => r.MemberId, (m, r) => new { m.Name, r.RankInRound }).OrderByDescending(x => x.RankInRound).Select(x => x.Name).ToList();"
+    },
+    {
+        "id": "aa92a1d72ecc5c0ab53cf2c97794ef2bfee73b97e890e2c6dc18d34c68973500",
+        "linq": "context.Members.Where(m =>!context.Rounds.Any(r => r.MemberId == m.MemberId)).Select(m => m.Name).ToList();"
+    },
+    {
+        "id": "eb7f3196c681b4af4e73ff9c6f8f097008da698921a3da5d0395aa1b74490471",
+        "linq": "context.Films.Where(f => f.Studio.Contains(\"Universal\")).Select(f => new { f.Title, f.Studio }).ToList();"
+    },
+    {
+        "id": "5fc4fcb5f18cbd7f70ce7d712dadaa181a77e41cc14e716d1bb59e8c8ce14650",
+        "linq": "context.Film.Where(f => f.Title!= \"The Warriors\").Select(f => f.Studio).ToList();"
+    },
+    {
+        "id": "0e5ea380e0077d7b399d3ac6a15c81b859faf95ae91e259de8ffd0a52a0e63f6",
+        "linq": "context.Film.GroupBy(f => f.Studio).Where(g => g.Average(e => e.GrossInDollar) >= 4500000).Select(g => g.Key).ToList();"
+    },
+    {
+        "id": "9e243aae45d0a4817481afff943386ea7176775f9757c905ce0d17e5ecef83da",
+        "linq": "context.FilmMarketEstimations\n   .Include(x => x.Film)\n   .Where(x => x.HighEstimate == context.FilmMarketEstimations.Max(y => y.HighEstimate))\n   .Select(x => x.Film.Title)\n   .FirstOrDefault();"
+    },
+    {
+        "id": "bd84cb383c840a5021d079c7ebb363b6c1399540c60ee4092e4c5ae4a9095e29",
+        "linq": "context.Films.Select(f => new { f.Title, f.Director })\n           .Where(f =>!context.FilmMarketEstimations.Any(e => e.FilmId == f.FilmId && e.Market.Country == \"China\"))\n           .ToList();"
+    },
+    {
+        "id": "f3d79b68212e77ea1570441215bac88f368b7928b4576f5801dfccf4c90c0546",
+        "linq": "context.Singers.Join(context.Songs, t1 => t1.SingerId, t2 => t2.SingerId, (t1, t2) => new { t1.Name, t2.SingerId })\n   .GroupBy(t => t.Name)\n   .Where(g => g.Count() > 1)\n   .Select(t => t.Key)\n   .ToList();"
+    },
+    {
+        "id": "627fde0ff136bbfa0d6be4687a4835ca48cca17d7bbc860fe9737824040a44ce",
+        "linq": "context.Singers.Select(s => new { s.Name, SumSales = context.Songs.Where(s => s.SingerId == s.SingerId).Sum(s => s.Sales) }).ToList();"
+    },
+    {
+        "id": "d345f1c05b5ce76412e12c9465dbbea229c2b77728e57519e128a399c2c23c5c",
+        "linq": "context.Singers.Where(s =>!context.Songs.Any(s2 => s.SingerId == s2.SingerId)).Select(s => s.Name).ToList();"
+    },
+    {
+        "id": "8ac068cecbcf1b1a8244a01b5c478a94611ea557163fd0b57a0ec3bbeb44adbf",
+        "linq": "context.Singers.Where(s => s.BirthYear < 1945).Select(s => s.Citizenship).Intersect(context.Singers.Where(s => s.BirthYear > 1955).Select(s => s.Citizenship)).ToList();"
+    },
+    {
+        "id": "a2dc1d9367aa026fb96ede260127812f58ff138afea3277615eaea3a793c81a1",
+        "linq": "context.Artists.Join(context.Songs, a => a.ArtistName, s => s.ArtistName, (a, s) => new { ArtistName = a.ArtistName, Count = s.Count() })\n.GroupBy(x => x.ArtistName)\n.OrderByDescending(x => x.Count)\n.Take(3)\n.Select(x => new { ArtistName = x.Key, Count = x.Count() })\n.ToList();"
+    },
+    {
+        "id": "79b13e9cab3962e4e164a88a7abed10b30565ddb86335c6a430d02fc15c4e091",
+        "linq": "context.Artists.Where(e => e.Country == \"USA\").Select(e => e.Country).ToList();"
+    },
+    {
+        "id": "5a72f4fa7d9430812da188c351cef2ea305f26129b4ea1582204bb2ab28dce1e",
+        "linq": "context.Songs.Select(s => s.SongName).Where(s => s.Rating < context.Songs.Min(s => s.Rating).Where(s => s.Languages == \"english\")).ToList();"
+    },
+    {
+        "id": "d4f0d30a7e0aef6acf8d535c2b4d0f4fcd76c2cdd7c254c07fbbb1228bc66b38",
+        "linq": "context.Songs.Where(s => s.Resolution > context.Songs.Max(s => s.Resolution) && s.Rating < 8).Select(s => s.FId).ToList();"
+    },
+    {
+        "id": "2bac434891e62305135697b126e8e301e5b0c3cdbe26238f5a8d6b54f94ce3c4",
+        "linq": "context.Songs.Select(s => s.FIdNavigation).Where(s => s.Resolution > context.Songs.Average(s => s.Resolution)).Where(s => s.GenreIsNavigation.GName == \"modern\").Select(s => s.FId).ToList();"
+    },
+    {
+        "id": "bbd719630a012734fa8899792abc1dc4b07a086a288a2cc8a4ea397f7c1b516e",
+        "linq": "context.Artists.Select(a => a.ArtistName).FromQuery(\"SELECT T1.artist_name FROM artist AS T1 JOIN song AS T2 ON T1.artist_name = T2.artist_name WHERE T2.languages = 'bangla' GROUP BY T2.artist_name ORDER BY count(*) DESC LIMIT 3\").ToList();"
+    },
+    {
+        "id": "124716ebfb3bb174ed6084c349e4c05c7311a98ee2d498bf50de5d0d8ac1f03e",
+        "linq": "context.Songs\n   .Where(s => s.Languages == \"english\")\n   .OrderBy(s => s.Rating)\n   .Select(s => new { s.FId, s.GenreIs, s.ArtistName })\n   .ToList();"
+    },
+    {
+        "id": "60c1a8535e44e141c60a81a2e20723ba5b405530ee2f4e74b530aadce016129b",
+        "linq": "context.Files.Join(x => x.Songs, y => y.FId, z => z.FId, (x, y, z) => new { x.Duration, x.FileSize, x.Formats })\n   .Where(x => x.Songs.GenreIs == \"pop\")\n   .OrderBy(x => x.Songs.SongName)\n   .Select(x => new { x.Duration, x.FileSize, x.Formats })\n   .ToList();"
+    },
+    {
+        "id": "ab12bca39e19decca5acfb707c8e608c4548f3d1cc9b27c4ac9cdbcb3cb366d7",
+        "linq": "context.Songs.Select(s => s.ArtistNameNavigation.ArtistName).Distinct().Where(s => s.Languages == \"english\").Except(context.Songs.Select(s => s.ArtistNameNavigation.ArtistName).Distinct().Where(s => s.Rating > 8)).ToList();"
+    },
+    {
+        "id": "7670c63e876139a3ec0f011ba4427616d223e084c699d0cca4b4b0230fa9618e",
+        "linq": "context.Artists.Where(a => a.Country == \"Bangladesh\").Select(a => a.ArtistName).Distinct().Except(context.Songs.Where(s => s.Rating > 7).Select(s => s.ArtistName).Distinct()).ToList();"
+    },
+    {
+        "id": "230beb34c67afeb051e748993e3c796122229270f84cd39039828021699f8e74",
+        "linq": "context.Trains.Select(t => new\n{\n    Name = t.Name,\n    Service = t.Service\n})\n.OrderBy(t => t.Time)\n.ToList();"
+    },
+    {
+        "id": "ff44934796624024fc6f3ec70cdd483c657d09b701804429e8fadc1c86f8ef73",
+        "linq": "context.Stations.GroupBy(s => s.Location).Where(g => g.Count() == 1).Select(g => g.Key).ToList();"
+    }
+]

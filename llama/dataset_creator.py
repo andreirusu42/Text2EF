@@ -45,51 +45,78 @@ test_data = []
 
 
 def generate_prompt(sql: str, context_file_data: str, models_data: list[str], linq: str = "") -> str:
-    models_data = "\n\n".join(models_data)
+    models_data_combined = "\n\n".join(models_data)
 
-    return f"""Below is an instruction that describes the task of generating, given a database schema for context and an SQL query, the associated Entity Framework code in C#, using Method Syntax. Your response should be the code, without any other text, and everything should be in one single line. For example:
+    return f"""You are given an SQL query that needs to be converted into its equivalent Entity Framework code using Method Syntax in C#. The context includes the database schema and models.
 
-### SQL Query:
-SELECT * FROM Users JOIN Orders ON Users.Id = Orders.UserId WHERE Users.Age > 18;
-### Response:
-context.Users.Join(context.Orders, user => user.Id, order => order.UserId, (user, order) => new {{ user, order }}).Where(@t => @t.user.Age > 18);
+### Steps to Follow:
+1. Review the SQL query and the provided context to understand the database structure and relationships.
+2. Write the corresponding Entity Framework code using Method Syntax in C#.
+3. Ensure your response is a single line of code without any additional explanations, comments, or formatting.
+4. Do not declare any additional variables or use any external libraries.
+5. The code should be syntactically correct and should not contain any compilation errors.
+6. Make sure to respect the order in which the data is requested in the SQL query.
 
-Here are the instructions:
+### Example:
+**Context.cs content:**
 
-### Context.cs file content:
+public class EmployeesContext : DbContext
+{{
+    public DbSet<Employee> Employees {{ get; set; }}
+}}
+
+**Models content:**
+
+public class Employee
+{{
+    public int Id {{ get; set; }}
+    public string Name {{ get; set; }}
+    public int Salary {{ get; set; }}
+}}
+
+**SQL Query:**
+SELECT * FROM Employees WHERE Salary > 50000;
+
+**Output:**
+context.Employees.Where(e => e.Salary > 50000).ToList();
+
+
+### Here is the SQL query and the context for the current task:
+**Context.cs content:**
 {context_file_data}
 
-### Models content:
-{models_data}
+**Models content:**
+{models_data_combined}
 
-### SQL Query:
+**SQL Query:**
 {sql}
 
-### Response:
+**Output:**
 {linq}"""
 
 
 for db_name in db_names:
     context_info = context[db_name]
 
-    db_tests = [test for test in queries if test['db_name'] == db_name]
+    db_queries = [query for query in queries if query['db_name'] == db_name]
 
-    split_index = int(len(db_tests) * train_test_split)
+    split_index = int(len(db_queries) * train_test_split)
 
-    train_tests = db_tests[:split_index]
-    test_tests = db_tests[split_index:]
+    train_queries = db_queries[:split_index]
+    test_queries = db_queries[split_index:]
 
-    for test in train_tests:
-        prompt = generate_prompt(test['sql'], context_info['context'], context_info['models'], test['linq'])
+    for query in train_queries:
+        prompt = generate_prompt(query['sql'], context_info['context'], context_info['models'], query['linq'])
         train_data.append({
+            "query_id": query['id'],
             "prompt": prompt,
         })
 
-    for test in test_tests:
-        prompt = generate_prompt(test['sql'], context_info['context'], context_info['models'])
+    for query in test_queries:
+        prompt = generate_prompt(query['sql'], context_info['context'], context_info['models'])
         test_data.append({
+            "query_id": query['id'],
             "prompt": prompt,
-            "response": test['linq']
         })
 
 with open("train_data.json", "w") as file:
