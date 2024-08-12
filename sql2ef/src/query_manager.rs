@@ -30,44 +30,38 @@ pub enum TestStatus {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-pub enum SplitType {
-    Train,
-    Dev,
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Query {
     pub id: String,
     pub sql: String,
+    pub question: String,
     pub linq: String,
     pub db_name: String,
     pub status: TestStatus,
     pub error: Option<String>,
     pub should_retest: bool,
-    pub split: SplitType,
 }
 
 impl Query {
     pub fn new(
         db_name: &str,
         sql: &str,
+        question: &str,
         linq: &str,
         error: Option<String>,
         status: TestStatus,
         should_retest: bool,
-        split: SplitType,
     ) -> Self {
         let id = generate_id(sql, db_name);
 
         Self {
             id,
             sql: sql.to_string(),
+            question: question.to_string(),
             linq: linq.to_string(),
             db_name: db_name.to_string(),
             status,
             error,
             should_retest,
-            split,
         }
     }
 }

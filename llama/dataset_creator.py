@@ -1,7 +1,9 @@
 import os
 import json
+import sqlparse
 
 data_file_path = "../sql2ef/src"
+dataset_file_path = "../dataset"
 
 context_file_path = os.path.join(data_file_path, "context.json")
 queries_file_path = os.path.join(data_file_path, "queries.json")
@@ -44,55 +46,61 @@ train_data = []
 test_data = []
 
 
-def generate_prompt(sql: str, context_file_data: str, models_data: list[str], linq: str = "") -> str:
+def generate_prompt(query: str, context_file_data: str, models_data: list[str], ef: str = "") -> str:
     models_data_combined = "\n\n".join(models_data)
 
-    return f"""You are given an SQL query that needs to be converted into its equivalent Entity Framework code using Method Syntax in C#. The context includes the database schema and models.
+    return f"""You are tasked with converting a natural language query into its equivalent Entity Framework code using Method Syntax in C#. The provided context includes details about the database schema and the models.
 
 ### Steps to Follow:
-1. Review the SQL query and the provided context to understand the database structure and relationships.
-2. Write the corresponding Entity Framework code using Method Syntax in C#.
-3. Ensure your response is a single line of code without any additional explanations, comments, or formatting.
-4. Do not declare any additional variables or use any external libraries.
-5. The code should be syntactically correct and should not contain any compilation errors.
-6. Make sure to respect the order in which the data is requested in the SQL query.
+1. Understand the Context: Carefully review the database schema and models provided in the context to fully grasp the structure and relationships within the database.
+2. Generate the Code: Convert the given natural language query into a single line of C# code using Entity Framework's Method Syntax.
+3. Follow these Guidelines:
+    - Code Simplicity: The output must be a single line of C# code without any additional explanations, comments, or unnecessary formatting (e.g., new lines, extra spaces, or tabs).
+    - Self-Contained: The code should not declare any new variables, use external libraries, or reference methods or functions that are not part of Entity Framework. The code should start directly with the context variable and end with a semicolon (`;`).
+    - Correctness: Ensure that the code is syntactically correct and free of compilation errors. It should fulfill the requirements of the query and return the expected results.
+    - Respect Query Order: The order of data retrieval in the generated code must match the order requested in the natural language query.
 
 ### Example:
-**Context.cs content:**
+**Context.cs:**
 
 public class EmployeesContext : DbContext
 {{
     public DbSet<Employee> Employees {{ get; set; }}
 }}
 
-**Models content:**
+**Models:**
 
 public class Employee
 {{
     public int Id {{ get; set; }}
     public string Name {{ get; set; }}
+    public int Age {{ get; set; }}
     public int Salary {{ get; set; }}
 }}
 
-**SQL Query:**
-SELECT * FROM Employees WHERE Salary > 50000;
+**Natural Language Query:**
+Select the name and the age of the employees whose salary is greater than 50,000.
 
 **Output:**
-context.Employees.Where(e => e.Salary > 50000).ToList();
+context.Employees.Where(e => e.Salary > 50000).Select(e => new {{ e.Name, e.Age }}).ToList();
 
 
-### Here is the SQL query and the context for the current task:
-**Context.cs content:**
+
+### Task:
+Now, using the provided context and models, generate the appropriate C# code for the following query.
+
+
+**Context.cs:**
 {context_file_data}
 
-**Models content:**
+**Models:**
 {models_data_combined}
 
-**SQL Query:**
-{sql}
+**Natural Language Query:**
+{query}
 
 **Output:**
-{linq}"""
+{ef}"""
 
 
 for db_name in db_names:
@@ -106,14 +114,14 @@ for db_name in db_names:
     test_queries = db_queries[split_index:]
 
     for query in train_queries:
-        prompt = generate_prompt(query['sql'], context_info['context'], context_info['models'], query['linq'])
+        prompt = generate_prompt(query['question'], context_info['context'], context_info['models'], query['linq'])
         train_data.append({
             "query_id": query['id'],
             "prompt": prompt,
         })
 
     for query in test_queries:
-        prompt = generate_prompt(query['sql'], context_info['context'], context_info['models'])
+        prompt = generate_prompt(query['question'], context_info['context'], context_info['models'])
         test_data.append({
             "query_id": query['id'],
             "prompt": prompt,
