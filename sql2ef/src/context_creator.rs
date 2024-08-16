@@ -23,10 +23,7 @@ fn clean_string(input: &str) -> String {
 }
 
 pub fn extract_context_for_databases() {
-    let dataset = extract_queries(
-        constants::EF_MODELS_DIR,
-        constants::TRAIN_GOLD_DATASET_FILE_PATH,
-    );
+    let dataset = extract_queries(constants::EF_MODELS_DIR, constants::DATASET_FILE_PATH);
 
     let db_names: HashSet<String> = dataset
         .db_names

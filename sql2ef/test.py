@@ -2,7 +2,7 @@
 
 import json
 
-with open('src/tests.json') as f:
+with open('src/queries.json') as f:
     data = json.load(f)
 
 print(f"Total queries: {len(data)}")

@@ -17,9 +17,9 @@ use std::{collections::HashSet, io::Write};
 
 use context_creator::extract_context_for_databases;
 use csharp::{execute_csharp_code, BuildResultStatus, CodeResultStatus};
-use dataset::extract_queries;
+use dataset::{extract_queries, RawQuery};
 use linq_query_builder::LinqQueryBuilder;
-use query_manager::{Query, QueryManager, SplitType, TestStatus};
+use query_manager::{Query, QueryManager, TestStatus};
 use schema_mapping::extract_context_and_models;
 
 fn create_code_execution_code(
@@ -55,12 +55,11 @@ Tester.Test(linq, sql, context);
 fn execute_query_and_update_tests_file(
     context_name: &str,
     db_name: &str,
-    query: &str,
+    query: &RawQuery,
     result: &str,
-    split: &SplitType,
     query_manager: &mut QueryManager,
 ) {
-    let c_sharp_code = create_code_execution_code(context_name, db_name, query, result);
+    let c_sharp_code = create_code_execution_code(context_name, db_name, &query.sql, result);
 
     let execution_result = execute_csharp_code(constants::EF_PROJECT_DIR, &c_sharp_code);
 
@@ -74,12 +73,12 @@ fn execute_query_and_update_tests_file(
 
                     let test = Query::new(
                         db_name,
-                        query,
+                        &query.sql,
+                        &query.question,
                         result,
                         None,
                         TestStatus::Passed,
                         false,
-                        split.clone(),
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
@@ -90,12 +89,12 @@ fn execute_query_and_update_tests_file(
 
                     let test = Query::new(
                         db_name,
-                        query,
+                        &query.sql,
+                        &query.question,
                         result,
                         Some(format!("{:?}", exception_details)),
                         TestStatus::CodeFailed,
                         false,
-                        split.clone(),
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
@@ -107,12 +106,12 @@ fn execute_query_and_update_tests_file(
 
             let test = Query::new(
                 db_name,
-                query,
+                &query.sql,
+                &query.question,
                 result,
                 Some(error_message),
                 TestStatus::BuildFailed,
                 false,
-                split.clone(),
             );
 
             query_manager.write_test_or_update(test).unwrap();
@@ -193,16 +192,8 @@ fn run_queries_bulk() {
         .expect("Unable to write data");
 }
 
-fn run_queries_sequentially(split: SplitType) {
-    let dataset_file_path = if split == SplitType::Train {
-        constants::TRAIN_GOLD_DATASET_FILE_PATH
-    } else if split == SplitType::Dev {
-        constants::DEV_GOLD_DATASET_FILE_PATH
-    } else {
-        panic!("Invalid split: {:?}", split);
-    };
-
-    let dataset = extract_queries(constants::EF_MODELS_DIR, dataset_file_path);
+fn run_queries_sequentially() {
+    let dataset = extract_queries(constants::EF_MODELS_DIR, constants::DATASET_FILE_PATH);
     let mut query_manager = QueryManager::new(constants::QUERIES_JSON_FILE_PATH).unwrap();
 
     for db_name in &dataset.db_names {
@@ -229,15 +220,15 @@ fn run_queries_sequentially(split: SplitType) {
         let context_name = linq_query_builder.get_context_name();
 
         for (index, query) in queries.iter().enumerate() {
-            println!("Processing query {} for {} - {}", index, db_name, query);
+            println!("Processing query {} for {} - {}", index, db_name, query.sql);
 
-            let build_query_result = catch_unwind(|| linq_query_builder.build_query(query));
+            let build_query_result = catch_unwind(|| linq_query_builder.build_query(&query.sql));
 
             let result = if let Ok(res) = build_query_result {
                 res
             } else {
                 if let Err(err) = build_query_result {
-                    println!("Failed to build query for {}", query);
+                    println!("Failed to build query for {}", query.sql);
 
                     let error_message = if let Some(s) = err.downcast_ref::<&str>() {
                         s.to_string()
@@ -250,12 +241,12 @@ fn run_queries_sequentially(split: SplitType) {
                     query_manager
                         .write_test_or_update(Query::new(
                             db_name,
-                            query,
+                            &query.sql,
+                            &query.question,
                             "",
                             Some(error_message),
                             TestStatus::QueryBuildFailed,
                             false,
-                            split.clone(),
                         ))
                         .unwrap();
 
@@ -265,7 +256,7 @@ fn run_queries_sequentially(split: SplitType) {
                 }
             };
 
-            if let Some(test) = query_manager.get_query(query, db_name) {
+            if let Some(test) = query_manager.get_query(&query.sql, db_name) {
                 if test.linq == result && test.status == TestStatus::Passed {
                     println!("Query already exists in the tests file and it's passed.");
                     continue;
@@ -278,9 +269,8 @@ fn run_queries_sequentially(split: SplitType) {
                         execute_query_and_update_tests_file(
                             &context_name,
                             &db_name,
-                            &query,
+                            query,
                             &result,
-                            &split,
                             &mut query_manager,
                         );
 
@@ -300,7 +290,6 @@ fn run_queries_sequentially(split: SplitType) {
                         &db_name,
                         &query,
                         &result,
-                        &split,
                         &mut query_manager,
                     );
                     continue;
@@ -315,7 +304,6 @@ fn run_queries_sequentially(split: SplitType) {
                 &db_name,
                 &query,
                 &result,
-                &split,
                 &mut query_manager,
             );
         }
@@ -374,10 +362,10 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    // run_queries_sequentially(SplitType::Dev);
+    run_queries_sequentially();
     // run_queries_bulk();
 
-    extract_context_for_databases();
+    // extract_context_for_databases();
 
     // debug_query(
     //     "college_2",
