@@ -1586,9 +1586,6 @@ impl LinqQueryBuilder {
                 );
 
                 // TODO: This is a bit hacky
-
-                // if the subquery ends with .Min(), .Max(), .Count(), then return the subquery
-
                 let aggregation_functions = ["Min", "Max", "Count", "Average"];
 
                 for function in aggregation_functions.iter() {
