@@ -1,0 +1,234 @@
+[
+    {
+        "id": "0b06abff1cd6e2317c9ed30f317644278864b13d7a8e5c71beb0fff0197381b1",
+        "linq": "context.Movies.Join(context.Ratings, T1 => T1.MId, T2 => T2.MId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Stars >= 3 && row.T2.Stars <= 5).Select(row => new { row.T1.Title }).ToList();"
+    },
+    {
+        "id": "b2fcf9e6d3b135668fd1f89cbcdfc0ab4429b2748be5fa0c35b2b157266b68b4",
+        "linq": "context.Ratings.Where(row => row.Stars > 3).Select(row => new { row.RIdNavigation.Name }).ToList();"
+    },
+    {
+        "id": "4c82031f5e2a523e0136519f02b3c9ce7432ba3af36c95216bd454241236ee75",
+        "linq": "context.Ratings.Where(row => row.RIdNavigation.Name!= \"Brittany Harris\").GroupBy(row => new { row.MId }).Select(group => new { group.Select(row => row.Stars).Average(), group.First().MId }).ToList();"
+    },
+    {
+        "id": "4c511ced17fadf863d05f070dc2c45789538c4f94b98c0bc1ab36fa74d6e14d3",
+        "linq": "context.Ratings.GroupBy(row => new { row.MId }).Where(group => group.Count() >= 2).Select(group => new { group.Select(row => row.Stars).Average() }).ToList();"
+    },
+    {
+        "id": "5eb8717beba8e33004b5c0153073fa8009bdf4d61586a2c89da634628b93a343",
+        "linq": "context.Ratings.Where(row => row.Stars!= 4).Select(row => new { row.RId }).ToList();"
+    },
+    {
+        "id": "5ec4e77d67e80277dcc3ba61cd8f4fd0e122e47cdb593a6fb4cbaf701690779c",
+        "linq": "context.Movies.Where(row => row.Year > 2000 || context.Ratings.Select(row => row.RIdNavigation.Name).Contains(\"Brittany Harris\")).Select(row => new { row.Title }).ToList();"
+    },
+    {
+        "id": "0dcad2200af555fc5e455625f349c28b344e3f9b5dda39437f4f4085d946be02",
+        "linq": "context.Movies.Where(row => row.Year < 1980 || row.Director == \"James Cameron\").Select(row => new { row.Title }).ToList();"
+    },
+    {
+        "id": "9939110ee48e7afbeaf489a79c5cf5f54c0f04251c254b6acb2b05da28d0bc08",
+        "linq": "context.Reviewers.Join(context.Ratings, T1 => T1.RId, T2 => T2.RId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Stars == 3 || row.T2.Stars == 4).Select(row => new { row.T1.Name }).ToList();"
+    },
+    {
+        "id": "8b1402382f224a4de0d9310ac7827920e9eae84b91c791b96a20af970e970ada",
+        "linq": "context.Movies.Join(context.Ratings, T1 => T1.MId, T2 => T2.MId, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Stars == 3 || row.T2.Stars == 4).Select(row => new { row.T1.Title }).ToList();"
+    },
+    {
+        "id": "c566627ce518b80b98adf46a6c5d10db944ad76af8c8eb9e32351a3fed71aed0",
+        "linq": "context.CmiCrossReferences.Where(row => row.CmiDetails == \"Gottlieb, Becker and Wyman\").Select(row => new { row.SourceSystemCode }).Distinct().ToList();"
+    },
+    {
+        "id": "2579825570059ddcdb681770fb8b31d1ffa7fbdf4d583b9c8c29cbfa3f3c324b",
+        "linq": "context.CmiCrossReferences.Where(row =>!context.ParkingFines.Select(row => row.CmiCrossRefId).Contains(row.CmiCrossRefId)).Select(row => new { row.CmiCrossRefId }).ToList();"
+    },
+    {
+        "id": "17097cab93a18496b677e5bc365b6ce06245ff12b9df74df1b2034a3ac39ed23",
+        "linq": "context.CmiCrossReferences.Where(row => row.SourceSystemCode.Contains(\"en\")).Select(row => new { row.SourceSystemCode }).Distinct().ToList();"
+    },
+    {
+        "id": "547fb363e1b6aa73bba3a868739f93f4a0f51511ea0e80a5193c8551293b36b5",
+        "linq": "context.ProjectOutcomes.GroupBy(row => new { row.ProjectId }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.ProjectId, Count = group.Count() }).Take(1).ToList();"
+    },
+    {
+        "id": "94312671cca5cc8ec65c72049b1f1aee5fbb7f996346aa985663e89b5a3ab508",
+        "linq": "context.Projects.Where(row => row.OrganisationId == context.Organisations.Where(row => row.OrganisationDetails == \"Organisation 1\").Select(row => row.OrganisationId).First()).Select(row => new { row.ProjectDetails }).ToList();"
+    },
+    {
+        "id": "8e6fccb6641a9a160c49e2f26a9ff67715fbd76f5998185db8903d254845a6f2",
+        "linq": "context.ResearchStaffs.OrderBy(row => row.StaffDetails).Select(row => new { row.StaffDetails }).ToList();"
+    },
+    {
+        "id": "dd7a20fe8b2b809a79ccc3a0e0bd33921f388861c67499686d02366f9deda813",
+        "linq": "context.Tasks.Count();"
+    },
+    {
+        "id": "c4b3ff6ce5cf9a0769f9c05d4c1b5a050227b8cf7490df5bd2b9cca97ddd492f",
+        "linq": "context.Tasks.GroupBy(row => new { row.ProjectId }).Select(group => new { group.Count(), ProjectDetails = context.Projects.Where(row => row.ProjectId == group.Key.ProjectId).Select(row => row.ProjectDetails).FirstOrDefault() }).ToList();"
+    },
+    {
+        "id": "8bfdea57ad3f62c17fd780480145ee0100f6d639b14634a71f3eadd83d4366ef",
+        "linq": "context.ProjectOutcomes.Join(context.ResearchOutcomes, T1 => T1.OutcomeCode, T2 => T2.OutcomeCode, (T1, T2) => new { T1, T2 }).Select(row => new { row.T2.OutcomeDescription }).ToList();"
+    },
+    {
+        "id": "468a37efc417084c710a0669e74b748fb39a8ba2a9e47055f4dfa19fad5b85c6",
+        "linq": "context.StaffRoles.Select(row => new { row.RoleDescription }).GroupBy(group => group.RoleDescription).OrderByDescending(group => group.Count()).Select(group => new { group.Key }).Take(1).ToList();"
+    },
+    {
+        "id": "b0fe9d15fb1f5adc77f5395b74613a607cf2d9f6c2f2b09995977c37c8563a83",
+        "linq": "context.Faculties.Where(row => row.Campus == 1 && row.Year == 2004).Count();"
+    },
+    {
+        "id": "e78b7cf19aa98f5fa22af36d11031a53fd6a89bc5008495baa56f1b29db830e6",
+        "linq": "context.Campuses.Where(row => row.Year == 2004 && row.Faculty1 >= 600 && row.Faculty1 <= 1000).Select(row => new { row.Campus1 }).ToList();"
+    },
+    {
+        "id": "8374d6b61dfdc9a1581bf34cc21847868f5713d5dbee517f8251bb8895a2403c",
+        "linq": "context.DisciplineEnrollments.Where(row => row.Campus == \"San Jose State University\" && row.Year == 2004 && row.Discipline == \"Undergraduate\").Select(row => new { row.Undergraduate }).ToList().Count;"
+    },
+    {
+        "id": "834e3309d97fc7d0fbdaff764582b81eef19378d629b09d3b58c80b037a841c9",
+        "linq": "context.Degrees.Where(row => row.Campus == \"San Francisco State University\" && row.Year == 2004).Select(row => new { row.Degrees }).ToList().Count;"
+    },
+    {
+        "id": "57542d3447b38a8148280567f62379c064b40afdd1014a7f11c4fbcac414a058",
+        "linq": "context.CsuFees.Where(row => row.Campus == \"San Francisco State University\" && row.Year == 2000).Select(row => new { row.CampusFee }).ToList();"
+    },
+    {
+        "id": "2b5f54469e49ee671704d6a2d7f047cc874acaed3d15756b576b52db00e4cac4",
+        "linq": "context.CsuFees.Where(row => row.Campus == context.Campuses.Where(row => row.Campus1 == \"San Jose State University\").Select(row => row.Id).First() && row.Year == 2000).Select(row => new { row.CampusFee }).ToList();"
+    },
+    {
+        "id": "f3ce98efa2464eebebeb60c05b11bd333780f973745078c46ed4f9f6eb2570f8",
+        "linq": "context.Campuses.Count();"
+    },
+    {
+        "id": "31ec01bf8fd96fb3e1678beeb1aae149452f126701099ca120e9d121b40f0337",
+        "linq": "context.Representatives.GroupBy(row => new { row.State }).Where(group => group.Count() >= 2).Select(group => new { group.Key.State }).ToList();"
+    },
+    {
+        "id": "b54f2969e91f68f1fb6b267f9143b96098db1517d6c24a545213930f43800fe7",
+        "linq": "context.Representatives.Where(row =>!context.Elections.Select(row => row.RepresentativeId).Contains(row.RepresentativeId)).Select(row => new { row.Name }).ToList();"
+    },
+    {
+        "id": "e808b36cb6ffff9663d5d011a51a273987d67e6e1ade7805b7ca050387200e3f",
+        "linq": "context.Representatives.Join(context.Representatives, T1 => T1.State, T2 => T2.State, (T1, T2) => new { T1, T2 }).Where(row => row.T1.State == \"New York\" && row.T2.State == \"Pennsylvania\").Select(row => new { row.T1.Party }).Distinct().ToList();"
+    },
+    {
+        "id": "7a74494e0a1ecd18a052d0b160276a5aa85489d08bf903d742fab74c9c082cc7",
+        "linq": "context.Representatives.Select(row => new { row.Party }).Distinct().Count();"
+    },
+    {
+        "id": "4bc67b307834c13856ba19678847c96aa36486f1f686c413c5cea160047f4796",
+        "linq": "context.DocumentLocations.GroupBy(row => new { row.LocationCode }).Select(group => new { group.Key.LocationCode, Count = group.Count() }).ToList();"
+    },
+    {
+        "id": "554fcda987ba852133be0a9a87976bd0e2ec2bc33a988e7775fd8c1cbb06397e",
+        "linq": "context.DocumentLocations.Join(context.AllDocuments, T1 => T1.DocumentId, T2 => T2.DocumentId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.LocationCode }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.LocationCode }).Take(1).ToList();"
+    },
+    {
+        "id": "18108bec8b7ead1b031b94c11d074d3603e700e8d7cd030fae7cea54f9e8d651",
+        "linq": "context.DocumentLocations.Where(row => row.DocumentLocations.Count() >= 3).Select(row => new { row.LocationCode }).ToList();"
+    },
+    {
+        "id": "2c5f3e1935ccaeb703716d2ab51a57470a8ae93ceee2a6154b976fa025b62946",
+        "linq": "context.DocumentLocations.Join(context.AllDocuments, T1 => T1.DocumentId, T2 => T2.DocumentId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.LocationCode }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.LocationCode, group.First().T1.LocationName }).Take(1).ToList();"
+    },
+    {
+        "id": "e56946f38725ee20f7f2b7a8aec6b4424113f7a6a310b160a87ea3f79f5ec6f0",
+        "linq": "context.Employees.Join(context.DocumentsToBeDestroyed, T1 => T1.EmployeeId, T2 => T2.DestructionAuthorisedByEmployeeId, (T1, T2) => new { T1, T2 }).Join(context.Employees, joined => joined.T2.DestroyedByEmployeeId, T3 => T3.EmployeeId, (joined, T3) => new { joined.T1, joined.T2, T3 }).Select(row => new { row.T1.EmployeeName, row.T3.EmployeeName }).ToList();"
+    },
+    {
+        "id": "59017bfd2da6e7096a2d4d28f383551aea5d91fd1bb11c4e39084363be16441e",
+        "linq": "context.Employees.Join(context.DocumentsToBeDestroyed, T1 => T1.EmployeeId, T2 => T2.DestructionAuthorisedByEmployeeId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.EmployeeId }).Select(group => new { group.Key.EmployeeId, Count = group.Count() }).ToList();"
+    },
+    {
+        "id": "cab6cc2cb72715df103fa59d42407966c14a7ec1cb2c1e48d99f58f3c3c9b06f",
+        "linq": "context.DocumentsToBeDestroyed.Join(context.Employees, T1 => T1.DestroyedByEmployeeId, T2 => T2.EmployeeId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.DestroyedByEmployeeId }).Select(group => new { group.Key.DestroyedByEmployeeId, Count = group.Count() }).ToList();"
+    },
+    {
+        "id": "be672232ffc537c614ed755d2b44655e8a23dbaf3f4e594850c402a6ddc12d86",
+        "linq": "context.DocumentsToBeDestroyed.Where(row => row.DestructionAuthorisedByEmployeeId!= null).Select(row => new { row.DestructionAuthorisedByEmployeeId }).ToList();"
+    },
+    {
+        "id": "119ad4832e1ae89413a459e1cc99d5983ac4bccae0a0da4c974434b156b42194",
+        "linq": "context.DocumentsToBeDestroyed.Select(row => row.DestroyedByEmployeeId).ToList();"
+    },
+    {
+        "id": "5fc936ebae2bcbdfcc2fdcbf9c80faaace0495fd700dd5d4b80dadd7b332d546",
+        "linq": "context.Teachers.Join(context.CourseArranges, T1 => T1.TeacherId, T2 => T2.TeacherId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeacherId }).Select(group => new { group.First().T1.Name, group.Count() }).ToList();"
+    },
+    {
+        "id": "0aba61bce69b4a847d38c4d0b481e9ffbe94f0e42ebb9faeb006cda828470899",
+        "linq": "context.Teachers.Join(context.CourseArranges, T1 => T1.TeacherId, T2 => T2.TeacherId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.TeacherId }).Where(group => group.Count() >= 2).Select(group => new { group.First().T1.Name }).ToList();"
+    },
+    {
+        "id": "a0263e6dcfb4e580d6c473bfbdbec9d0a1c8f42d83f9d3b71523093fce461177",
+        "linq": "context.Teachers.Where(row =>!context.CourseArranges.Select(row => row.TeacherId).Contains(row.TeacherId)).Select(row => new { row.Name }).ToList();"
+    },
+    {
+        "id": "54e46e168257fa3c77cbc9b166fe53b70b93dad382e8ef741febac472d62d601",
+        "linq": "context.Flights.Select(row => new { row.Origin }).Distinct().GroupBy(group => new { group.Origin }).Select(group => new { group.Key.Origin, Count = group.Count() }).ToList();"
+    },
+    {
+        "id": "e74151029757759fbb6e61317b753a237a708b677dca9815eeb7f9f2174ce845",
+        "linq": "context.Flights.GroupBy(row => new { row.Destination }).Select(group => new { group.Key.Destination, Count = group.Count() }).ToList();"
+    },
+    {
+        "id": "34ed07339a7f3ddfb59b68a48ea7fdc6a3f9a9a4e5ce9941f4aae2c7247f93c0",
+        "linq": "context.Flights.GroupBy(row => new { row.Origin }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.Origin }).Take(1).ToList();"
+    },
+    {
+        "id": "81fa96449af0a2e0e1d7cca649cff23b57db4fc5b09294af68e6cd2cd061a461",
+        "linq": "context.Flights.GroupBy(row => new { row.Destination }).OrderByDescending(group => group.Count()).Select(group => new { group.Key.Destination }).Take(1).ToList();"
+    },
+    {
+        "id": "6c9b155e04be311877516cd23793a636eaea87f99f87e7030200c27f429adac7",
+        "linq": "context.Flights.Where(row => row.Flno == 99).Select(row => new { row.Aid }).ToList();"
+    },
+    {
+        "id": "631e1c33d6b505289aff8e1168258ae257faf9fb0dbcddb8f5646bbe50146094",
+        "linq": "context.Flights.Join(context.Aircraft, T1 => T1.Aid, T2 => T2.Aid, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Name == \"Airbus A340-300\").Select(row => new { row.T1.Flno }).ToList();"
+    },
+    {
+        "id": "5243f60ba3637afbd70aba0b5c7a530370bb35765609a12570bf9b84050c4130",
+        "linq": "context.Employees.Join(context.Aids, T1 => T1.Eid, T2 => T2.Eid, (T1, T2) => new { T1, T2 }).Join(context.Flights, joined => joined.T2.Aid, T3 => T3.Aid, (joined, T3) => new { joined.T1, joined.T2, T3 }).GroupBy(row => new { row.T2.Aid }).Select(group => new { group.Key.Aid, group.Count() }).ToList();"
+    },
+    {
+        "id": "3ab1fcfdd4dac6d802e308f8c77c272fffcf8c40f9819bde3e420654680c66f0",
+        "linq": "context.Employees.Join(context.Flights, T1 => T1.Eid, T2 => T2.Aid, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.Name }).Where(group => group.Count() >= 2).Select(group => new { group.Key.Name }).ToList();"
+    },
+    {
+        "id": "11f94a4105e54dbbe9de5cc2883aef4848cfe15c2b6b52a44449a9ad7e89fc6c",
+        "linq": "context.CustomersCards.Select(row => new { row.CardTypeCode }).Distinct().Count();"
+    },
+    {
+        "id": "fddcc9d9aabb0a37ef8eb071ccc15f08502cd72ea30f93968c8acdb83477fb56",
+        "linq": "context.FinancialTransactions.Select(row => new { row.TransactionType }).Distinct().ToList();"
+    },
+    {
+        "id": "47ad7ccbc4929e629d22ab641b153ac4c20f8d868cd00d3f372c94f91dbe998d",
+        "linq": "context.FinancialTransactions.Select(row => new { row.TransactionType }).Distinct().Count();"
+    },
+    {
+        "id": "60efab0b3cf1e5d87e3cae1fa7240d089069df997cc4669765b9dbdaefd95459",
+        "linq": "context.FinancialTransactions.Select(row => new { row.TransactionAmount }).Average() + \", \" + context.FinancialTransactions.Select(row => row.TransactionAmount).Sum();"
+    },
+    {
+        "id": "74a7ac2c22b3aedd6f9c1e03064f7f56f4689d84ba9bbc2890689927028e2029",
+        "linq": "context.FinancialTransactions.GroupBy(row => new { row.TransactionType }).Select(group => new { group.Key.TransactionType, Count = group.Count() }).ToList();"
+    },
+    {
+        "id": "651d9748eab48cbcac9ecf3369f0b6801d43f5d64ea13c122a42d955575018c8",
+        "linq": "context.FinancialTransactions.Select(row => new { row.TransactionType, Count = context.FinancialTransactions.Count(row1 => row1.TransactionType == row.TransactionType) }).ToList();"
+    },
+    {
+        "id": "972f71cddd02e289be5b0802e4d5cf9cb93b960e9f393008d3e3268c52f48e67",
+        "linq": "context.FinancialTransactions.GroupBy(row => new { row.TransactionType }).OrderByDescending(group => group.Sum(row => row.TransactionAmount)).Select(group => new { group.Key.TransactionType }).Take(1).ToList();"
+    },
+    {
+        "id": "d5e5357b9edc48bc62daffff10a50b16bcb31dc3382b8358f49b4ba325606806",
+        "linq": "context.Accounts.Join(context.FinancialTransactions, T1 => T1.AccountId, T2 => T2.AccountId, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.AccountId }).Select(group => new { group.First().T1.AccountId, Count = group.Count() }).ToList();"
+    }
+]
