@@ -974,13 +974,15 @@ impl LinqQueryBuilder {
             ));
         }
 
-        return ProjectionResult {
+        let result = ProjectionResult {
             select_result,
             additional_where_result,
             group_by_result,
             calculated_fields,
             aggregated_fields,
         };
+
+        return result;
     }
 
     /*

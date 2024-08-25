@@ -4,7 +4,11 @@ import subprocess
 
 from json_file_manager import JsonFileManager
 
-results_json_path = "../llama/test_results.json"
+model_name = "model-8b_context-8192"
+model_name = "model-8b_context-8192_pretrained"
+model_name = "model-8b_context-8192_pretrained-warmup_steps_500-max_steps_200"
+
+results_json_path = f"../llama/test_results_{model_name}.json"
 queries_json_path = "../sql2ef/src/queries.json"
 
 entity_framework_dir = "../entity-framework"
@@ -14,7 +18,7 @@ queries_json: list = json.load(open(queries_json_path))
 
 results_by_id = {result["id"]: result for result in results_json}
 
-test_results_json_manager = JsonFileManager("final_results.json")
+test_results_json_manager = JsonFileManager(f"final_results_{model_name}.json")
 
 
 def extract_relevant_errors(build_output: str) -> str:
@@ -94,6 +98,10 @@ def main():
 
         if id not in results_by_id:
             print(f"Result for query {id} not found")
+            continue
+
+        if test_results_json_manager.does_item_exist(id):
+            print(f"Skipping query {id} as it has already been processed")
             continue
 
         print(f"Running query for {db_name} database with context {context_name}")

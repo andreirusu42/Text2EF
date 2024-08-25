@@ -127,6 +127,7 @@ for db_name in db_names:
             "prompt": prompt,
         })
 
+
 with open("train_data.json", "w") as file:
     json.dump(train_data, file)
 

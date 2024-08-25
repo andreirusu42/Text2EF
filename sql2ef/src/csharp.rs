@@ -12,7 +12,8 @@ pub struct ExecutionResult {
 #[derive(Debug)]
 pub enum CodeResultStatus {
     OK,
-    Fail(ExceptionDetails),
+    WrongResults(ResultsDetails),
+    UnhandledException(String),
 }
 
 #[derive(Debug)]
@@ -21,8 +22,8 @@ pub enum BuildResultStatus {
     Fail(String),
 }
 
-#[derive(Debug)]
-pub struct ExceptionDetails {
+#[derive(Debug, Clone)]
+pub struct ResultsDetails {
     pub sql_results: String,
     pub linq_results: String,
 }
@@ -48,10 +49,22 @@ pub fn execute_csharp_code(project_dir: &str, code: &str) -> ExecutionResult {
                             let error_message = String::from_utf8_lossy(&output.stderr).to_string();
 
                             let exception_details = parse_exception_details(&error_message);
-                            return ExecutionResult {
-                                build_result: BuildResultStatus::OK,
-                                code_result: Some(CodeResultStatus::Fail(exception_details)),
-                            };
+
+                            if let Some(details) = &exception_details {
+                                return ExecutionResult {
+                                    build_result: BuildResultStatus::OK,
+                                    code_result: Some(CodeResultStatus::WrongResults(
+                                        details.clone(),
+                                    )),
+                                };
+                            } else {
+                                return ExecutionResult {
+                                    build_result: BuildResultStatus::OK,
+                                    code_result: Some(CodeResultStatus::UnhandledException(
+                                        parse_unhandled_exception(&error_message),
+                                    )),
+                                };
+                            }
                         } else {
                             return ExecutionResult {
                                 build_result: BuildResultStatus::OK,
@@ -93,7 +106,18 @@ fn run_project(project_dir: &str) -> io::Result<Output> {
         .output()
 }
 
-fn parse_exception_details(error_message: &str) -> ExceptionDetails {
+fn parse_unhandled_exception(error_message: &str) -> String {
+    let re = Regex::new(r"Unhandled exception\..*").unwrap();
+
+    if let Some(capture) = re.captures(error_message) {
+        let unhandled_exception = capture.get(0).map_or("", |m| m.as_str());
+        return unhandled_exception.to_string();
+    } else {
+        return String::new();
+    }
+}
+
+fn parse_exception_details(error_message: &str) -> Option<ResultsDetails> {
     let sql_regex = Regex::new(r"SQL Results: (.+?)\n").unwrap();
     let linq_regex = Regex::new(r"LINQ Results: (.+?)\n").unwrap();
 
@@ -107,10 +131,14 @@ fn parse_exception_details(error_message: &str) -> ExceptionDetails {
         .and_then(|cap| cap.get(1))
         .map_or(String::new(), |m| m.as_str().to_string());
 
-    ExceptionDetails {
+    if sql_results.is_empty() && linq_results.is_empty() {
+        return None;
+    }
+
+    Some(ResultsDetails {
         sql_results,
         linq_results,
-    }
+    })
 }
 
 fn extract_relevant_errors(build_output: &str) -> String {

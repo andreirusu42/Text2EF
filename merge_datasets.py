@@ -11,3 +11,5 @@ for dataset in [train_spider, train_others, dev]:
         merged.append(item)
 
 json.dump(merged, open("./dataset/dataset.json", "w+"))
+
+print(len(merged))

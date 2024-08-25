@@ -84,7 +84,7 @@ fn execute_query_and_update_tests_file(
                     query_manager.write_test_or_update(test).unwrap();
                 }
 
-                CodeResultStatus::Fail(exception_details) => {
+                CodeResultStatus::WrongResults(exception_details) => {
                     println!("Query execution failed: {:?}", exception_details);
 
                     let test = Query::new(
@@ -93,6 +93,22 @@ fn execute_query_and_update_tests_file(
                         &query.question,
                         result,
                         Some(format!("{:?}", exception_details)),
+                        TestStatus::CodeFailed,
+                        false,
+                    );
+
+                    query_manager.write_test_or_update(test).unwrap();
+                }
+
+                CodeResultStatus::UnhandledException(error) => {
+                    println!("Query execution failed: {}", error);
+
+                    let test = Query::new(
+                        db_name,
+                        &query.sql,
+                        &query.question,
+                        result,
+                        Some(error),
                         TestStatus::CodeFailed,
                         false,
                     );
@@ -203,26 +219,67 @@ fn run_queries_sequentially() {
             continue;
         };
 
-        let linq_query_builder = if let Ok(res) = catch_unwind(|| {
+        let linq_query_builder_result = catch_unwind(|| {
             LinqQueryBuilder::new(
                 Path::new(constants::EF_MODELS_DIR)
                     .join(db_name)
                     .to_str()
                     .unwrap(),
             )
-        }) {
-            res
+        });
+
+        let linq_query_builder = if let Ok(linq_query_builder) = linq_query_builder_result {
+            linq_query_builder
         } else {
-            println!("Failed to create LinqQueryBuilder for {}", db_name);
-            continue;
+            if let Err(err) = linq_query_builder_result {
+                let error_message = if let Some(s) = err.downcast_ref::<&str>() {
+                    s.to_string()
+                } else if let Some(s) = err.downcast_ref::<String>() {
+                    s.clone()
+                } else {
+                    "Unknown panic".to_string()
+                };
+
+                println!(
+                    "Failed to create LinqQueryBuilder for {}, error: {}",
+                    db_name, error_message
+                );
+
+                for query in queries.iter() {
+                    query_manager
+                        .write_test_or_update(Query::new(
+                            db_name,
+                            &query.sql,
+                            &query.question,
+                            "",
+                            Some(error_message.to_string()),
+                            TestStatus::SchemaMappingGenerationFailed,
+                            false,
+                        ))
+                        .unwrap();
+                }
+
+                continue;
+            } else {
+                panic!("Hm2");
+            }
         };
 
         let context_name = linq_query_builder.get_context_name();
 
         for (index, query) in queries.iter().enumerate() {
-            println!("Processing query {} for {} - {}", index, db_name, query.sql);
+            // println!("Processing query {} for {} - {}", index, db_name, query.sql);
 
             let build_query_result = catch_unwind(|| linq_query_builder.build_query(&query.sql));
+
+            if let Some(test) = query_manager.get_query(&query.sql, db_name) {
+                if (test.status != TestStatus::SchemaMappingGenerationFailed) {
+                    continue;
+                }
+            } else {
+            }
+
+            println!("doing it");
 
             let result = if let Ok(res) = build_query_result {
                 res
@@ -368,8 +425,8 @@ fn main() {
     // extract_context_for_databases();
 
     // debug_query(
-    //     "college_2",
-    //     r#"SELECT avg(T1.salary) , count(*) FROM instructor AS T1 JOIN department AS T2 ON T1.dept_name = T2.dept_name ORDER BY T2.budget DESC LIMIT 1"#,
-    //     false,
+    //     "products_gen_characteristics",
+    //     r#"SELECT count(*) FROM products WHERE product_category_code  =  "Spices" AND typical_buying_price  >  1000"#,
+    //     true,
     // );
 }

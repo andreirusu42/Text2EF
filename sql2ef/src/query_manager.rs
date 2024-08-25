@@ -27,6 +27,7 @@ pub enum TestStatus {
     BuildFailed,
     CodeFailed,
     QueryBuildFailed,
+    SchemaMappingGenerationFailed,
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]

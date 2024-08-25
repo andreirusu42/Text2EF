@@ -47,7 +47,6 @@ pub fn extract_queries(models_dir: &str, dataset_file_path: &str) -> Dataset {
 
     let mut queries: HashMap<String, Vec<RawQuery>> = HashMap::new();
 
-    // Parse the JSON array from the file
     let json_data: Vec<QueryRecord> = serde_json::from_reader(reader).unwrap();
 
     for record in json_data {

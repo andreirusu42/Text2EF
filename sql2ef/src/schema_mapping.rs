@@ -73,6 +73,9 @@ fn field_type_to_enum(field_type: &str) -> FieldType {
         "DateOnly" => FieldType::Date,
         "decimal" => FieldType::Decimal,
         "long" => FieldType::Long,
+        "short" => FieldType::Int,
+        "TimeSpan" => FieldType::Int,
+        "byte[]" => FieldType::String,
 
         _ => panic!("Unknown field type: {}", field_type),
     }
@@ -90,8 +93,13 @@ fn column_type_to_enum(column_type: &str) -> ColumnType {
         "bit" => ColumnType::Bool,
         "numeric" => ColumnType::Decimal,
         "boolean" => ColumnType::Bool,
+        "bool" => ColumnType::Bool,
+        "smallint unsigned" => ColumnType::Int,
+        "tinyint unsigned" => ColumnType::Int,
+        "bigint" => ColumnType::Int,
         "double" => ColumnType::Double,
         "date" => ColumnType::Datetime,
+        "timestamp" => ColumnType::Datetime,
         _ => ColumnType::None,
     };
 
@@ -121,6 +129,18 @@ fn column_type_to_enum(column_type: &str) -> ColumnType {
 
     if column_type.contains("number") {
         return ColumnType::Decimal;
+    }
+
+    if column_type.contains("bigint") {
+        return ColumnType::Int;
+    }
+
+    if column_type.contains("int") {
+        return ColumnType::Int;
+    }
+
+    if column_type.contains("year") {
+        return ColumnType::Int;
     }
 
     panic!("Unknown column type: {}", column_type);
