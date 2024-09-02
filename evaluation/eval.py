@@ -1,11 +1,19 @@
 import json
 import re
 import matplotlib.pyplot as plt
+
+import os
+
 from collections import Counter
 
 model_name = "model-8b_context-8192"
 model_name = "model-8b_context-8192_pretrained"
 model_name = "model-8b_context-8192_pretrained-warmup_steps_500-max_steps_200"
+
+results_path = "./results"
+
+if not os.path.exists(results_path):
+    os.makedirs(results_path)
 
 data = json.load(open(f"./final_results_{model_name}.json", "r+"))
 
@@ -75,3 +83,32 @@ for key, value in metrics.items():
             print(f"  {sub_key}: {sub_value}")
     else:
         print(f"{key}: {round(value, 2)}")
+
+# Visualization
+
+# Pie chart for the proportion of passed/failed cases
+labels = ['Passed', 'Syntactic Errors', 'Semantic Errors']
+sizes = [
+    metrics['passed_percentage'],
+    metrics['syntactic_errors_percentage'],
+    metrics['semantic_errors_percentage']
+]
+colors = ['#4CAF50', '#FF9800', '#F44336']
+explode = (0.1, 0, 0)  # explode the first slice (Passes)
+
+plt.figure(figsize=(8, 6))
+plt.pie(sizes, explode=explode, labels=labels, colors=colors, autopct='%1.1f%%', shadow=True, startangle=140)
+plt.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+plt.title('Proportion of Passed/Syntactic Errors/Semantic Errors')
+plt.savefig(os.path.join(results_path, f"./passed-failed-pie-{model_name}.png"))
+
+plt.figure(figsize=(10, 6))
+cs_error_labels, cs_error_values = zip(*metrics['cs_error_counts'].items())
+
+plt.bar(cs_error_labels, cs_error_values, color='skyblue')
+plt.xlabel('CS Error Codes')
+plt.ylabel('Frequency')
+plt.title('Frequency of Specific CS Error Codes')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.savefig(os.path.join(results_path, f"./cs-error-codes-{model_name}.png"))
