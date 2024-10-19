@@ -419,14 +419,63 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    run_queries_sequentially();
+    // run_queries_sequentially();
     // run_queries_bulk();
 
     // extract_context_for_databases();
 
     // debug_query(
-    //     "products_gen_characteristics",
-    //     r#"SELECT count(*) FROM products WHERE product_category_code  =  "Spices" AND typical_buying_price  >  1000"#,
+    //     "cre_Doc_Control_Systems",
+    //     r#"SELECT Employees.employee_name FROM Circulation_History JOIN Employees ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "cre_Doc_Control_Systems",
+    //     r#"SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "station_weather",
+    //     r#"SELECT t3.name ,  t3.time FROM station AS t1 JOIN route AS t2 ON t1.id  =  t2.station_id JOIN train AS t3 ON t2.train_id  =  t3.id WHERE t1.local_authority  =  "Chiltern""#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "cre_Theme_park",
+    //     r#"SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID  =  T3.Feature_ID WHERE T3.feature_Details  =  'park'"#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "flight_1",
+    //     r#"SELECT T3.name FROM Employee AS T1 JOIN Certificate AS T2 ON T1.eid  =  T2.eid JOIN Aircraft AS T3 ON T3.aid  =  T2.aid WHERE T1.name  =  "John Williams""#,
+    //     true,
+    // );
+
+    // TODO
+    // debug_query(
+    //     "network_1",
+    //     r#"SELECT T2.name FROM Highschooler AS T2 JOIN Friend as T1 ON T1.student_id  =  T2.id GROUP BY T1.student_id HAVING count(*)  >=  3"#,
+    //     true,
+    // );
+
+    // TODO: what field you query! T2.name, in T2, the columns are wrong! fix schema_mapping + groupby Id
+    // debug_query(
+    //     "network_1",
+    //     r#"SELECT T2.name FROM Friend AS T1 JOIN Highschooler as T2 ON T1.student_id  =  T2.id GROUP BY T1.student_id HAVING count(*)  >=  3"#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "geo",
+    //     r#"SELECT border FROM border_info WHERE state_name = "kentucky""#,
+    //     false,
+    // );
+
+    // debug_query(
+    //     "store_product",
+    //     r#"SELECT t1.product FROM product AS t1 JOIN store_product AS t2 ON t1.product_id  =  t2.product_id JOIN store AS t3 ON t2.store_id  =  t3.store_id WHERE t3.store_name  =  "Miramichi""#,
     //     true,
     // );
 }
