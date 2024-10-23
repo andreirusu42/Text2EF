@@ -2,6 +2,11 @@ use std::collections::HashMap;
 use std::fs;
 
 use indexmap::IndexMap;
+use sqlparser::ast::JoinConstraint;
+
+use crate::case_insensitive_hashmap::CaseInsensitiveHashMap;
+use crate::case_insensitive_indexmap::CaseInsensitiveIndexMap;
+use crate::linq_query_builder::JoinOn;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldType {
@@ -60,7 +65,7 @@ pub struct SchemaMapM2mTableRelation {
 #[derive(Debug)]
 pub struct SchemaMapTable {
     pub table: String,
-    pub columns: IndexMap<String, Column>,
+    pub columns: CaseInsensitiveIndexMap<Column>,
     pub is_m2m: bool,
     pub relations: Option<Vec<SchemaMapM2mTableRelation>>,
     pub parent_table: Option<String>,
@@ -69,7 +74,7 @@ pub struct SchemaMapTable {
 #[derive(Debug)]
 pub struct SchemaMapping {
     pub context: String,
-    pub tables: HashMap<String, SchemaMapTable>,
+    pub tables: CaseInsensitiveHashMap<String, SchemaMapTable>,
 }
 
 fn field_type_to_enum(field_type: &str) -> FieldType {
@@ -157,7 +162,9 @@ fn column_type_to_enum(column_type: &str) -> ColumnType {
 
 impl SchemaMapping {
     pub fn get_table(&self, original_table_name: &str) -> Option<&SchemaMapTable> {
-        self.tables.get(&original_table_name.to_lowercase())
+        let table = self.tables.get(&original_table_name.to_lowercase());
+
+        return table;
     }
 
     pub fn get_table_name(&self, original_table_name: &str) -> Option<&String> {
@@ -168,7 +175,7 @@ impl SchemaMapping {
     pub fn get_table_columns(
         &self,
         original_table_name: &str,
-    ) -> Option<&IndexMap<String, Column>> {
+    ) -> Option<&CaseInsensitiveIndexMap<Column>> {
         let columns = self
             .get_table(original_table_name)
             .map(|table| &table.columns);
@@ -181,9 +188,10 @@ impl SchemaMapping {
         original_table_name: &str,
         original_column_name: &str,
     ) -> Option<&Column> {
-        let column = self
-            .get_table(original_table_name)
-            .and_then(|table| table.columns.get(&original_column_name.to_lowercase()));
+        let table = self.get_table(original_table_name);
+
+        let column =
+            table.and_then(|table| table.columns.get(&original_column_name.to_lowercase()));
 
         return column;
     }
@@ -198,41 +206,28 @@ impl SchemaMapping {
         return column.map(|column| &column.name);
     }
 
-    pub fn get_other_relation_column(
+    pub fn get_relation_column(
         &self,
         table: &SchemaMapTable,
         table_name: &str,
+        constraint: &JoinOn,
     ) -> Option<String> {
-        if let Some(relations) = &table.relations {
-            for relation in relations {
-                let is_table = relation.table == table_name.to_lowercase();
-                let is_column = relation.column.to_lowercase() == table_name.to_lowercase();
-
-                if !is_table && !is_column {
-                    return Some(relation.column.to_string());
-                }
-            }
-        }
-
-        None
-    }
-    pub fn get_relation_column(&self, table: &SchemaMapTable, table_name: &str) -> Option<String> {
         let lower_table_name = table_name.to_lowercase();
 
-        if let Some(relations) = &table.relations {
-            for relation in relations {
-                if relation.table.to_lowercase() == lower_table_name {
-                    return Some(relation.column.to_string());
-                }
+        let relations = table.relations.as_ref().unwrap();
 
-                // TODO: This doesn't make sense???
-                if relation.column.to_lowercase() == lower_table_name {
-                    return Some(relation.column.to_string());
-                }
+        for relation in relations {
+            if relation.table.to_lowercase() != lower_table_name {
+                return Some(relation.column.to_string());
             }
         }
 
-        None
+        // It means that it has a relation with itself, so we need to analyse the clause
+        if constraint.left_table_field == relations[0].table {
+            return Some(relations[1].column.to_string());
+        } else {
+            return Some(relations[0].column.to_string());
+        }
     }
 
     // pub fn has_table(&self, original_table_name: &str) -> bool {
@@ -323,7 +318,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         .to_string();
 
     let mut tables = HashMap::new();
-    let mut schema_map_tables = HashMap::new();
+    let mut schema_map_tables = CaseInsensitiveHashMap::new();
 
     let table_regex =
         regex::Regex::new(r"public virtual DbSet<(.*)> (.*) \{ get; set; \}").unwrap();
@@ -335,11 +330,11 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let model_property_regex = regex::Regex::new(r"public (.*) (.*) \{ get; set; \}").unwrap();
     let context_property_regex = regex::Regex::new(r"entity\s*\.\s*Property\s*\(([^;]+);").unwrap();
     let mapped_column_name_pattern: regex::Regex = regex::Regex::new(r"e => e\.(\w+)\)").unwrap();
-    let original_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
+    let sql_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
     let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
     let has_column_type_regex = regex::Regex::new(r#"HasColumnType\(\"(.+?)\""#).unwrap();
     let m2m_table_regex = regex::Regex::new(
-        r#"(?s)entity\s*\.HasMany\(d => d\.(.*?)\)\.WithMany\(p => p\.(.*?)\)(.*?)r => r\.HasOne<(.*?)>(.*)l => l\.HasOne<(.*?)>(.*)\}\);"#,
+        r#"(?s)entity\s*\.HasMany\(d => d\.(.*?)\)\.WithMany\(p => p\.(.*?)\)(.*?)r => r\.HasOne<(.*?)>(.*)\.HasForeignKey\((.*?)\)(.*)l => l\.HasOne<(.*?)>(.*)\.HasForeignKey\((.*?)\)(.*)(.*)\}\);"#,
     )
     .unwrap();
 
@@ -357,11 +352,13 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         tables.insert(original_entity_name, entity_name);
     }
 
-    for cap in entity_regex.captures_iter(&context_content) {
-        let mut model_file_properties: IndexMap<String, Column> = IndexMap::new();
-        let mut context_file_mapping: HashMap<String, ContextFileColumn> = HashMap::new();
-        let mut columns: IndexMap<String, Column> = IndexMap::new();
+    let entity_regex_captures = entity_regex.captures_iter(&context_content);
 
+    let mut entity_name_to_sql_table_name_map: HashMap<String, String> = HashMap::new();
+    let mut entity_name_to_content_map: HashMap<String, String> = HashMap::new();
+    let mut entity_name_to_model_content_map: HashMap<String, String> = HashMap::new();
+
+    for cap in entity_regex_captures {
         let entity_name = &cap[1];
         let entity_content = &cap[2];
 
@@ -369,15 +366,27 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
         let model_content =
             fs::read_to_string(model_file_path).expect("Failed to read the model file");
 
-        let original_table_name_capture = original_table_name_regex.captures(entity_content);
+        let sql_table_name_capture = sql_table_name_regex.captures(entity_content);
 
-        let original_table_name = if let Some(original) = original_table_name_capture {
+        let sql_table_name = if let Some(original) = sql_table_name_capture {
             original[1].to_lowercase()
         } else {
             tables[&entity_name.to_lowercase()].to_lowercase()
         };
 
-        // TODO: you need to correct the columns, the names should be based on the primary key in the related table!
+        entity_name_to_content_map.insert(entity_name.to_string(), entity_content.to_string());
+        entity_name_to_model_content_map.insert(entity_name.to_string(), model_content);
+        entity_name_to_sql_table_name_map.insert(entity_name.to_string(), sql_table_name);
+    }
+
+    for (entity_name, entity_content) in &entity_name_to_content_map {
+        let mut model_file_properties: IndexMap<String, Column> = IndexMap::new();
+        let mut context_file_mapping: HashMap<String, ContextFileColumn> = HashMap::new();
+        let mut columns: CaseInsensitiveIndexMap<Column> = CaseInsensitiveIndexMap::new();
+
+        let model_content = entity_name_to_model_content_map.get(entity_name).unwrap();
+        let sql_table_name = entity_name_to_sql_table_name_map.get(entity_name).unwrap();
+
         // This is the m2m table case
         for m2m_table_content_capture in m2m_table_regex.captures_iter(entity_content) {
             let m2m_table_content = m2m_table_content_capture.get(0).unwrap().as_str();
@@ -389,47 +398,100 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             let mapped_table_name = m2m_table_and_alias.get(1).unwrap().as_str();
             let table_name = m2m_table_and_alias.get(2).unwrap().as_str();
 
-            let mut columns: IndexMap<String, Column> = IndexMap::new();
+            let mut columns: CaseInsensitiveIndexMap<Column> = CaseInsensitiveIndexMap::new();
 
             let m2m_table_fields = join_table_fields_regex.captures_iter(m2m_table_content);
 
             let has_many_column = m2m_table_content_capture.get(1).unwrap().as_str();
             let with_many_column = m2m_table_content_capture.get(2).unwrap().as_str();
-            let has_many_table = m2m_table_content_capture.get(4).unwrap().as_str();
-            let with_many_table = m2m_table_content_capture.get(6).unwrap().as_str();
 
-            for (index, field) in m2m_table_fields.enumerate() {
+            let has_many_entity_name = m2m_table_content_capture.get(4).unwrap().as_str();
+            let with_many_entity_name = m2m_table_content_capture.get(8).unwrap().as_str();
+
+            let has_many_column_foreign_keys = m2m_table_content_capture.get(6).unwrap().as_str();
+            let with_many_column_foreign_keys = m2m_table_content_capture.get(10).unwrap().as_str();
+
+            let number_of_foreign_keys_in_has_many =
+                has_many_column_foreign_keys.matches(",").count() + 1;
+            let number_of_foreign_keys_in_with_many =
+                with_many_column_foreign_keys.matches(",").count() + 1;
+
+            let m2m_table_fields_iter = m2m_table_fields.collect::<Vec<_>>();
+
+            let how_many_column_fields = &m2m_table_fields_iter[1];
+            let with_many_column_fields = &m2m_table_fields_iter[0];
+
+            let has_many_column_field_type = how_many_column_fields.get(1).unwrap().as_str();
+            let has_many_column_name = how_many_column_fields.get(2).unwrap().as_str(); // TODO: dunno if needed
+            let has_many_column_column_name = how_many_column_fields.get(4).unwrap().as_str();
+
+            let with_many_column_field_type = with_many_column_fields.get(1).unwrap().as_str();
+            let with_many_column_name = with_many_column_fields.get(2).unwrap().as_str(); // TODO: dunno if needed
+            let with_many_column_column_name = with_many_column_fields.get(4).unwrap().as_str();
+
+            // TODO: open the file, find the primary key of the related table, and use that as the column name
+            let relation_id_column_name = "Id".to_string();
+
+            let mut relations: Vec<SchemaMapM2mTableRelation> = Vec::new();
+            relations.push(SchemaMapM2mTableRelation {
+                table: entity_name_to_sql_table_name_map
+                    .get(has_many_entity_name)
+                    .unwrap()
+                    .to_string(),
+                column: has_many_column.to_string(),
+            });
+            relations.push(SchemaMapM2mTableRelation {
+                table: entity_name_to_sql_table_name_map
+                    .get(with_many_entity_name)
+                    .unwrap()
+                    .to_string(),
+                column: with_many_column.to_string(),
+            });
+
+            for i in 0..number_of_foreign_keys_in_with_many - 1 {
+                let field = &m2m_table_fields_iter[i];
+
                 let field_type = field.get(1).unwrap().as_str();
                 let field_name = field.get(2).unwrap().as_str();
                 let column_name = field.get(4).unwrap().as_str();
 
                 columns.insert(
-                    column_name.to_lowercase(),
+                    column_name.to_string(),
                     Column {
                         name: field_name.to_string(),
                         field_type: field_type_to_enum(field_type),
                         is_optional: false,
-                        column_type: ColumnType::None,
+                        column_type: ColumnType::Int,
                     },
                 );
             }
 
-            let mut relations: Vec<SchemaMapM2mTableRelation> = Vec::new();
-            relations.push(SchemaMapM2mTableRelation {
-                table: has_many_table.to_string(),
-                column: has_many_column.to_string(),
-            });
-            relations.push(SchemaMapM2mTableRelation {
-                table: with_many_table.to_string(),
-                column: with_many_column.to_string(),
-            });
+            for i in number_of_foreign_keys_in_with_many - 1
+                ..number_of_foreign_keys_in_with_many + number_of_foreign_keys_in_has_many
+            {
+                let field = &m2m_table_fields_iter[i];
+
+                let field_type = field.get(1).unwrap().as_str();
+                let field_name = field.get(2).unwrap().as_str(); // TODO: needed?
+                let column_name = field.get(4).unwrap().as_str();
+
+                columns.insert(
+                    column_name.to_string(),
+                    Column {
+                        name: relation_id_column_name.to_string(),
+                        field_type: field_type_to_enum(field_type),
+                        is_optional: false,
+                        column_type: ColumnType::Int,
+                    },
+                );
+            }
 
             let schema_map_table = SchemaMapTable {
                 table: mapped_table_name.to_string(),
                 columns,
                 is_m2m: true,
                 relations: Some(relations),
-                parent_table: Some(original_table_name.to_string()),
+                parent_table: Some(sql_table_name.to_string()),
             };
 
             schema_map_tables.insert(table_name.to_string().to_lowercase(), schema_map_table);
@@ -519,10 +581,6 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             }
         }
 
-        // println!("Model file properties: {:?}", model_file_properties);
-        // println!("Context file mapping: {:?}", context_file_mapping);
-        // println!("Columns: {:?}", columns);
-
         let schema_map_table = SchemaMapTable {
             table: tables[&entity_name.to_lowercase()].clone(),
             columns,
@@ -531,7 +589,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             is_m2m: false,
         };
 
-        schema_map_tables.insert(original_table_name.to_string(), schema_map_table);
+        schema_map_tables.insert(sql_table_name.to_string(), schema_map_table);
     }
 
     SchemaMapping {

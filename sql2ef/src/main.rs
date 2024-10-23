@@ -1,3 +1,4 @@
+mod case_insensitive_hashmap;
 mod case_insensitive_hashset;
 mod case_insensitive_indexmap;
 mod constants;
@@ -13,6 +14,7 @@ mod schema_mapping;
 use std::fs::File;
 use std::panic::catch_unwind;
 use std::path::Path;
+use std::process::exit;
 use std::{collections::HashSet, io::Write};
 
 use context_creator::extract_context_for_databases;
@@ -78,7 +80,6 @@ fn execute_query_and_update_tests_file(
                         result,
                         None,
                         TestStatus::Passed,
-                        false,
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
@@ -94,10 +95,10 @@ fn execute_query_and_update_tests_file(
                         result,
                         Some(format!("{:?}", exception_details)),
                         TestStatus::CodeFailed,
-                        false,
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
+                    exit(0);
                 }
 
                 CodeResultStatus::UnhandledException(error) => {
@@ -110,10 +111,10 @@ fn execute_query_and_update_tests_file(
                         result,
                         Some(error),
                         TestStatus::CodeFailed,
-                        false,
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
+                    exit(0);
                 }
             }
         }
@@ -127,10 +128,10 @@ fn execute_query_and_update_tests_file(
                 result,
                 Some(error_message),
                 TestStatus::BuildFailed,
-                false,
             );
 
             query_manager.write_test_or_update(test).unwrap();
+            exit(0);
         }
     }
 }
@@ -254,7 +255,6 @@ fn run_queries_sequentially() {
                             "",
                             Some(error_message.to_string()),
                             TestStatus::SchemaMappingGenerationFailed,
-                            false,
                         ))
                         .unwrap();
                 }
@@ -268,18 +268,9 @@ fn run_queries_sequentially() {
         let context_name = linq_query_builder.get_context_name();
 
         for (index, query) in queries.iter().enumerate() {
-            // println!("Processing query {} for {} - {}", index, db_name, query.sql);
+            println!("Running query {} for {} - {}", index, db_name, query.sql);
 
             let build_query_result = catch_unwind(|| linq_query_builder.build_query(&query.sql));
-
-            if let Some(test) = query_manager.get_query(&query.sql, db_name) {
-                if (test.status != TestStatus::SchemaMappingGenerationFailed) {
-                    continue;
-                }
-            } else {
-            }
-
-            println!("doing it");
 
             let result = if let Ok(res) = build_query_result {
                 res
@@ -295,6 +286,11 @@ fn run_queries_sequentially() {
                         "Unknown panic".to_string()
                     };
 
+                    if !error_message.contains("set expression") {
+                        println!("{:?}", error_message);
+                        panic!();
+                    }
+
                     query_manager
                         .write_test_or_update(Query::new(
                             db_name,
@@ -303,7 +299,6 @@ fn run_queries_sequentially() {
                             "",
                             Some(error_message),
                             TestStatus::QueryBuildFailed,
-                            false,
                         ))
                         .unwrap();
 
@@ -315,43 +310,22 @@ fn run_queries_sequentially() {
 
             if let Some(test) = query_manager.get_query(&query.sql, db_name) {
                 if test.linq == result && test.status == TestStatus::Passed {
-                    println!("Query already exists in the tests file and it's passed.");
                     continue;
                 }
 
                 if test.status != TestStatus::Passed {
-                    if test.should_retest {
-                        println!("Query already exists in the tests file, but it's not passed. Retesting...");
-
-                        execute_query_and_update_tests_file(
-                            &context_name,
-                            &db_name,
-                            query,
-                            &result,
-                            &mut query_manager,
-                        );
-
-                        continue;
-                    } else {
-                        println!("Query already exists in the tests file, but it's not passed and should not be retested.");
-                        continue;
-                    }
-                }
-
-                if test.should_retest {
                     println!(
-                        "Query already exists in the tests file, but the result is different."
+                        "Query already exists in the tests file, but it's not passed. Retesting..."
                     );
+
                     execute_query_and_update_tests_file(
                         &context_name,
                         &db_name,
-                        &query,
+                        query,
                         &result,
                         &mut query_manager,
                     );
-                    continue;
-                } else {
-                    println!("Query already exists in the tests file, but the result is different and should not be retested.");
+
                     continue;
                 }
             }
@@ -379,6 +353,8 @@ fn run_tests() {
         );
 
         let result = linq_query_builder.build_query(&test.sql);
+
+        println!("{:?} - {:?}", test.db_name, test.sql);
 
         if result != test.linq {
             println!("Test {} failed: {}", index, test.sql);
@@ -419,11 +395,45 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    // run_queries_sequentially();
+    run_queries_sequentially();
     // run_queries_bulk();
+
+    // debug_query(
+    //     "game_injury",
+    //     r#"SELECT name ,  average_attendance ,  total_attendance FROM stadium EXCEPT SELECT T2.name ,  T2.average_attendance ,  T2.total_attendance FROM game AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.id JOIN injury_accident AS T3 ON T1.id  =  T3.game_id"#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "station_weather",
+    //     r#"SELECT count(*) ,  t1.network_name ,  t1.services FROM station AS t1 JOIN route AS t2 ON t1.id  =  t2.station_id GROUP BY t2.station_id"#,
+    //     true,
+    // );
+
+    // TODO: wtoejaoiewjaewiojtyraeoiyae
+    // debug_query("scientist_1", r#"SELECT count(*) FROM scientists"#, true);
+
+    // nested set operations
+    // debug_query(
+    //     "dog_kennels",
+    //     r#"SELECT first_name FROM Professionals UNION SELECT first_name FROM Owners EXCEPT SELECT name FROM Dogs"#,
+    //     true,
+    // );
 
     // extract_context_for_databases();
 
+    // debug_query(
+    //     "musical",
+    //     r#"SELECT T2.Name FROM actor AS T1 JOIN musical AS T2 ON T1.Musical_ID  =  T2.Musical_ID GROUP BY T1.Musical_ID HAVING COUNT(*)  >=  3"#,
+    //     true,
+    // );
+
+    // These 4 should work
+    // debug_query(
+    //     "cre_Doc_Control_Systems",
+    //     r#"SELECT t2.employee_name FROM Circulation_History AS t1 JOIN Employees AS t2 ON t1.employee_id = t2.employee_id WHERE t1.document_id = 1;"#,
+    //     true,
+    // );
     // debug_query(
     //     "cre_Doc_Control_Systems",
     //     r#"SELECT Employees.employee_name FROM Circulation_History JOIN Employees ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"#,
@@ -431,7 +441,58 @@ fn main() {
     // );
     // debug_query(
     //     "cre_Doc_Control_Systems",
+    //     r#"SELECT t2.employee_name FROM Employees AS t2 JOIN Circulation_History AS t1 ON t1.employee_id = t2.employee_id WHERE t1.document_id = 1;"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "cre_Doc_Control_Systems",
     //     r#"SELECT Employees.employee_name FROM Employees JOIN Circulation_History ON Circulation_History.employee_id = Employees.employee_id WHERE Circulation_History.document_id = 1;"#,
+    //     true,
+    // );
+
+    // All ways need to work!
+    // debug_query(
+    //     "cre_Theme_park",
+    //     r#"SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID  =  T3.Feature_ID WHERE T3.feature_Details  =  'park'"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "cre_Theme_park",
+    //     r#"SELECT T1.Name FROM Tourist_Attraction_Features AS T2 JOIN Tourist_Attractions AS T1 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID  =  T3.Feature_ID WHERE T3.feature_Details  =  'park'"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "cre_Theme_park",
+    //     r#"SELECT T1.Name FROM Features AS T3 JOIN Tourist_Attraction_Features AS T2 ON T2.Feature_ID  =  T3.Feature_ID JOIN Tourist_Attractions AS T1 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id WHERE T3.feature_Details  =  'park'"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "cre_Theme_park",
+    //     r#"SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "cre_Theme_park",
+    //     r#"SELECT T1.Name FROM Tourist_Attraction_Features as T2 JOIN Tourist_Attractions AS T1 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id"#,
+    //     true,
+    // );
+
+    // Both need to work!
+    // debug_query(
+    //     "network_1",
+    //     r#"SELECT T2.name FROM Highschooler AS T2 JOIN Friend as T1 ON T2.id  =  T1.student_id GROUP BY T1.student_id HAVING count(*)  >=  3"#,
+    //     true,
+    // );
+    // debug_query(
+    //     "network_1",
+    //     r#"SELECT T2.name FROM Friend AS T1 JOIN Highschooler as T2 ON T1.student_id  =  T2.id GROUP BY T1.student_id HAVING count(*)  >=  3"#,
+    //     true,
+    // );
+
+    // wut is this
+    // debug_query(
+    //     "cre_Doc_Control_Systems",
+    //     r#"SELECT draft_copies.document_id FROM Circulation_History JOIN draft_copies"#,
     //     true,
     // );
 
@@ -441,9 +502,10 @@ fn main() {
     //     true,
     // );
 
+    // TODO: this goes on to infinity and i dunno why
     // debug_query(
-    //     "cre_Theme_park",
-    //     r#"SELECT T1.Name FROM Tourist_Attractions AS T1 JOIN Tourist_Attraction_Features AS T2 ON T1.tourist_attraction_id  =  T2.tourist_attraction_id JOIN Features AS T3 ON T2.Feature_ID  =  T3.Feature_ID WHERE T3.feature_Details  =  'park'"#,
+    //     "station_weather",
+    //     r#"SELECT t3.name ,  t3.time FROM route AS t2 JOIN station AS t1 ON t1.id  =  t2.station_id JOIN train AS t3 ON t2.train_id  =  t3.id WHERE t1.local_authority  =  "Chiltern""#,
     //     true,
     // );
 
@@ -453,24 +515,18 @@ fn main() {
     //     true,
     // );
 
-    // TODO
+    // TODO: MOST IMPORTANT 2
     // debug_query(
-    //     "network_1",
-    //     r#"SELECT T2.name FROM Highschooler AS T2 JOIN Friend as T1 ON T1.student_id  =  T2.id GROUP BY T1.student_id HAVING count(*)  >=  3"#,
+    //     "flight_1",
+    //     r#"SELECT T3.name FROM Certificate AS T2 JOIN Employee AS T1 ON T1.eid  =  T2.eid JOIN Aircraft AS T3 ON T3.aid  =  T2.aid WHERE T1.name  =  "John Williams""#,
     //     true,
     // );
 
-    // TODO: what field you query! T2.name, in T2, the columns are wrong! fix schema_mapping + groupby Id
-    // debug_query(
-    //     "network_1",
-    //     r#"SELECT T2.name FROM Friend AS T1 JOIN Highschooler as T2 ON T1.student_id  =  T2.id GROUP BY T1.student_id HAVING count(*)  >=  3"#,
-    //     true,
-    // );
-
+    // TODO: no clue so far xD
     // debug_query(
     //     "geo",
     //     r#"SELECT border FROM border_info WHERE state_name = "kentucky""#,
-    //     false,
+    //     true,
     // );
 
     // debug_query(

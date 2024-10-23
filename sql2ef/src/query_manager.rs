@@ -39,7 +39,6 @@ pub struct Query {
     pub db_name: String,
     pub status: TestStatus,
     pub error: Option<String>,
-    pub should_retest: bool,
 }
 
 impl Query {
@@ -50,7 +49,6 @@ impl Query {
         linq: &str,
         error: Option<String>,
         status: TestStatus,
-        should_retest: bool,
     ) -> Self {
         let id = generate_id(sql, db_name);
 
@@ -62,7 +60,6 @@ impl Query {
             db_name: db_name.to_string(),
             status,
             error,
-            should_retest,
         }
     }
 }

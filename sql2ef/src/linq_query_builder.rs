@@ -21,7 +21,6 @@ use super::schema_mapping::{create_schema_map, SchemaMapping};
 pub struct JoinOnWithTable {
     pub constraints: Vec<JoinOn>,
 
-    pub has_explicit_alias: bool,
     pub original_table_alias: String,
     pub lower_table_alias: String,
 
@@ -352,6 +351,7 @@ impl LinqQueryBuilder {
         use_new_object_for_select_when_single_field: bool,
         should_stringify_single_select: bool,
         should_check_for_value_if_optional: bool,
+        should_use_aliases_in_prefix: bool,
     ) -> ProjectionResult {
         let mut select_result = String::new();
         let mut group_by_result = String::new();
@@ -646,7 +646,6 @@ impl LinqQueryBuilder {
                     .unwrap();
 
                 let is_duplicated = fields_with_same_name.contains(&mapped_column.name);
-
                 /*
                    There's an amazing case. If you aggregate data by min/max, SQL will automatically sort the fields by that field too.
                    Hence you can't simply take .First() on the fields. You also need to sort them based on the last aggregate.
@@ -678,10 +677,13 @@ impl LinqQueryBuilder {
                             "".to_string()
                         };
 
-                    format!(
-                        "{}{}{} = ",
-                        table.mapped_alias, mapped_column.name, variable_suffix
-                    )
+                    let alias = if should_use_aliases_in_prefix {
+                        table.mapped_alias.to_string()
+                    } else {
+                        String::new()
+                    };
+
+                    format!("{}{}{} = ", alias, mapped_column.name, variable_suffix)
                 };
 
                 let group_by_field_name = format!("{}.{}", table.mapped_alias, mapped_column.name);
@@ -996,6 +998,7 @@ impl LinqQueryBuilder {
         &self,
         select: &Box<Select>,
         alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
+        main_table_alias: &String,
     ) -> (String, Vec<String>) {
         let mut group_by_fields: Vec<String> = Vec::new();
         let mut raw_group_by_fields: Vec<String> = Vec::new();
@@ -1043,19 +1046,26 @@ impl LinqQueryBuilder {
                     let table_alias = identifiers[0].to_string();
                     let column_name = identifiers[1].to_string();
 
-                    let table = alias_to_table_map.get(&table_alias).unwrap();
+                    let table_info = alias_to_table_map.get(&table_alias).unwrap();
+                    let table = self.schema_mapping.get_table(&table_info.name).unwrap();
 
                     let mapped_column_name = self
                         .schema_mapping
-                        .get_column_name(&table.name, &column_name)
+                        .get_column_name(&table_info.name, &column_name)
                         .unwrap();
+
+                    // TOOD: Not sure if "main_table_alias" is the solution. Is it always like this?
+                    let final_alias = if table.is_m2m {
+                        main_table_alias
+                    } else {
+                        &table_info.mapped_alias
+                    };
 
                     group_by_fields.push(format!(
                         "{}.{}.{}",
-                        self.row_selector, table.mapped_alias, mapped_column_name
+                        self.row_selector, final_alias, mapped_column_name
                     ));
-                    raw_group_by_fields
-                        .push(format!("{}.{}", table.mapped_alias, mapped_column_name));
+                    raw_group_by_fields.push(format!("{}.{}", final_alias, mapped_column_name));
                 } else {
                     panic!("Unknown expression type");
                 }
@@ -1654,7 +1664,12 @@ impl LinqQueryBuilder {
         }
     }
 
-    fn rearrange_joins(&self, joins: &mut Vec<JoinOnWithTable>, main_table_alias: &str) {
+    fn rearrange_joins(
+        &self,
+        joins: &mut Vec<JoinOnWithTable>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
+        main_table_alias: &str,
+    ) {
         let number_of_joins = joins.len();
 
         if number_of_joins < 2 {
@@ -1684,6 +1699,7 @@ impl LinqQueryBuilder {
             all_tables,
             &main_table_alias.to_lowercase(),
         );
+
         let mut aliases_known_so_far: CaseInsensitiveHashSet<String> =
             CaseInsensitiveHashSet::new();
         aliases_known_so_far.insert(
@@ -1700,11 +1716,24 @@ impl LinqQueryBuilder {
             aliases_known_so_far.insert(alias.to_string());
             let mut new_constraints: Vec<JoinOn> = Vec::new();
 
-            let join: JoinOnWithTable = joins
+            let join_option = joins
                 .iter()
-                .find(|join| join.lower_table_alias == alias.to_lowercase())
-                .unwrap()
-                .clone();
+                .find(|join| join.lower_table_alias == alias.to_lowercase());
+            let join: JoinOnWithTable;
+
+            // This is because the main table is m2m
+            if !join_option.is_some() {
+                let table_name = alias_to_table_map.get(&alias).unwrap();
+
+                join = JoinOnWithTable {
+                    table_name: table_name.name.clone(),
+                    original_table_alias: alias.to_string(),
+                    lower_table_alias: alias.to_lowercase(),
+                    constraints: Vec::new(),
+                };
+            } else {
+                join = join_option.unwrap().clone();
+            }
 
             for constraint in &all_join_constraints {
                 if aliases_known_so_far.contains(&constraint.left_table_alias)
@@ -1718,7 +1747,6 @@ impl LinqQueryBuilder {
 
             new_joins.push(JoinOnWithTable {
                 table_name: join.table_name,
-                has_explicit_alias: join.has_explicit_alias,
                 original_table_alias: join.original_table_alias,
                 lower_table_alias: join.lower_table_alias,
                 constraints: new_constraints,
@@ -1729,24 +1757,72 @@ impl LinqQueryBuilder {
         joins.append(&mut new_joins);
     }
 
+    fn build_alias_to_table_map(
+        &self,
+        table: &TableWithJoins,
+    ) -> CaseInsensitiveIndexMap<TableAliasAndName> {
+        let mut alias_to_table_map: CaseInsensitiveIndexMap<TableAliasAndName> =
+            CaseInsensitiveIndexMap::new();
+
+        if let sqlparser::ast::TableFactor::Table { name, alias, .. } = &table.relation {
+            let alias = if alias.is_some() {
+                alias.clone().unwrap().to_string()
+            } else {
+                "".to_string()
+            };
+
+            alias_to_table_map.insert(
+                alias.to_string(),
+                TableAliasAndName {
+                    mapped_alias: alias.to_string(),
+                    name: name.to_string(),
+                },
+            );
+        }
+
+        for join in &table.joins {
+            if let TableFactor::Table {
+                name,
+                alias: Some(alias),
+                ..
+            } = &join.relation
+            {
+                alias_to_table_map.insert(
+                    alias.to_string(),
+                    TableAliasAndName {
+                        mapped_alias: alias.to_string(),
+                        name: name.to_string(),
+                    },
+                );
+            } else if let TableFactor::Table { name, .. } = &join.relation {
+                alias_to_table_map.insert(
+                    name.to_string(),
+                    TableAliasAndName {
+                        mapped_alias: name.to_string(),
+                        name: name.to_string(),
+                    },
+                );
+            } else {
+                panic!("Unknown table factor type");
+            }
+        }
+
+        return alias_to_table_map;
+    }
+
     fn build_joins(
         &self,
         table: &TableWithJoins,
         main_table_alias: &String,
-        alias_to_table_map: &mut CaseInsensitiveIndexMap<TableAliasAndName>,
+        alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
     ) -> String {
         let mut linq_query = String::new();
         let mut joined_aliases: Vec<String> = Vec::new();
         let mut joins: Vec<JoinOnWithTable> = Vec::new();
 
-        // As to say that it's the first table
-        joined_aliases.push(main_table_alias.to_string());
-
         for join in &table.joins {
             let table_alias: String;
-            let has_explicit_alias: bool;
             let table_name: String;
-            let mapped_table_alias: String;
 
             if let TableFactor::Table {
                 name,
@@ -1756,35 +1832,9 @@ impl LinqQueryBuilder {
             {
                 table_name = name.to_string();
                 table_alias = alias.to_string();
-                has_explicit_alias = true;
-                mapped_table_alias = alias.to_string();
-
-                alias_to_table_map.insert(
-                    table_alias.to_string(),
-                    TableAliasAndName {
-                        mapped_alias: mapped_table_alias.to_string(),
-                        name: table_name.to_string(),
-                    },
-                );
             } else if let TableFactor::Table { name, .. } = &join.relation {
                 table_name = name.to_string();
                 table_alias = name.to_string();
-                has_explicit_alias = false;
-                // TODO: why?
-                // mapped_table_alias = self
-                //     .schema_mapping
-                //     .get_table_name(&table_name)
-                //     .unwrap()
-                //     .to_string();
-                mapped_table_alias = table_alias.to_string();
-
-                alias_to_table_map.insert(
-                    table_alias.to_string(),
-                    TableAliasAndName {
-                        mapped_alias: mapped_table_alias.to_string(),
-                        name: table_name.to_string(),
-                    },
-                );
             } else {
                 panic!("Unknown table factor type");
             }
@@ -1801,21 +1851,16 @@ impl LinqQueryBuilder {
 
             joins.push(JoinOnWithTable {
                 table_name,
-                has_explicit_alias,
                 original_table_alias: table_alias.to_string(),
                 lower_table_alias: table_alias.to_lowercase(),
                 constraints: current_joins,
             });
         }
 
-        self.rearrange_joins(&mut joins, main_table_alias);
+        self.rearrange_joins(&mut joins, &alias_to_table_map, main_table_alias);
         let number_of_joins = joins.len();
 
         let main_table_names = alias_to_table_map.get(main_table_alias).unwrap();
-        let main_table = self
-            .schema_mapping
-            .get_table(&main_table_names.name)
-            .unwrap();
 
         for join in joins {
             let mapped_table_name = self
@@ -1825,6 +1870,15 @@ impl LinqQueryBuilder {
 
             let table = alias_to_table_map.get(&join.lower_table_alias).unwrap();
 
+            let join_table = self.schema_mapping.get_table(&join.table_name).unwrap();
+
+            // We skip these because we assume the join constraints are done on the correct keys
+            // Because EF does them under the hood and gives you access through "navigation properties"
+            if join_table.is_m2m && number_of_joins > 1 {
+                joined_aliases.push(join.original_table_alias);
+                continue;
+            }
+
             if join.constraints.len() == 1 {
                 let constraint = &join.constraints[0];
                 let mut left_table_alias = &constraint.left_table_alias;
@@ -1833,19 +1887,11 @@ impl LinqQueryBuilder {
                 let mut left_table_field = &constraint.left_table_field;
                 let mut right_table_field = &constraint.right_table_field;
 
-                let join_table = self.schema_mapping.get_table(&join.table_name).unwrap();
-
-                // We skip these because we assume the join constraints are done on the correct keys
-                // Because EF does them under the hood and gives you access through "navigation properties"
-
-                if join_table.is_m2m && number_of_joins > 1 {
-                    joined_aliases.push(join.original_table_alias);
-                    continue;
-                }
-
                 let right_table = alias_to_table_map.get(right_table_alias).unwrap();
+                // this is the case when you join the table in reverse order
                 if joined_aliases.contains(&right_table.mapped_alias)
-                // this is the case when you join the table in reverse order, only ƒor the first constraint
+                    || main_table_alias.to_lowercase() == right_table_alias.to_lowercase()
+                // only for first constraint
                 {
                     let temp_table_alias = left_table_alias;
                     let temp_table_field = left_table_field;
@@ -1876,12 +1922,6 @@ impl LinqQueryBuilder {
                 } else {
                     None
                 };
-                // if left is m2m, then use right? idk?
-
-                // println!("Join: {:?}", join_table);
-                // println!("Left: {:?}", left_table);
-                // println!("Right: {:?}", right_table);
-                // println!("!!!!!!!!!!!");
 
                 let mapped_left_field = self
                     .schema_mapping
@@ -1896,21 +1936,23 @@ impl LinqQueryBuilder {
                 if m2m_table.is_some() {
                     let m2m_table = m2m_table.unwrap();
 
-                    let (relation_column, other_table_alias) = if join_table.is_m2m {
-                        (
-                            self.schema_mapping
-                                .get_other_relation_column(m2m_table, &main_table_names.name)
-                                .unwrap(),
-                            &right_table_info.mapped_alias,
-                        )
+                    let other_table_alias = if left_table_info.mapped_alias == *main_table_alias {
+                        &right_table_info.mapped_alias
+                    } else if left_table.is_m2m {
+                        &right_table_info.mapped_alias
                     } else {
-                        (
-                            self.schema_mapping
-                                .get_relation_column(m2m_table, &join.table_name)
-                                .unwrap(),
-                            &right_table_info.mapped_alias,
-                        )
+                        &left_table_info.mapped_alias
                     };
+
+                    // TODO: can it have multiple constraints?...
+                    let relation_column = self
+                        .schema_mapping
+                        .get_relation_column(
+                            m2m_table,
+                            &main_table_names.name,
+                            &join.constraints[0],
+                        )
+                        .unwrap();
 
                     linq_query.push_str(&format!(
                         ".SelectMany({} => {}.{}, ({}, {}) => new {{ {}, {} }})",
@@ -2443,82 +2485,77 @@ impl LinqQueryBuilder {
         };
     }
 
+    fn get_alias_by_table<'a>(
+        &'a self,
+        alias_to_table_map: &'a CaseInsensitiveIndexMap<TableAliasAndName>,
+        table: &str,
+    ) -> Option<&String> {
+        let lowercase_table = table.to_lowercase();
+
+        for (alias, table_alias) in alias_to_table_map {
+            if &lowercase_table == &table_alias.name.to_lowercase() {
+                return Some(alias);
+            }
+        }
+
+        return None;
+    }
+
     fn build_select(
         &self,
         select: &Box<Select>,
         use_new_object_for_select: bool,
         should_stringify_single_select: bool,
         should_check_for_value_if_optional: bool,
+        should_use_aliases_in_prefix: bool,
     ) -> SelectResult {
         let mut linq_query: HashMap<String, String> = HashMap::new();
 
-        let main_table_name: String;
         let main_table_alias: String;
-        let mapped_main_table_alias: String;
-
-        let mut alias_to_table_map: CaseInsensitiveIndexMap<TableAliasAndName> =
-            CaseInsensitiveIndexMap::new();
 
         let table = &select.from[0];
+        let alias_to_table_map = self.build_alias_to_table_map(table);
 
         if let sqlparser::ast::TableFactor::Table { name, alias, .. } = &table.relation {
-            if let Some(alias) = alias {
-                main_table_alias = alias.to_string();
-                mapped_main_table_alias = alias.to_string();
-            } else {
-                if table.joins.len() > 0 {
-                    main_table_alias = name.to_string();
-                    // TODO: why?
-                    // mapped_main_table_alias = self
-                    //     .schema_mapping
-                    //     .get_table_name(&main_table_alias)
-                    //     .unwrap()
-                    //     .to_string();
-                    mapped_main_table_alias = name.to_string();
-                } else {
-                    main_table_alias = "".to_string();
-                    mapped_main_table_alias = "".to_string();
-                }
-            }
-
-            // TODO: This is not always right, example:
-            //     var sql = "SELECT T2.name FROM Friend AS T1 JOIN Highschooler AS T2 ON T1.student_id  =  T2.id GROUP BY T1.student_id HAVING count(*)  >=  3";
-            // The first table is a M2M one, doesn't exist.
-            main_table_name = name.to_string();
-
-            let main_table = self.schema_mapping.get_table(&main_table_name).unwrap();
+            let main_table = self.schema_mapping.get_table(&name.to_string()).unwrap();
 
             if main_table.is_m2m {
                 let parent_table_name = main_table.parent_table.clone().unwrap();
 
-                let mapped_table_name = self
-                    .schema_mapping
-                    .get_table_name(&parent_table_name)
-                    .unwrap();
+                let parent_table = self.schema_mapping.get_table(&parent_table_name).unwrap();
+                let parent_table_alias_option =
+                    self.get_alias_by_table(&alias_to_table_map, &parent_table_name);
 
+                let parent_table_alias = if parent_table_alias_option.is_some() {
+                    parent_table_alias_option.unwrap().to_string()
+                } else if alias.is_some() {
+                    alias.clone().unwrap().to_string()
+                } else {
+                    name.to_string()
+                };
+
+                main_table_alias = parent_table_alias.to_string();
                 linq_query.insert(
                     "context".to_string(),
-                    format!("context.{}", mapped_table_name),
+                    format!("context.{}", parent_table.table),
                 );
             } else {
                 let mapped_table_name = self
                     .schema_mapping
-                    .get_table_name(&main_table_name)
+                    .get_table_name(&name.to_string())
                     .unwrap();
+
+                main_table_alias = if alias.is_some() {
+                    alias.clone().unwrap().to_string()
+                } else {
+                    mapped_table_name.to_string()
+                };
 
                 linq_query.insert(
                     "context".to_string(),
                     format!("context.{}", mapped_table_name),
                 );
             }
-
-            alias_to_table_map.insert(
-                main_table_alias.to_string(),
-                TableAliasAndName {
-                    mapped_alias: mapped_main_table_alias.to_string(),
-                    name: main_table_name.to_string(),
-                },
-            );
         } else if let sqlparser::ast::TableFactor::Derived { subquery, .. } = &table.relation {
             let subquery_result = self.build_query_helper(
                 subquery,
@@ -2528,7 +2565,6 @@ impl LinqQueryBuilder {
                 Some(false),
             );
 
-            main_table_name = String::new();
             main_table_alias = String::new();
 
             linq_query.insert("context".to_string(), subquery_result);
@@ -2539,7 +2575,7 @@ impl LinqQueryBuilder {
         if &table.joins.len() > &0 {
             linq_query.insert(
                 "joins".to_string(),
-                self.build_joins(table, &main_table_alias, &mut alias_to_table_map),
+                self.build_joins(table, &main_table_alias, &alias_to_table_map),
             );
         }
 
@@ -2556,7 +2592,8 @@ impl LinqQueryBuilder {
             false
         };
 
-        let (group_by_query, group_by_fields) = self.build_group_by(select, &alias_to_table_map);
+        let (group_by_query, group_by_fields) =
+            self.build_group_by(select, &alias_to_table_map, &main_table_alias);
 
         linq_query.insert("group_by".to_string(), group_by_query);
 
@@ -2606,6 +2643,7 @@ impl LinqQueryBuilder {
                     use_new_object_for_select,
                     should_stringify_single_select,
                     should_check_for_value_if_optional,
+                    should_use_aliases_in_prefix,
                 );
 
                 calculated_fields = projection_result.calculated_fields;
@@ -2719,15 +2757,20 @@ impl LinqQueryBuilder {
             let left_select: HashMap<String, String>;
             let right_select: HashMap<String, String>;
 
+            // TODO: handle the case where you have a SetOperation on left ;))
             // TODO: If both left and right have optional fields, then you can simply not put .Value on both
             if let SetExpr::Select(select) = &**left {
-                left_select = self.build_select(select, false, true, true).linq_query;
+                left_select = self
+                    .build_select(select, false, true, true, false)
+                    .linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
 
             if let SetExpr::Select(select) = &**right {
-                right_select = self.build_select(select, false, true, true).linq_query;
+                right_select = self
+                    .build_select(select, false, true, true, false)
+                    .linq_query;
             } else {
                 panic!("Unknown set expression type");
             }
@@ -2792,11 +2835,14 @@ impl LinqQueryBuilder {
                 true
             };
 
+        let should_use_aliases_in_prefix = true;
+
         let select_result = self.build_select(
             select,
             should_use_new_object_for_select,
             should_stringify_single_select,
             false,
+            should_use_aliases_in_prefix,
         );
 
         let SelectResult {
