@@ -330,7 +330,8 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let model_property_regex = regex::Regex::new(r"public (.*) (.*) \{ get; set; \}").unwrap();
     let context_property_regex = regex::Regex::new(r"entity\s*\.\s*Property\s*\(([^;]+);").unwrap();
     let mapped_column_name_pattern: regex::Regex = regex::Regex::new(r"e => e\.(\w+)\)").unwrap();
-    let sql_table_name_regex = regex::Regex::new(r#"entity.ToTable\(\"(.*)\"\);"#).unwrap();
+    let sql_table_name_regex =
+        regex::Regex::new(r#"entity\s*\.\s*(?:\w+\s*\(\s*\)\s*\.)*ToTable\(\"(.*?)\"\);"#).unwrap();
     let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
     let has_column_type_regex = regex::Regex::new(r#"HasColumnType\(\"(.+?)\""#).unwrap();
     let m2m_table_regex = regex::Regex::new(
@@ -602,6 +603,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             parent_table: None,
             is_m2m: false,
         };
+
         schema_map_tables.insert(sql_table_name.to_string(), schema_map_table);
     }
 

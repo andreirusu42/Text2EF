@@ -1770,7 +1770,11 @@ impl LinqQueryBuilder {
             let alias = if alias.is_some() {
                 alias.clone().unwrap().to_string()
             } else {
-                "".to_string()
+                if table.joins.len() > 0 {
+                    name.to_string()
+                } else {
+                    "".to_string()
+                }
             };
 
             alias_to_table_map.insert(

@@ -283,6 +283,7 @@ fn run_queries_sequentially() {
                         "Unknown panic".to_string()
                     };
 
+                    // TODO: only for debug
                     if !error_message.contains("set expression") {
                         println!("{:?}", error_message);
                         panic!();
@@ -387,7 +388,12 @@ fn main() {
     // run_queries_sequentially();
     // run_queries_bulk();
 
-    // todo: wrong results for both, but no more infinite shit xD
+    // debug_query(
+    //     "bike_1",
+    //     r#"SELECT date FROM weather WHERE max_temperature_f  >  85"#,
+    //     true,
+    // );
+
     // debug_query(
     //     "scientist_1",
     //     r#"SELECT sum(T2.hours) FROM assignedto AS T1 JOIN projects AS T2 ON T1.project  =  T2.code JOIN scientists AS T3 ON T1.scientist  =  T3.SSN WHERE T3.name  =  'Michael Rogers' OR T3.name  =  'Carol Smith'"#,

@@ -2157,7 +2157,7 @@
     "linq": "context.Employees.Select(row => row.Id).Distinct().Count();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,48): error CS1061: 'Employee' does not contain a definition for 'Id' and no accessible extension method 'Id' accepting a first argument of type 'Employee' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.41"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,48): error CS1061: 'Employee' does not contain a definition for 'Id' and no accessible extension method 'Id' accepting a first argument of type 'Employee' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.56"
   },
   {
     "id": "07205c083677fef3773456b84f2ecaaaab97575390a6af2461a0741e437df9ec",
@@ -2166,7 +2166,7 @@
     "linq": "context.Employees.Select(row => row.Eid).Except(context.Employees.Select(row => row.Id)).ToList();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,96): error CS1061: 'Employee' does not contain a definition for 'Id' and no accessible extension method 'Id' accepting a first argument of type 'Employee' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.47"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,96): error CS1061: 'Employee' does not contain a definition for 'Id' and no accessible extension method 'Id' accepting a first argument of type 'Employee' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.28"
   },
   {
     "id": "dd42486c6e8a50d785fef4a0b0c2748159be880035819e551d5e993fbae78d45",
@@ -2211,7 +2211,7 @@
     "linq": "context.Employees.SelectMany(row => row.Aids, (T1, T2) => new { T1, T2 }).GroupBy(row => new { row.T1.Id }).OrderByDescending(group => group.Count()).Select(group => new { group.First().T2.Name }).Take(1).ToList();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,114): error CS1061: 'Employee' does not contain a definition for 'Id' and no accessible extension method 'Id' accepting a first argument of type 'Employee' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:02.27"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,114): error CS1061: 'Employee' does not contain a definition for 'Id' and no accessible extension method 'Id' accepting a first argument of type 'Employee' could be found (are you missing a using directive or an assembly reference?) [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    1 Error(s)\n\nTime Elapsed 00:00:01.33"
   },
   {
     "id": "e6a4ba3c7be53048b57f167cbb1d66bc414d78247350253dacb8b92e84247fcc",
@@ -2220,7 +2220,7 @@
     "linq": "context.Employees.SelectMany(row => row.Aids, (T1, T2) => new { T1, T2 }).Where(row => row.T2.Distance > 5000).GroupBy(row => new { row.T1.Id }).OrderBy(group => row.Count() >= 5).Select(group => new { group.First().T2.Name }).ToList();",
     "db_name": "flight_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,174): error CS0103: The name 'row' does not exist in the current context [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    2 Error(s)\n\nTime Elapsed 00:00:02.09"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,174): error CS0103: The name 'row' does not exist in the current context [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    2 Error(s)\n\nTime Elapsed 00:00:01.26"
   },
   {
     "id": "c141bd54bb0660bb6a45d1c5a982e0bf7626dd4e1e986794ec4e6de7c3a53802",
@@ -2544,7 +2544,7 @@
     "linq": "context.Products.Join(context.Manufacturers, T1 => T1.Manufacturer, T2 => T2.Code, (T1, T2) => new { T1, T2 }).Select(row => new { T1Code = rowT1..Code, T1Name = rowT1..Name, rowT1..Price, rowT1..Manufacturer, T2Code = rowT2..Code, T2Name = rowT2..Name, rowT2..Headquarter, rowT2..Founder, rowT2..Revenue }).ToList();",
     "db_name": "manufactory_1",
     "status": "BuildFailed",
-    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,309): error CS0103: The name 'Revenue' does not exist in the current context [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    23 Error(s)\n\nTime Elapsed 00:00:02.00"
+    "error": "/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/Program.cs(9,309): error CS0103: The name 'Revenue' does not exist in the current context [/Users/qfl1ck32/Stuff/Facultate/disertatie/Text2ORM/entity-framework/entity-framework.csproj]\n    2 Warning(s)\n    23 Error(s)\n\nTime Elapsed 00:00:01.34"
   },
   {
     "id": "41fa611c7831012d30e168d4c5c2103ebe3372e0bade623cd433535865b2bdee",
