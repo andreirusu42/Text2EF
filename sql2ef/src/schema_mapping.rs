@@ -330,7 +330,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let model_property_regex = regex::Regex::new(r"public (.*) (.*) \{ get; set; \}").unwrap();
     let context_property_regex = regex::Regex::new(r"entity\s*\.\s*Property\s*\(([^;]+);").unwrap();
     let mapped_column_name_pattern: regex::Regex = regex::Regex::new(r"e => e\.(\w+)\)").unwrap();
-    let sql_table_name_regex = regex::Regex::new(r#".ToTable\(\"(.*)\"\);"#).unwrap();
+    let sql_table_name_regex = regex::Regex::new(r#"entity.ToTable\(\"(.*)\"\);"#).unwrap();
     let has_column_name_regex = regex::Regex::new(r#"HasColumnName\(\"(.+?)\""#).unwrap();
     let has_column_type_regex = regex::Regex::new(r#"HasColumnType\(\"(.+?)\""#).unwrap();
     let m2m_table_regex = regex::Regex::new(
@@ -341,7 +341,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
     let m2m_table_and_alias_regex =
         regex::Regex::new(r#"\.UsingEntity<.*>\(\s*\"(.*)\"[\s\S]*?.ToTable\(\"(.*)\""#).unwrap();
     let join_table_fields_regex = regex::Regex::new(
-        r#"\.IndexerProperty<([^>]*)>\s*\("([^"]*)"\)\s*(?:\.HasColumnType\("([^"]*)"\)\s*)?\.HasColumnName\("([^"]*)"\);"#,
+        r#"\.IndexerProperty<([^>]*)>\s*\("([^"]*)"\)\s*(?:\.HasColumnType\("([^"]*)"\)\s*)?(\.HasColumnName\("([^"]*)"\))?;"#,
     )
     .unwrap();
 
@@ -423,11 +423,21 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
             let has_many_column_field_type = how_many_column_fields.get(1).unwrap().as_str();
             let has_many_column_name = how_many_column_fields.get(2).unwrap().as_str(); // TODO: dunno if needed
-            let has_many_column_column_name = how_many_column_fields.get(4).unwrap().as_str();
+            let has_many_column_column_name =
+                if let Some(has_many_column_column_name) = how_many_column_fields.get(4) {
+                    has_many_column_column_name.as_str()
+                } else {
+                    has_many_column_name
+                };
 
             let with_many_column_field_type = with_many_column_fields.get(1).unwrap().as_str();
             let with_many_column_name = with_many_column_fields.get(2).unwrap().as_str(); // TODO: dunno if needed
-            let with_many_column_column_name = with_many_column_fields.get(4).unwrap().as_str();
+            let with_many_column_column_name =
+                if let Some(with_many_column_column_name) = with_many_column_fields.get(4) {
+                    with_many_column_column_name.as_str()
+                } else {
+                    with_many_column_name
+                };
 
             // TODO: open the file, find the primary key of the related table, and use that as the column name
             let relation_id_column_name = "Id".to_string();
@@ -453,7 +463,7 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
                 let field_type = field.get(1).unwrap().as_str();
                 let field_name = field.get(2).unwrap().as_str();
-                let column_name = field.get(4).unwrap().as_str();
+                let column_name = field.get(5).unwrap().as_str();
 
                 columns.insert(
                     column_name.to_string(),
@@ -473,7 +483,11 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
 
                 let field_type = field.get(1).unwrap().as_str();
                 let field_name = field.get(2).unwrap().as_str(); // TODO: needed?
-                let column_name = field.get(4).unwrap().as_str();
+                let column_name = if let Some(column_name) = field.get(5) {
+                    column_name.as_str()
+                } else {
+                    field_name
+                };
 
                 columns.insert(
                     column_name.to_string(),
@@ -588,7 +602,6 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
             parent_table: None,
             is_m2m: false,
         };
-
         schema_map_tables.insert(sql_table_name.to_string(), schema_map_table);
     }
 

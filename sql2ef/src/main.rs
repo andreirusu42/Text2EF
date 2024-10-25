@@ -98,7 +98,6 @@ fn execute_query_and_update_tests_file(
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
-                    exit(0);
                 }
 
                 CodeResultStatus::UnhandledException(error) => {
@@ -114,7 +113,6 @@ fn execute_query_and_update_tests_file(
                     );
 
                     query_manager.write_test_or_update(test).unwrap();
-                    exit(0);
                 }
             }
         }
@@ -131,7 +129,6 @@ fn execute_query_and_update_tests_file(
             );
 
             query_manager.write_test_or_update(test).unwrap();
-            exit(0);
         }
     }
 }
@@ -317,26 +314,18 @@ fn run_queries_sequentially() {
                     println!(
                         "Query already exists in the tests file, but it's not passed. Retesting..."
                     );
-
-                    execute_query_and_update_tests_file(
-                        &context_name,
-                        &db_name,
-                        query,
-                        &result,
-                        &mut query_manager,
-                    );
-
-                    continue;
+                } else if test.linq != result {
+                    println!("Query already exists in the tests file, but the result is different. Retesting...");
                 }
-            }
 
-            execute_query_and_update_tests_file(
-                &context_name,
-                &db_name,
-                &query,
-                &result,
-                &mut query_manager,
-            );
+                execute_query_and_update_tests_file(
+                    &context_name,
+                    &db_name,
+                    query,
+                    &result,
+                    &mut query_manager,
+                );
+            }
         }
     }
 }
@@ -395,12 +384,25 @@ fn debug_query(db_name: &str, query: &str, with_code_execution: bool) {
 
 fn main() {
     // run_tests();
-    run_queries_sequentially();
+    // run_queries_sequentially();
     // run_queries_bulk();
 
+    // todo: wrong results for both, but no more infinite shit xD
     // debug_query(
-    //     "game_injury",
-    //     r#"SELECT name ,  average_attendance ,  total_attendance FROM stadium EXCEPT SELECT T2.name ,  T2.average_attendance ,  T2.total_attendance FROM game AS T1 JOIN stadium AS T2 ON T1.stadium_id  =  T2.id JOIN injury_accident AS T3 ON T1.id  =  T3.game_id"#,
+    //     "scientist_1",
+    //     r#"SELECT sum(T2.hours) FROM assignedto AS T1 JOIN projects AS T2 ON T1.project  =  T2.code JOIN scientists AS T3 ON T1.scientist  =  T3.SSN WHERE T3.name  =  'Michael Rogers' OR T3.name  =  'Carol Smith'"#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "station_weather",
+    //     r#"SELECT t3.name ,  t3.time FROM route AS t2 JOIN station AS t1 ON t1.id  =  t2.station_id JOIN train AS t3 ON t2.train_id  =  t3.id WHERE t1.local_authority  =  "Chiltern""#,
+    //     true,
+    // );
+
+    // debug_query(
+    //     "station_weather",
+    //     r#"SELECT t1.name FROM train AS t1 JOIN route AS t2 ON t1.id  =  t2.train_id GROUP BY t2.train_id ORDER BY count(*) DESC LIMIT 1"#,
     //     true,
     // );
 
@@ -499,13 +501,6 @@ fn main() {
     // debug_query(
     //     "station_weather",
     //     r#"SELECT t3.name ,  t3.time FROM station AS t1 JOIN route AS t2 ON t1.id  =  t2.station_id JOIN train AS t3 ON t2.train_id  =  t3.id WHERE t1.local_authority  =  "Chiltern""#,
-    //     true,
-    // );
-
-    // TODO: this goes on to infinity and i dunno why
-    // debug_query(
-    //     "station_weather",
-    //     r#"SELECT t3.name ,  t3.time FROM route AS t2 JOIN station AS t1 ON t1.id  =  t2.station_id JOIN train AS t3 ON t2.train_id  =  t3.id WHERE t1.local_authority  =  "Chiltern""#,
     //     true,
     // );
 

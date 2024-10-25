@@ -1669,6 +1669,7 @@ impl LinqQueryBuilder {
         joins: &mut Vec<JoinOnWithTable>,
         alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
         main_table_alias: &str,
+        m2m_table_alias: Option<&String>,
     ) {
         let number_of_joins = joins.len();
 
@@ -1677,27 +1678,28 @@ impl LinqQueryBuilder {
         }
 
         let mut all_join_constraints: Vec<JoinOn> = Vec::new();
-        let mut all_constraints: Vec<Vec<(&str, &str)>> = Vec::new();
+        let mut all_constraints: Vec<Vec<(String, String)>> = Vec::new(); // Changed to Vec<(String, String)>
 
         for join in joins.iter() {
             all_join_constraints.append(&mut join.constraints.clone());
             all_constraints.push(
                 join.constraints
                     .iter()
-                    .map(|c| (c.left_table_alias.as_str(), c.right_table_alias.as_str()))
+                    .map(|c| (c.left_table_alias.clone(), c.right_table_alias.clone())) // Now clone the String
                     .collect(),
             );
         }
 
-        let all_tables = joins
+        let all_tables: Vec<String> = joins
             .iter()
-            .map(|join| join.lower_table_alias.as_str())
+            .map(|join| join.lower_table_alias.clone()) // Collect into Vec<String>
             .collect();
 
         let mut aliases_in_correct_order_to_join = determine_join_order(
             &mut all_constraints,
             all_tables,
-            &main_table_alias.to_lowercase(),
+            main_table_alias.to_lowercase(), // Pass by value since it's a String
+            m2m_table_alias,
         );
 
         let mut aliases_known_so_far: CaseInsensitiveHashSet<String> =
@@ -1775,7 +1777,7 @@ impl LinqQueryBuilder {
                 alias.to_string(),
                 TableAliasAndName {
                     mapped_alias: alias.to_string(),
-                    name: name.to_string(),
+                    name: name.to_string().to_lowercase(),
                 },
             );
         }
@@ -1814,6 +1816,7 @@ impl LinqQueryBuilder {
         &self,
         table: &TableWithJoins,
         main_table_alias: &String,
+        m2m_table_alias: Option<&String>,
         alias_to_table_map: &CaseInsensitiveIndexMap<TableAliasAndName>,
     ) -> String {
         let mut linq_query = String::new();
@@ -1857,7 +1860,12 @@ impl LinqQueryBuilder {
             });
         }
 
-        self.rearrange_joins(&mut joins, &alias_to_table_map, main_table_alias);
+        self.rearrange_joins(
+            &mut joins,
+            &alias_to_table_map,
+            main_table_alias,
+            m2m_table_alias,
+        );
         let number_of_joins = joins.len();
 
         let main_table_names = alias_to_table_map.get(main_table_alias).unwrap();
@@ -2038,14 +2046,29 @@ impl LinqQueryBuilder {
                         table.mapped_alias
                     ));
                 } else {
-                    linq_query.push_str(&format!(
-                        ".SelectMany(s => context.{}, ({}, {}) => new {{ {}, {} }})",
-                        mapped_table_name,
-                        main_table_alias,
-                        table.mapped_alias,
-                        main_table_alias,
-                        table.mapped_alias
-                    ));
+                    // TODO: probably NOT the solution
+                    // Also, if constraints would be built correctly, then it would work with above case ^
+                    if let Some(_) = m2m_table_alias {
+                        linq_query.push_str(&format!(
+                            ".SelectMany({} => {}.{}, ({}, {}) => new {{ {}, {} }})",
+                            self.row_selector,
+                            self.row_selector,
+                            mapped_table_name,
+                            main_table_alias,
+                            table.mapped_alias,
+                            main_table_alias,
+                            table.mapped_alias
+                        ));
+                    } else {
+                        linq_query.push_str(&format!(
+                            ".SelectMany(s => context.{}, ({}, {}) => new {{ {}, {} }})",
+                            mapped_table_name,
+                            main_table_alias,
+                            table.mapped_alias,
+                            main_table_alias,
+                            table.mapped_alias
+                        ));
+                    }
                 }
             } else {
                 linq_query.push_str(&format!(".Join(context.{}, ", mapped_table_name));
@@ -2515,9 +2538,13 @@ impl LinqQueryBuilder {
 
         let table = &select.from[0];
         let alias_to_table_map = self.build_alias_to_table_map(table);
+        let mut m2m_table_alias: Option<&String> = None;
 
         if let sqlparser::ast::TableFactor::Table { name, alias, .. } = &table.relation {
             let main_table = self.schema_mapping.get_table(&name.to_string()).unwrap();
+            let current_main_table_alias = self
+                .get_alias_by_table(&alias_to_table_map, &name.to_string())
+                .unwrap();
 
             if main_table.is_m2m {
                 let parent_table_name = main_table.parent_table.clone().unwrap();
@@ -2539,6 +2566,8 @@ impl LinqQueryBuilder {
                     "context".to_string(),
                     format!("context.{}", parent_table.table),
                 );
+
+                m2m_table_alias = Some(current_main_table_alias);
             } else {
                 let mapped_table_name = self
                     .schema_mapping
@@ -2575,7 +2604,12 @@ impl LinqQueryBuilder {
         if &table.joins.len() > &0 {
             linq_query.insert(
                 "joins".to_string(),
-                self.build_joins(table, &main_table_alias, &alias_to_table_map),
+                self.build_joins(
+                    table,
+                    &main_table_alias,
+                    m2m_table_alias,
+                    &alias_to_table_map,
+                ),
             );
         }
 
