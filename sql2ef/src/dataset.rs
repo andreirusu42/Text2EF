@@ -13,6 +13,7 @@ pub struct RawQuery {
 
 #[derive(Debug)]
 pub struct Dataset {
+    pub dataset_name: String,
     pub db_names: Vec<String>,
     pub queries: HashMap<String, Vec<RawQuery>>,
 }
@@ -24,9 +25,9 @@ struct QueryRecord {
     question: String,
 }
 
-pub fn extract_queries(models_dir: &str, dataset_file_path: &str) -> Dataset {
+pub fn extract_queries(models_dir: &str, dataset_name: &str, dataset_file_path: &str) -> Dataset {
     let mut db_names: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(models_dir).unwrap() {
+    for entry in std::fs::read_dir(Path::new(models_dir).join(dataset_name)).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
 
@@ -59,5 +60,9 @@ pub fn extract_queries(models_dir: &str, dataset_file_path: &str) -> Dataset {
         });
     }
 
-    Dataset { db_names, queries }
+    Dataset {
+        db_names,
+        queries,
+        dataset_name: dataset_name.to_string(),
+    }
 }

@@ -199,6 +199,13 @@ class Tester
         var linqResults = ExecuteLinqQuery<object>(linqQuery);
         var sqlResults = ExecuteSqlQuery(sqlQuery, context);
 
+        Console.WriteLine(linqResults.Count());
+
+        for (int i = 0; i < linqResults.Count; ++i)
+        {
+
+        }
+
         // TODO: Issue. You can not simply compare these.
         // Imagine when you have a VARCHAR(7) in sql, which is translated to a Decimal / int in linq.
         // I know this is stupid, but when you scaffold the model, this is how it's generated :/
@@ -232,6 +239,8 @@ class Tester
             {
                 var sql = sqlResults[i];
                 var linq = linqResults[i];
+
+                // TODO: also check here the length! maybe they're different
 
                 for (int j = 0; j < sql.Count; ++j)
                 {

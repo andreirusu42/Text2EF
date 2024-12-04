@@ -509,6 +509,8 @@ pub fn create_schema_map(model_folder_path: &str) -> SchemaMapping {
                 parent_table: Some(sql_table_name.to_string()),
             };
 
+            println!("{:?}", schema_map_table);
+
             schema_map_tables.insert(table_name.to_string().to_lowercase(), schema_map_table);
         }
 

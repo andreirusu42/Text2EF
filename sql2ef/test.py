@@ -18,3 +18,16 @@ print(f'CodeFailed: {code_failed}')
 print(f'QueryBuildFailed: {query_build_failed}')
 print(f'SchemaMappingGenerationFailed: {schema_mapping_failed}')
 print(f'Others: {others}')
+
+print(f'Percentage of Passed: {passed/len(data)*100}%')
+
+
+def generate_failing_queries_json():
+    failed_queries = list(filter(lambda x: x['status'] != 'Passed', data))
+
+    with open("src/failing_queries.json", "w+") as f:
+        f.writelines(json.dumps(failed_queries))
+
+
+if __name__ == '__main__':
+    generate_failing_queries_json()

@@ -325,15 +325,18 @@ impl LinqQueryBuilder {
                 let alias_prefix = if table.mapped_alias.is_empty() {
                     "".to_string()
                 } else {
-                    format!("{}.", table.mapped_alias)
+                    format!(".{}.", table.mapped_alias)
                 };
 
                 select_fields.push(format!(
-                    "{}{}{}.{}",
+                    "{}{}{}{}",
                     prefix, self.row_selector, alias_prefix, column.name
                 ));
             }
         }
+
+        println!("Aici");
+        println!("{:?}", select_fields);
 
         result.push_str(&format!(".Select({} => new {{ ", self.row_selector));
         result.push_str(&select_fields.join(", "));
@@ -2581,7 +2584,7 @@ impl LinqQueryBuilder {
                 main_table_alias = if alias.is_some() {
                     alias.clone().unwrap().to_string()
                 } else {
-                    mapped_table_name.to_string()
+                    name.to_string()
                 };
 
                 linq_query.insert(

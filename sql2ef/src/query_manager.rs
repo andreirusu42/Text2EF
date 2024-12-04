@@ -33,16 +33,19 @@ pub enum TestStatus {
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 pub struct Query {
     pub id: String,
+    pub dataset_name: String,
     pub sql: String,
     pub question: String,
     pub linq: String,
     pub db_name: String,
     pub status: TestStatus,
     pub error: Option<String>,
+    pub should_retest: bool,
 }
 
 impl Query {
     pub fn new(
+        dataset_name: &str,
         db_name: &str,
         sql: &str,
         question: &str,
@@ -54,12 +57,14 @@ impl Query {
 
         Self {
             id,
+            dataset_name: dataset_name.to_string(),
             sql: sql.to_string(),
             question: question.to_string(),
             linq: linq.to_string(),
             db_name: db_name.to_string(),
             status,
             error,
+            should_retest: false,
         }
     }
 }
@@ -121,6 +126,16 @@ impl QueryManager {
         }
 
         self.write_queries()
+    }
+
+    pub fn get_query_by_id(&self, id: &str) -> Option<Query> {
+        for test in &self.queries {
+            if test.id == id {
+                return Some(test.clone());
+            }
+        }
+
+        None
     }
 
     pub fn get_query(&self, query: &str, db_name: &str) -> Option<Query> {

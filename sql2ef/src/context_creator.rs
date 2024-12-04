@@ -22,8 +22,12 @@ fn clean_string(input: &str) -> String {
         .replace("\u{feff}", "")
 }
 
-pub fn extract_context_for_databases() {
-    let dataset = extract_queries(constants::EF_MODELS_DIR, constants::DATASET_FILE_PATH);
+pub fn extract_context_for_databases(dataset_name: &str) {
+    let dataset = extract_queries(
+        constants::EF_MODELS_DIR,
+        dataset_name,
+        constants::SPIDER_DATASET_FILE_PATH,
+    );
 
     let db_names: HashSet<String> = dataset
         .db_names
@@ -36,6 +40,7 @@ pub fn extract_context_for_databases() {
     for db_name in db_names {
         let context_and_models = extract_context_and_models(
             Path::new(constants::EF_MODELS_DIR)
+                .join(dataset_name)
                 .join(&db_name)
                 .to_str()
                 .unwrap(),
